@@ -1,0 +1,84 @@
+# Every check a developer runs locally, on every push and PR: typecheck, lint,
+# format, tests with coverage, and a production build. The build catches what
+# the others miss, so a PR that does not build is never merged.
+
+name: ci
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Typecheck, lint, format, test, build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        # Strictly from package-lock.json. HUSKY=0 skips installing git hooks,
+        # which CI has no use for.
+        env:
+          HUSKY: "0"
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Format
+        run: npm run format:check
+
+      - name: Test
+        run: npm run test:coverage
+
+      - name: Build
+        env:
+          # Inlined into the bundle at build time. A placeholder is enough to
+          # prove the build works; deploy workflows set the real value.
+          VITE_API_BASE_URL: http://localhost:8000/api/v1
+        run: npm run build
+
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage
+          path: coverage/
+          if-no-files-found: warn
+          retention-days: 14
+
+  audit:
+    name: Dependency audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+
+      - name: Audit production dependencies
+        # continue-on-error so an advisory published upstream does not block an
+        # unrelated PR. It shows in the run summary and is triaged as an issue.
+        continue-on-error: true
+        run: npm audit --omit=dev --audit-level=high
