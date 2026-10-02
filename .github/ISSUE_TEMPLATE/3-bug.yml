@@ -1,0 +1,61 @@
+name: Bug report
+description: A screen behaves differently from the SRS, a story, or the design.
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What is wrong
+      description: One or two sentences, as observed.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      value: |
+        1. Go to
+        2.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected
+      description: Cite the story AC id or the SRS requirement.
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual
+      description: Add a screenshot. Blur or remove any real student data first.
+    validations:
+      required: true
+  - type: input
+    id: request-id
+    attributes:
+      label: request_id
+      description: If an API call failed, the request_id from the response (browser dev tools, Network tab).
+  - type: input
+    id: browser
+    attributes:
+      label: Browser and device
+      placeholder: "Chrome 128 on Windows 11, or Safari on iPhone 13"
+    validations:
+      required: true
+  - type: dropdown
+    id: environment
+    attributes:
+      label: Environment
+      options:
+        - Local
+        - Staging
+        - Production
+    validations:
+      required: true
+  - type: input
+    id: story
+    attributes:
+      label: Related story
+      placeholder: "#34"
