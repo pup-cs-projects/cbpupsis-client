@@ -1,0 +1,11 @@
+@import "tailwindcss";
+
+@theme {
+  /*
+   * PUP visual identity (SRS 5.1). Placeholder values until the official
+   * maroon and gold are confirmed from the university style guide; change them
+   * here only, never as raw hex values in components.
+   */
+  --color-brand-maroon: #7b1113;
+  --color-brand-gold: #f1b51c;
+}

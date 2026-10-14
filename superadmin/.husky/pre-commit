@@ -1,0 +1,14 @@
+# The org's Free plan cannot protect branches on private repositories, so
+# "never commit directly to main or dev" is enforced on each machine.
+branch="$(git rev-parse --abbrev-ref HEAD)"
+if [ "$branch" = "main" ] || [ "$branch" = "dev" ]; then
+  echo "Do not commit directly to $branch. Create a branch first: git checkout -b feature/<name>"
+  exit 1
+fi
+
+if git diff --cached -U0 | grep -Eq '^\+.*-----BEGIN [A-Z ]*PRIVATE KEY-----'; then
+  echo "A private key is staged. Remove it from the commit."
+  exit 1
+fi
+
+npx lint-staged

@@ -1,0 +1,9 @@
+# LF everywhere, on every platform. Prettier writes LF, so a Windows checkout
+# converted to CRLF would fail `npm run format:check` on every file, and husky
+# hook scripts with CRLF endings do not run on Linux or macOS.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.ico binary
+*.woff2 binary
