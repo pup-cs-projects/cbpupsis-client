@@ -28,6 +28,10 @@ export function positiveNumber(value: unknown): number {
   return typeof value === "number" && Number.isFinite(value) && value > 0 ? value : invalid();
 }
 
+export function nonNegativeInteger(value: unknown): number {
+  return typeof value === "number" && Number.isInteger(value) && value >= 0 ? value : invalid();
+}
+
 export function literal<const T extends string>(value: unknown, expected: T): T {
   return value === expected ? expected : invalid();
 }

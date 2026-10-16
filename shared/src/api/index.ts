@@ -3,6 +3,7 @@ export {
   ApiError,
   errorMessage,
   isChallengeRejected,
+  isPasswordChangeRequired,
   isThrottled,
   type ApiErrorCode,
 } from "./errors";
