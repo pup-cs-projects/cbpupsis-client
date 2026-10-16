@@ -2,46 +2,86 @@ import {
   createRootRoute,
   createRoute,
   createRouter,
-  Outlet,
   redirect,
   type RouterHistory,
 } from "@tanstack/react-router";
 
-import { SessionWatcher } from "../features/auth/SessionWatcher";
+import { AppFrame } from "../features/auth/AppFrame";
+import { ChangePasswordPage } from "../features/auth/ChangePasswordPage";
 import { FacultyDashboard } from "../features/auth/FacultyDashboard";
 import { FacultyLoginPage } from "../features/auth/FacultyLoginPage";
+import { ForgotPasswordPage } from "../features/auth/ForgotPasswordPage";
+import { ResetPasswordPage } from "../features/auth/ResetPasswordPage";
 import { session } from "../lib/auth";
 
-const rootRoute = createRootRoute({
-  component: () => (
-    <>
-      <SessionWatcher />
-      <Outlet />
-    </>
-  ),
-});
+const rootRoute = createRootRoute({ component: AppFrame });
+
+/** Why sign-in is showing: the session ended (`expired`), or a reset just finished. */
+export interface SignInSearch {
+  expired?: true | "idle";
+  notice?: "password-reset";
+}
 
 const signInRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  validateSearch: (search: Record<string, unknown>): { expired?: true } =>
-    search.expired === true || search.expired === "true" ? { expired: true } : {},
+  validateSearch: (search: Record<string, unknown>): SignInSearch => ({
+    ...(search.expired === "idle"
+      ? { expired: "idle" }
+      : search.expired === true || search.expired === "true"
+        ? { expired: true }
+        : {}),
+    ...(search.notice === "password-reset" ? { notice: "password-reset" } : {}),
+  }),
   beforeLoad: () => {
     if (session.isSignedIn()) throw redirect({ to: "/dashboard" });
   },
   component: FacultyLoginPage,
 });
 
+// Public: reachable without a session, from the sign-in page and from the mailed link.
+const forgotPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/forgot-password",
+  component: ForgotPasswordPage,
+});
+
+const resetPasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/reset-password",
+  validateSearch: (search: Record<string, unknown>): { token?: string } =>
+    typeof search.token === "string" && search.token ? { token: search.token } : {},
+  component: ResetPasswordPage,
+});
+
+// The API accepts a password change only with the signed-in session.
+const changePasswordRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/change-password",
+  beforeLoad: () => {
+    if (!session.isSignedIn()) throw redirect({ to: "/" });
+  },
+  component: ChangePasswordPage,
+});
+
 const dashboardRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/dashboard",
+  validateSearch: (search: Record<string, unknown>): { notice?: "password-changed" } =>
+    search.notice === "password-changed" ? { notice: "password-changed" } : {},
   beforeLoad: () => {
     if (!session.isSignedIn()) throw redirect({ to: "/" });
   },
   component: FacultyDashboard,
 });
 
-const routeTree = rootRoute.addChildren([signInRoute, dashboardRoute]);
+const routeTree = rootRoute.addChildren([
+  signInRoute,
+  forgotPasswordRoute,
+  resetPasswordRoute,
+  changePasswordRoute,
+  dashboardRoute,
+]);
 
 /** Tests pass a memory history; the app uses the browser's. */
 export function createAppRouter(history?: RouterHistory) {
