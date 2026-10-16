@@ -140,6 +140,44 @@ describe("superadmin sign-in (US-104)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/already used/);
   });
 
+  it("goes from the second factor straight to the password change while a temporary password is pending", async () => {
+    mockApi({
+      "POST /auth/superadmin/login": { status: 200, body: challenge(false) },
+      "POST /auth/superadmin/mfa/verify": { status: 200, body: tokens },
+      "GET /superadmin/me": {
+        status: 403,
+        body: { detail: "Change it", code: "PASSWORD_CHANGE_REQUIRED" },
+      },
+    });
+    const router = renderApp("/");
+
+    const user = await signInWithPassword();
+    await enterCode(user, "123456", /verify and sign in/i);
+
+    expect(await screen.findByRole("heading", { name: "Choose your own password" })).toHaveFocus();
+    expect(router.state.location.pathname).toBe("/change-password");
+  });
+
+  it("offers a reset when the temporary password has expired", async () => {
+    mockApi({
+      "POST /auth/superadmin/login": {
+        status: 401,
+        body: { detail: "x", request_id: "req-t", code: "AUTH_TEMPORARY_PASSWORD_EXPIRED" },
+      },
+    });
+    renderApp("/");
+
+    await signInWithPassword();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Your temporary password has expired.");
+    expect(alert).toHaveTextContent("Reference: req-t");
+    expect(screen.getByRole("link", { name: "Reset your password" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
+  });
+
   it("blocks an expired challenge and offers a fresh sign-in", async () => {
     mockApi({
       "POST /auth/superadmin/login": { status: 200, body: challenge(false) },

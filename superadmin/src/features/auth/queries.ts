@@ -1,4 +1,6 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { isPasswordChangeRequired } from "@cbpupsis/shared/api";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate } from "@tanstack/react-router";
 
 import { authApi, session } from "../../lib/auth";
 
@@ -11,12 +13,41 @@ export const authKeys = {
 // mutation cache once the step is done.
 const transient = { gcTime: 0, retry: false } as const;
 
+const meQuery = {
+  queryKey: authKeys.me(),
+  queryFn: () => session.authorized(authApi.me),
+  retry: false,
+} as const;
+
 /** The signed-in superadmin. A 401 here ends the session, which sends the app to sign-in. */
 export function useMe() {
-  return useQuery({
-    queryKey: authKeys.me(),
-    queryFn: () => session.authorized(authApi.me),
-    retry: false,
+  return useQuery(meQuery);
+}
+
+/**
+ * The last step of signing in: load the account, then open the portal. An account that still
+ * holds a temporary password goes to the password change instead (SessionWatcher sends it), so
+ * the dashboard never flashes first.
+ */
+export function useEnterPortal() {
+  const queryClient = useQueryClient();
+  const navigate = useNavigate();
+  return useMutation({
+    mutationFn: async () => {
+      try {
+        await queryClient.fetchQuery(meQuery);
+      } catch (error) {
+        if (isPasswordChangeRequired(error)) return "change-password" as const;
+        // Anything else is shown by the dashboard, with its own retry.
+      }
+      return "portal" as const;
+    },
+    onSuccess: (next) => {
+      // A session that ended meanwhile has already gone back to sign-in, with the reason.
+      if (next === "portal" && session.isSignedIn()) {
+        void navigate({ to: "/dashboard", replace: true });
+      }
+    },
   });
 }
 
