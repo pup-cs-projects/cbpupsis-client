@@ -1,19 +1,20 @@
 import { createRootRoute, createRoute, createRouter, Outlet } from "@tanstack/react-router";
-
-import { HomePage } from "../features/home/HomePage";
+import { FacultyLoginPage } from "../features/auth/FacultyLoginPage";
+import { FacultyDashboard } from "../features/auth/FacultyDashboard";
 
 const rootRoute = createRootRoute({ component: Outlet });
-
-const homeRoute = createRoute({
+const loginRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/",
-  component: HomePage,
+  component: FacultyLoginPage,
 });
-
-const routeTree = rootRoute.addChildren([homeRoute]);
-
+const dashboardRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/dashboard",
+  component: FacultyDashboard,
+});
+const routeTree = rootRoute.addChildren([loginRoute, dashboardRoute]);
 export const router = createRouter({ routeTree });
-
 declare module "@tanstack/react-router" {
   interface Register {
     router: typeof router;
