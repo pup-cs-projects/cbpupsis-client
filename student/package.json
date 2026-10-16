@@ -31,6 +31,7 @@
     ]
   },
   "dependencies": {
+    "@cbpupsis/shared": "file:../shared",
     "@tanstack/react-query": "^5.102.8",
     "@tanstack/react-router": "^1.170.36",
     "react": "^19.2.8",

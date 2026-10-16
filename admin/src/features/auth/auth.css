@@ -343,6 +343,19 @@
 .enrollment-details {
   margin-bottom: 24px;
 }
+.setup-qr {
+  display: block;
+  margin: 0 auto 16px;
+  border-radius: 8px;
+}
+.auth-notice {
+  margin-top: 20px;
+  border: 1px solid var(--color-brand-gold);
+  border-left: 4px solid var(--color-brand-gold);
+  background: #fffaf0;
+  padding: 12px 14px;
+  border-radius: 8px;
+}
 .enrollment-details p {
   font-size: 14px;
   margin: 0 0 12px;

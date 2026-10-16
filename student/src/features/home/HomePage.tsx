@@ -1,13 +1,48 @@
+import { ApiError, errorMessage } from "@cbpupsis/shared/api";
+
+import { AuthSkeleton } from "../auth/AuthSkeleton";
+import { useMe, useSignOut } from "../auth/queries";
+import "../auth/auth.css";
+
 export function HomePage() {
+  const me = useMe();
+  const signOut = useSignOut();
+
   return (
-    <main className="mx-auto flex min-h-screen max-w-3xl flex-col justify-center gap-4 px-6">
-      <p className="text-brand-maroon text-sm font-semibold tracking-wide uppercase">
-        Polytechnic University of the Philippines
-      </p>
-      <h1 className="text-3xl font-bold text-gray-900">CBPUPSIS</h1>
-      <p className="text-gray-700">
-        Cloud-Based PUP Student Information System. The application shell is under construction.
-      </p>
-    </main>
+    <div className="dashboard">
+      <a className="skip-link" href="#dashboard-main">
+        Skip to content
+      </a>
+      <header className="dashboard-header">
+        <strong>CBPUPSIS · Student Portal</strong>
+        <button
+          className="secondary-button"
+          disabled={signOut.isPending}
+          onClick={() => signOut.mutate()}
+        >
+          Sign out
+        </button>
+      </header>
+      <main id="dashboard-main" tabIndex={-1}>
+        <h1>Student dashboard</h1>
+        {me.isPending && <AuthSkeleton />}
+        {me.isError && (
+          <div className="auth-error" role="alert">
+            <p>{errorMessage(me.error)}</p>
+            {me.error instanceof ApiError && me.error.requestId && (
+              <p className="request-id">Reference: {me.error.requestId}</p>
+            )}
+            <button className="secondary-button" onClick={() => void me.refetch()}>
+              Try again
+            </button>
+          </div>
+        )}
+        {me.isSuccess && <p>Signed in as {me.data.email}</p>}
+        <section className="dashboard-panel">
+          <h2>Welcome to your Student Portal</h2>
+          <p>Your enrollment, schedule, grades, and payments will appear here.</p>
+        </section>
+      </main>
+    </div>
   );
 }

@@ -1,38 +1,24 @@
+import type { FacultyCredentials } from "@cbpupsis/shared/auth";
 import { useState, type FormEvent } from "react";
-import type { Credentials } from "./types";
-
-const months = Array.from({ length: 12 }, (_, index) => ({
-  value: String(index + 1).padStart(2, "0"),
-  label: new Intl.DateTimeFormat("en", { month: "long" }).format(new Date(2000, index, 1)),
-}));
-const currentYear = new Date().getFullYear();
 
 export function SignInForm({
   onSubmit,
   disabled,
+  idError,
 }: {
-  onSubmit: (credentials: Credentials) => void;
+  onSubmit: (credentials: FacultyCredentials) => void;
   disabled: boolean;
+  /** Shown under the id when the API answers AUTH_ID_FORMAT_INVALID. */
+  idError?: string;
 }) {
   const [visible, setVisible] = useState(false);
-  const [dateError, setDateError] = useState("");
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = event.currentTarget;
     const data = new FormData(form);
-    const year = String(data.get("year"));
-    const month = String(data.get("month"));
-    const day = String(data.get("day"));
-    const date = new Date(Number(year), Number(month) - 1, Number(day));
-    if (date.getMonth() !== Number(month) - 1 || date.getDate() !== Number(day)) {
-      setDateError("Enter a valid date of birth.");
-      return;
-    }
-    setDateError("");
     onSubmit({
-      employee_id: String(data.get("employee_id")).trim(),
+      employeeId: String(data.get("employee_id")).trim(),
       password: String(data.get("password")),
-      date_of_birth: `${year}-${month}-${day}`,
     });
     // Credentials are never retained in browser storage.
     const password = form.elements.namedItem("password");
@@ -48,74 +34,20 @@ export function SignInForm({
           <input
             id="faculty-id"
             name="employee_id"
-            placeholder="202X-XXXX-MN-0"
+            placeholder="2021-00456-MN-0"
             autoComplete="username"
+            autoCapitalize="characters"
+            spellCheck={false}
             required
+            aria-invalid={Boolean(idError)}
+            aria-describedby={idError ? "faculty-id-error" : undefined}
           />
-        </div>
-        <fieldset
-          className="birth-date"
-          aria-describedby={dateError ? "birth-date-error" : undefined}
-        >
-          <legend>
-            Date of Birth <span className="required">*</span>
-          </legend>
-          <div className="date-fields">
-            <select
-              name="month"
-              aria-label="Birth month"
-              autoComplete="bday-month"
-              defaultValue=""
-              required
-            >
-              <option value="" disabled>
-                Month
-              </option>
-              {months.map((month) => (
-                <option key={month.value} value={month.value}>
-                  {month.label}
-                </option>
-              ))}
-            </select>
-            <select
-              name="day"
-              aria-label="Birth day"
-              autoComplete="bday-day"
-              defaultValue=""
-              required
-            >
-              <option value="" disabled>
-                Day
-              </option>
-              {Array.from({ length: 31 }, (_, index) => (
-                <option key={index} value={String(index + 1).padStart(2, "0")}>
-                  {index + 1}
-                </option>
-              ))}
-            </select>
-            <select
-              name="year"
-              aria-label="Birth year"
-              autoComplete="bday-year"
-              defaultValue=""
-              required
-            >
-              <option value="" disabled>
-                Year
-              </option>
-              {Array.from({ length: 121 }, (_, index) => (
-                <option key={index} value={currentYear - index}>
-                  {currentYear - index}
-                </option>
-              ))}
-            </select>
-          </div>
-          {dateError && (
-            <p id="birth-date-error" className="field-error" role="alert">
-              {dateError}
+          {idError && (
+            <p id="faculty-id-error" className="field-error">
+              {idError}
             </p>
           )}
-        </fieldset>
+        </div>
         <div className="field-group password-group">
           <label htmlFor="password">
             Password <span className="required">*</span>
