@@ -1,47 +1,48 @@
 import { useState, type FormEvent } from "react";
-import type { Credentials } from "./types";
+import type { AdminCredentials } from "@cbpupsis/shared/auth";
 
 export function SignInForm({
   disabled,
   onSubmit,
 }: {
   disabled: boolean;
-  onSubmit: (credentials: Credentials) => void;
+  onSubmit: (credentials: AdminCredentials) => void;
 }) {
   const [visible, setVisible] = useState(false);
-  const [errors, setErrors] = useState<{ identifier?: string; password?: string }>({});
+  const [errors, setErrors] = useState<{ email?: string; password?: string }>({});
   function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (disabled) return;
     const values = new FormData(event.currentTarget);
-    const identifier = String(values.get("identifier") ?? "").trim();
+    const email = String(values.get("email") ?? "").trim();
     const password = String(values.get("password") ?? "");
     setErrors({
-      identifier: identifier ? undefined : "Enter your administrator ID or email.",
+      email: email ? undefined : "Enter your email.",
       password: password ? undefined : "Enter your password.",
     });
-    if (identifier && password) onSubmit({ identifier, password });
+    if (email && password) onSubmit({ email, password });
   }
   return (
     <form className="sign-in-form" onSubmit={submit} noValidate>
       <fieldset className="form-fields" disabled={disabled}>
         <legend className="sr-only">Administrator credentials</legend>
         <div className="field-group">
-          <label htmlFor="identifier">
-            Administrator ID or email <span className="required">*</span>
+          <label htmlFor="email">
+            Email <span className="required">*</span>
           </label>
           <input
-            id="identifier"
-            name="identifier"
+            id="email"
+            name="email"
             autoComplete="username"
-            placeholder="Enter your ID or email"
+            type="email"
+            placeholder="name@pup.edu.ph"
             required
-            aria-invalid={Boolean(errors.identifier)}
-            aria-describedby={errors.identifier ? "identifier-error" : undefined}
+            aria-invalid={Boolean(errors.email)}
+            aria-describedby={errors.email ? "email-error" : undefined}
           />
-          {errors.identifier && (
-            <p id="identifier-error" className="field-error" role="alert">
-              {errors.identifier}
+          {errors.email && (
+            <p id="email-error" className="field-error" role="alert">
+              {errors.email}
             </p>
           )}
         </div>
