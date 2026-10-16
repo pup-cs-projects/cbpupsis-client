@@ -1,202 +1,204 @@
-import { ApiError, isChallengeRejected, isThrottled } from "@cbpupsis/shared/api";
-import type { MfaChallenge, TotpSetup as Setup } from "@cbpupsis/shared/auth";
+import { ApiError, errorMessage, isChallengeRejected, isThrottled } from "@cbpupsis/shared/api";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
-
-import { ErrorAlert } from "./ErrorAlert";
+import logo from "../../assets/pup-logo.png";
+import { AuthSkeleton } from "./AuthSkeleton";
+import { QrCode } from "./QrCode";
 import { usePasswordStep, useSecondFactor, useTotpEnrollment } from "./queries";
-import { TotpSetup } from "./TotpSetup";
-import { useCountdown } from "./useCountdown";
+import { SignInForm } from "./SignInForm";
+import { formatTime, useCountdown } from "./useCountdown";
+import "./auth.css";
 
-type Step = { kind: "password" } | { kind: "mfa"; challenge: MfaChallenge; setup?: Setup };
-
-const inputClass =
-  "min-h-11 w-full rounded-md border border-gray-400 px-3 text-base text-gray-900 " +
-  "focus-visible:outline-brand-maroon focus-visible:outline-2 focus-visible:outline-offset-2 " +
-  "aria-invalid:border-red-700 disabled:bg-gray-100";
-
-const primaryButton =
-  "bg-brand-maroon focus-visible:outline-brand-maroon min-h-11 rounded-md px-4 font-semibold " +
-  "text-white focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60";
-
+// Same layout as the admin sign-in page, without security keys: superadmins use TOTP only.
 export function SignInPage() {
   const navigate = useNavigate();
-  const { expired } = useSearch({ strict: false });
-  const passwordStep = usePasswordStep();
+  const { expired: sessionExpired } = useSearch({ strict: false });
+  const login = usePasswordStep();
   const enrollment = useTotpEnrollment();
   const secondFactor = useSecondFactor();
-  const [step, setStep] = useState<Step>({ kind: "password" });
-  // Why the user is back at the password step, when it was not their choice.
-  const [restartReason, setRestartReason] = useState<unknown>();
   const [code, setCode] = useState("");
-  const [missing, setMissing] = useState<{ email?: boolean; password?: boolean }>({});
   const headingRef = useRef<HTMLHeadingElement>(null);
+  const challenge = login.data;
+  const error = secondFactor.error || enrollment.error || login.error;
+  const lockError = isThrottled(error) ? error : undefined;
+  const remainingLock = useCountdown(lockError?.retryAt);
+  // The API refuses an expired or superseded challenge with a bare 401; only a new sign-in helps.
+  const expired = Boolean(challenge) && isChallengeRejected(error);
+  const locked = Boolean(lockError && (remainingLock === undefined || remainingLock > 0));
+  const enrolling = challenge?.enrollmentRequired === true;
+  const busy = login.isPending || enrollment.isPending || secondFactor.isPending;
+  const title = enrolling
+    ? "Secure your account"
+    : challenge
+      ? "Two-step verification"
+      : "Superadmin Portal";
 
-  const error = restartReason ?? secondFactor.error ?? enrollment.error ?? passwordStep.error;
-  const remaining = useCountdown(isThrottled(error) ? error.retryAt : undefined);
-  const waiting = remaining !== undefined && remaining > 0;
-  const busy = passwordStep.isPending || enrollment.isPending || secondFactor.isPending;
-  const enrolling = step.kind === "mfa" && step.challenge.enrollmentRequired;
-
-  // Move focus to the new step's heading so screen readers announce it.
   useEffect(() => {
-    if (step.kind === "mfa") headingRef.current?.focus();
-  }, [step.kind]);
+    if (challenge) headingRef.current?.focus();
+  }, [challenge, title]);
 
-  function restart(reason?: unknown) {
-    passwordStep.reset();
+  function reset() {
+    login.reset();
     enrollment.reset();
     secondFactor.reset();
     setCode("");
-    setRestartReason(reason);
-    setStep({ kind: "password" });
   }
 
-  function submitPassword(event: FormEvent<HTMLFormElement>) {
+  async function verify(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (busy || waiting) return;
-    const form = event.currentTarget;
-    const data = new FormData(form);
-    const email = String(data.get("email") ?? "").trim();
-    const password = String(data.get("password") ?? "");
-    setMissing({ email: !email, password: !password });
-    if (!email || !password) {
-      form.querySelector<HTMLElement>(`[name="${!email ? "email" : "password"}"]`)?.focus();
-      return;
+    if (!challenge || locked || expired || busy || code.length !== 6) return;
+    try {
+      await secondFactor.mutateAsync({
+        challengeToken: challenge.challengeToken,
+        code,
+        enrolling,
+      });
+      reset();
+      await navigate({ to: "/dashboard", replace: true });
+    } catch {
+      setCode("");
     }
-    setRestartReason(undefined);
-    passwordStep.mutate(
-      { email, password },
-      {
-        onSuccess: (challenge) => {
-          setStep({ kind: "mfa", challenge });
-          if (challenge.enrollmentRequired) {
-            enrollment.mutate(challenge.challengeToken, {
-              onSuccess: (setup) => setStep({ kind: "mfa", challenge, setup }),
-            });
-          }
-        },
-        onError: () => {
-          const field = form.elements.namedItem("password");
-          if (field instanceof HTMLInputElement) field.value = "";
-        },
-      },
-    );
   }
-
-  function submitCode(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (step.kind !== "mfa" || busy || waiting || code.length !== 6) return;
-    secondFactor.mutate(
-      { challengeToken: step.challenge.challengeToken, code, enrolling },
-      {
-        onSuccess: () => navigate({ to: "/dashboard", replace: true }),
-        onError: (failure) => {
-          setCode("");
-          // An expired or superseded challenge cannot be retried; only a new sign-in helps.
-          if (isChallengeRejected(failure)) restart(failure);
-        },
-      },
-    );
-  }
-
-  const title =
-    step.kind === "password"
-      ? "Superadmin sign-in"
-      : enrolling
-        ? "Set up two-step verification"
-        : "Two-step verification";
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-gray-50 px-4 py-10">
-      <div className="w-full max-w-md rounded-xl border border-gray-200 bg-white p-6 shadow-sm sm:p-8">
-        <p className="text-brand-maroon text-sm font-semibold tracking-wide uppercase">
-          CBPUPSIS Superadmin
-        </p>
-        <h1 ref={headingRef} tabIndex={-1} className="mt-1 text-2xl font-bold text-gray-900">
-          {title}
-        </h1>
-
-        <div className="mt-4 flex flex-col gap-4">
-          {expired && !error && step.kind === "password" && (
-            <p role="status" className="rounded-md bg-amber-50 p-3 text-amber-900">
-              Your session ended after a period of inactivity. Sign in again.
+    <div className="superadmin-page">
+      <a className="skip-link" href="#sign-in">
+        Skip to sign in
+      </a>
+      <main className="login-scene">
+        <div className="scene-inner">
+          <div className="portal-brand">
+            <img
+              src={logo}
+              alt="Polytechnic University of the Philippines seal"
+              width="64"
+              height="64"
+            />
+            <div>
+              <p className="brand-name">CBPUPSIS</p>
+              <p className="brand-subtitle">PUP Academic Portal</p>
+            </div>
+          </div>
+          <div className="campaign" aria-label="Reforging excellence. Sinta, now in the cloud.">
+            <span className="campaign-eyebrow">REFORGING EXCELLENCE</span>
+            <p>
+              SINTA
+              <br />
+              NOW IN
+              <br />
+              <span>THE CLOUD</span>
             </p>
-          )}
-          {error !== null && error !== undefined && <ErrorAlert error={error} />}
-
-          {step.kind === "password" ? (
-            <form noValidate onSubmit={submitPassword} className="flex flex-col gap-5">
-              <div className="flex flex-col gap-1">
-                <label htmlFor="email" className="font-medium text-gray-900">
-                  Email{" "}
-                  <span aria-hidden="true" className="text-red-700">
-                    *
-                  </span>
-                </label>
-                <input
-                  id="email"
-                  name="email"
-                  type="email"
-                  autoComplete="username"
-                  required
-                  aria-invalid={Boolean(missing.email)}
-                  aria-describedby={missing.email ? "email-error" : undefined}
-                  className={inputClass}
-                />
-                {missing.email && (
-                  <p id="email-error" className="text-sm text-red-700">
-                    Enter your email.
+          </div>
+          <section
+            id="sign-in"
+            className={`login-card ${challenge ? "verification-card" : ""}`}
+            aria-labelledby="auth-title"
+            aria-busy={busy}
+          >
+            <header>
+              <h1 id="auth-title" tabIndex={-1} ref={headingRef}>
+                {title}
+              </h1>
+              <p className="auth-subtitle">
+                {enrolling
+                  ? "Set up your authenticator to continue."
+                  : challenge
+                    ? "One more step to your Superadmin Portal."
+                    : "Login and stay connected."}
+              </p>
+            </header>
+            <div aria-live="polite" aria-atomic="true" className="sr-only">
+              {remainingLock === 0
+                ? "The waiting period has ended. You can try signing in again."
+                : ""}
+            </div>
+            {sessionExpired && !error && !challenge && (
+              <p className="auth-notice" role="status">
+                Your session ended after a period of inactivity. Sign in again.
+              </p>
+            )}
+            {error && (
+              <div className="auth-error" role="alert">
+                <p>{errorMessage(error)}</p>
+                {lockError && (
+                  <p>
+                    {remainingLock === undefined ? (
+                      "Contact ICTO if access is not restored."
+                    ) : remainingLock > 0 ? (
+                      <>
+                        Try again in{" "}
+                        <span role="timer" aria-label="Time before retry">
+                          {formatTime(remainingLock)}
+                        </span>
+                        .
+                      </>
+                    ) : (
+                      "You can try again now."
+                    )}
                   </p>
                 )}
-              </div>
-              <div className="flex flex-col gap-1">
-                <label htmlFor="password" className="font-medium text-gray-900">
-                  Password{" "}
-                  <span aria-hidden="true" className="text-red-700">
-                    *
-                  </span>
-                </label>
-                <input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                  aria-invalid={Boolean(missing.password)}
-                  aria-describedby={missing.password ? "password-error" : undefined}
-                  className={inputClass}
-                />
-                {missing.password && (
-                  <p id="password-error" className="text-sm text-red-700">
-                    Enter your password.
-                  </p>
+                {error instanceof ApiError && error.requestId && (
+                  <p className="request-id">Reference: {error.requestId}</p>
                 )}
               </div>
-              <button type="submit" disabled={busy || waiting} className={primaryButton}>
-                {passwordStep.isPending ? "Checking…" : "Continue"}
-              </button>
-            </form>
-          ) : (
-            <>
-              {enrolling && enrollment.isPending && (
-                <p role="status">Preparing your authenticator setup…</p>
-              )}
-              {enrolling && step.setup && <TotpSetup setup={step.setup} />}
-              {(!enrolling || step.setup) && (
-                <form noValidate onSubmit={submitCode} className="flex flex-col gap-3">
-                  <div className="flex flex-col gap-1">
-                    <label htmlFor="code" className="font-medium text-gray-900">
-                      Authentication code{" "}
-                      <span aria-hidden="true" className="text-red-700">
-                        *
-                      </span>
-                    </label>
-                    <p id="code-hint" className="text-sm text-gray-600">
-                      Enter the six-digit code shown in your authenticator app.
+            )}
+            {!challenge ? (
+              <SignInForm
+                disabled={busy || locked}
+                onSubmit={(credentials) => login.mutate(credentials)}
+              />
+            ) : (
+              <div className="second-factor">
+                {enrolling && !enrollment.data && (
+                  <div className="setup-intro">
+                    <p>
+                      Add your superadmin account to an authenticator app. Every sign-in after this
+                      needs a code from it.
                     </p>
+                    <button
+                      type="button"
+                      className="primary-button"
+                      disabled={busy || locked || expired}
+                      onClick={() => enrollment.mutate(challenge.challengeToken)}
+                    >
+                      {enrollment.isError ? "Retry authenticator setup" : "Set up authenticator"}
+                    </button>
+                  </div>
+                )}
+                {enrolling && enrollment.data && (
+                  <div className="enrollment-details">
+                    <p>Scan this code with your authenticator app, or enter the setup key.</p>
+                    <QrCode
+                      value={enrollment.data.uri}
+                      label={`QR code to add ${enrollment.data.accountName} to an authenticator app`}
+                    />
+                    <label htmlFor="setup-key">Setup key</label>
                     <input
-                      id="code"
+                      id="setup-key"
+                      value={enrollment.data.secret}
+                      readOnly
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <p>
+                      Account: {enrollment.data.accountName}
+                      {enrollment.data.issuer && (
+                        <>
+                          <br />
+                          Issuer: {enrollment.data.issuer}
+                        </>
+                      )}
+                    </p>
+                  </div>
+                )}
+                {(!enrolling || enrollment.data) && (
+                  <form onSubmit={verify} className="code-form">
+                    <label htmlFor="auth-code">
+                      Authentication code <span className="required">*</span>
+                    </label>
+                    <p id="code-help">Enter the six digit code from your authenticator app.</p>
+                    <input
+                      id="auth-code"
                       name="code"
                       value={code}
                       onChange={(event) =>
@@ -205,40 +207,46 @@ export function SignInPage() {
                       inputMode="numeric"
                       autoComplete="one-time-code"
                       maxLength={6}
+                      placeholder="000000"
                       required
-                      aria-describedby="code-hint"
-                      aria-invalid={
-                        secondFactor.error instanceof ApiError &&
-                        secondFactor.error.code?.startsWith("AUTH_MFA")
-                      }
-                      className={`${inputClass} font-mono tracking-widest`}
+                      aria-describedby="code-help"
+                      disabled={busy || locked || expired}
                     />
-                  </div>
-                  <button
-                    type="submit"
-                    disabled={busy || waiting || code.length !== 6}
-                    className={primaryButton}
-                  >
-                    {secondFactor.isPending
-                      ? "Verifying…"
-                      : enrolling
-                        ? "Confirm and sign in"
-                        : "Verify and sign in"}
-                  </button>
-                </form>
-              )}
-              <button
-                type="button"
-                onClick={() => restart()}
-                disabled={busy}
-                className="text-brand-maroon min-h-11 self-start underline"
-              >
-                Back to sign-in
-              </button>
-            </>
-          )}
+                    <button
+                      type="submit"
+                      className="primary-button"
+                      disabled={busy || locked || expired || code.length !== 6}
+                    >
+                      {enrolling ? "Verify authenticator" : "Verify and sign in"}
+                    </button>
+                  </form>
+                )}
+                <button
+                  type="button"
+                  className="back-button"
+                  onClick={reset}
+                  disabled={busy || locked}
+                >
+                  Back to sign in
+                </button>
+              </div>
+            )}
+            {busy && <AuthSkeleton />}
+            <p className="account-help">
+              Don&apos;t have an account? Contact{" "}
+              <a href="mailto:icto-admin@pup.edu.ph">icto-admin@pup.edu.ph</a>
+            </p>
+          </section>
         </div>
-      </div>
-    </main>
+      </main>
+      <footer className="portal-footer">
+        <p>© 2026 Polytechnic University of the Philippines</p>
+        <nav aria-label="University information">
+          <a href="https://www.pup.edu.ph/privacy/">Privacy Policy</a>
+          <a href="https://www.pup.edu.ph/terms/">Terms of Service</a>
+          <a href="https://www.pup.edu.ph/students/registrar">University Registrar</a>
+        </nav>
+      </footer>
+    </div>
   );
 }

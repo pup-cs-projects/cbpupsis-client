@@ -30,8 +30,8 @@ async function fillAndSubmit(
   if (details.studentNumber)
     await user.type(screen.getByLabelText(/student number/i), details.studentNumber);
   if (details.birthdate) await user.type(screen.getByLabelText(/birthdate/i), details.birthdate);
-  if (details.password) await user.type(screen.getByLabelText(/^password/i), details.password);
-  await user.click(screen.getByRole("button", { name: "Sign in" }));
+  if (details.password) await user.type(screen.getByLabelText(/^Password/), details.password);
+  await user.click(screen.getByRole("button", { name: "Sign in to Portal" }));
   return user;
 }
 
@@ -49,7 +49,7 @@ describe("student sign-in (US-101)", () => {
       "GET /auth/student/me": { status: 200, body: me },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
 
     await fillAndSubmit();
 
@@ -65,7 +65,7 @@ describe("student sign-in (US-101)", () => {
   it("requires the birthdate, as every student sign-in does, without calling the API", async () => {
     const api = mockApi({});
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
 
     await fillAndSubmit({ studentNumber: "2021-00123-MN-0", birthdate: "", password: "pw" });
 
@@ -84,7 +84,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
 
     await fillAndSubmit({ studentNumber: "21-123", birthdate: "2003-04-05", password: "pw" });
 
@@ -102,14 +102,14 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
 
     await fillAndSubmit();
 
     const alert = await screen.findByRole("alert");
     expect(alert).toHaveTextContent(/do not match/);
     expect(alert).toHaveTextContent("Reference: req-42");
-    expect(screen.getByLabelText(/^password/i)).toHaveValue("");
+    expect(screen.getByLabelText(/^Password/)).toHaveValue("");
   });
 
   it("shows the lockout's remaining time and blocks resubmitting until it passes (AC-101.4)", async () => {
@@ -120,12 +120,12 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
 
     await fillAndSubmit();
 
     await waitFor(() => expect(screen.getByRole("timer")).toHaveTextContent(/^(10:00|9:59)$/));
-    expect(screen.getByRole("button", { name: "Sign in" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign in to Portal" })).toBeDisabled();
   });
 
   it("returns to sign-in with an inactivity notice when the API says the session idled out (AC-101.7)", async () => {
@@ -138,12 +138,12 @@ describe("student sign-in (US-101)", () => {
       "POST /auth/student/logout": { status: 204 },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
 
     await fillAndSubmit();
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/inactivity/);
-    expect(screen.getByRole("heading", { name: "Student sign-in" })).toBeInTheDocument();
+    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
+    expect(screen.getByRole("heading", { name: "Student Portal" })).toBeInTheDocument();
   });
 
   it("refreshes an expired access token and carries on without the student noticing", async () => {
@@ -159,7 +159,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
 
     await fillAndSubmit();
 
@@ -177,11 +177,11 @@ describe("student sign-in (US-101)", () => {
       "POST /auth/student/refresh": { status: 401, body: { detail: "Refresh token already used" } },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
 
     await fillAndSubmit();
 
-    expect(await screen.findByRole("heading", { name: "Student sign-in" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Student Portal" })).toBeInTheDocument();
     await waitFor(() => expect(session.isSignedIn()).toBe(false));
   });
 
@@ -192,13 +192,13 @@ describe("student sign-in (US-101)", () => {
       "POST /auth/student/logout": { status: 204 },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student sign-in" });
+    await screen.findByRole("heading", { name: "Student Portal" });
     const user = await fillAndSubmit();
     await screen.findByText(`Signed in as ${me.email}`);
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
-    expect(await screen.findByRole("heading", { name: "Student sign-in" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Student Portal" })).toBeInTheDocument();
     expect(api.called("POST /auth/student/logout")[0].body).toEqual({ refresh_token: "refresh-1" });
   });
 });
@@ -208,7 +208,7 @@ describe("route guards", () => {
     mockApi({});
     const router = renderApp("/dashboard");
 
-    expect(await screen.findByRole("heading", { name: "Student sign-in" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Student Portal" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");
   });
 

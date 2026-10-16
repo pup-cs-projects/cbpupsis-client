@@ -1,42 +1,48 @@
 import { ApiError, errorMessage } from "@cbpupsis/shared/api";
 
+import { AuthSkeleton } from "../auth/AuthSkeleton";
 import { useMe, useSignOut } from "../auth/queries";
+import "../auth/auth.css";
 
 export function HomePage() {
   const me = useMe();
   const signOut = useSignOut();
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-4 px-4 sm:px-6">
-      <p className="text-brand-maroon text-sm font-semibold tracking-wide uppercase">
-        Polytechnic University of the Philippines
-      </p>
-      <h1 className="text-3xl font-bold text-gray-900">CBPUPSIS</h1>
-
-      {me.isPending && <p role="status">Loading your account…</p>}
-      {me.isError && (
-        <div role="alert" className="rounded-md border border-red-300 bg-red-50 p-3 text-red-900">
-          <p>{errorMessage(me.error)}</p>
-          {me.error instanceof ApiError && me.error.requestId && (
-            <p className="mt-1 text-sm">Reference: {me.error.requestId}</p>
-          )}
-          <button type="button" className="mt-2 underline" onClick={() => me.refetch()}>
-            Try again
-          </button>
-        </div>
-      )}
-      {me.isSuccess && <p className="text-gray-700">Signed in as {me.data.email}</p>}
-
-      <div>
+    <div className="dashboard">
+      <a className="skip-link" href="#dashboard-main">
+        Skip to content
+      </a>
+      <header className="dashboard-header">
+        <strong>CBPUPSIS · Student Portal</strong>
         <button
-          type="button"
-          onClick={() => signOut.mutate()}
+          className="secondary-button"
           disabled={signOut.isPending}
-          className="border-brand-maroon text-brand-maroon focus-visible:outline-brand-maroon min-h-11 rounded-md border px-4 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
+          onClick={() => signOut.mutate()}
         >
           Sign out
         </button>
-      </div>
-    </main>
+      </header>
+      <main id="dashboard-main" tabIndex={-1}>
+        <h1>Student dashboard</h1>
+        {me.isPending && <AuthSkeleton />}
+        {me.isError && (
+          <div className="auth-error" role="alert">
+            <p>{errorMessage(me.error)}</p>
+            {me.error instanceof ApiError && me.error.requestId && (
+              <p className="request-id">Reference: {me.error.requestId}</p>
+            )}
+            <button className="secondary-button" onClick={() => void me.refetch()}>
+              Try again
+            </button>
+          </div>
+        )}
+        {me.isSuccess && <p>Signed in as {me.data.email}</p>}
+        <section className="dashboard-panel">
+          <h2>Welcome to your Student Portal</h2>
+          <p>Your enrollment, schedule, grades, and payments will appear here.</p>
+        </section>
+      </main>
+    </div>
   );
 }

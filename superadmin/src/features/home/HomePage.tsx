@@ -1,38 +1,48 @@
-import { ErrorAlert } from "../auth/ErrorAlert";
+import { ApiError, errorMessage } from "@cbpupsis/shared/api";
+
+import { AuthSkeleton } from "../auth/AuthSkeleton";
 import { useMe, useSignOut } from "../auth/queries";
+import "../auth/auth.css";
 
 export function HomePage() {
   const me = useMe();
   const signOut = useSignOut();
 
   return (
-    <main className="mx-auto flex min-h-dvh max-w-3xl flex-col justify-center gap-4 px-4 sm:px-6">
-      <p className="text-brand-maroon text-sm font-semibold tracking-wide uppercase">
-        CBPUPSIS Superadmin
-      </p>
-      <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-
-      {me.isPending && <p role="status">Loading your account…</p>}
-      {me.isError && (
-        <div className="flex flex-col gap-2">
-          <ErrorAlert error={me.error} />
-          <button type="button" className="self-start underline" onClick={() => me.refetch()}>
-            Try again
-          </button>
-        </div>
-      )}
-      {me.isSuccess && <p className="text-gray-700">Signed in as {me.data.email}</p>}
-
-      <div>
+    <div className="dashboard">
+      <a className="skip-link" href="#dashboard-main">
+        Skip to content
+      </a>
+      <header className="dashboard-header">
+        <strong>CBPUPSIS · Superadmin Portal</strong>
         <button
-          type="button"
-          onClick={() => signOut.mutate()}
+          className="secondary-button"
           disabled={signOut.isPending}
-          className="border-brand-maroon text-brand-maroon focus-visible:outline-brand-maroon min-h-11 rounded-md border px-4 font-semibold focus-visible:outline-2 focus-visible:outline-offset-2 disabled:opacity-60"
+          onClick={() => signOut.mutate()}
         >
           Sign out
         </button>
-      </div>
-    </main>
+      </header>
+      <main id="dashboard-main" tabIndex={-1}>
+        <h1>Superadmin dashboard</h1>
+        {me.isPending && <AuthSkeleton />}
+        {me.isError && (
+          <div className="auth-error" role="alert">
+            <p>{errorMessage(me.error)}</p>
+            {me.error instanceof ApiError && me.error.requestId && (
+              <p className="request-id">Reference: {me.error.requestId}</p>
+            )}
+            <button className="secondary-button" onClick={() => void me.refetch()}>
+              Try again
+            </button>
+          </div>
+        )}
+        {me.isSuccess && <p>Signed in as {me.data.email}</p>}
+        <section className="dashboard-panel">
+          <h2>Welcome to your Superadmin Portal</h2>
+          <p>Every superadmin action is recorded in the audit ledger.</p>
+        </section>
+      </main>
+    </div>
   );
 }

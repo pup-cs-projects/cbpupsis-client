@@ -28,10 +28,10 @@ const provisioningUri =
 
 async function signInWithPassword() {
   const user = userEvent.setup();
-  await screen.findByRole("heading", { name: "Superadmin sign-in" });
-  await user.type(screen.getByLabelText(/email/i), "root@pup.edu.ph");
-  await user.type(screen.getByLabelText(/password/i), "correct horse");
-  await user.click(screen.getByRole("button", { name: "Continue" }));
+  await screen.findByRole("heading", { name: "Superadmin Portal" });
+  await user.type(screen.getByLabelText(/^Email/), "root@pup.edu.ph");
+  await user.type(screen.getByLabelText(/^Password/), "correct horse");
+  await user.click(screen.getByRole("button", { name: "Sign in to Portal" }));
   return user;
 }
 
@@ -92,8 +92,9 @@ describe("superadmin sign-in (US-104)", () => {
     renderApp("/");
     const user = await signInWithPassword();
 
+    await user.click(await screen.findByRole("button", { name: "Set up authenticator" }));
     expect(await screen.findByLabelText("Setup key")).toHaveValue("JBSWY3DPEHPK3PXP");
-    await enterCode(user, "654321", /confirm and sign in/i);
+    await enterCode(user, "654321", /verify authenticator/i);
 
     expect(await screen.findByText(`Signed in as ${me.email}`)).toBeInTheDocument();
     expect(api.called("POST /auth/superadmin/mfa/totp/enroll")[0].body).toEqual({
@@ -139,7 +140,7 @@ describe("superadmin sign-in (US-104)", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent(/already used/);
   });
 
-  it("returns to the password step when the challenge has expired", async () => {
+  it("blocks an expired challenge and offers a fresh sign-in", async () => {
     mockApi({
       "POST /auth/superadmin/login": { status: 200, body: challenge(false) },
       "POST /auth/superadmin/mfa/verify": {
@@ -152,8 +153,10 @@ describe("superadmin sign-in (US-104)", () => {
 
     await enterCode(user, "123456", /verify and sign in/i);
 
-    expect(await screen.findByRole("heading", { name: "Superadmin sign-in" })).toBeInTheDocument();
-    expect(screen.getByRole("alert")).toHaveTextContent(/expired/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(/expired/);
+    expect(screen.getByLabelText(/authentication code/i)).toBeDisabled();
+    await user.click(screen.getByRole("button", { name: "Back to sign in" }));
+    expect(await screen.findByRole("heading", { name: "Superadmin Portal" })).toBeInTheDocument();
   });
 
   it("shows the lockout's remaining time on the 5th failure (AC-104.1)", async () => {
@@ -168,7 +171,7 @@ describe("superadmin sign-in (US-104)", () => {
     await signInWithPassword();
 
     await waitFor(() => expect(screen.getByRole("timer")).toHaveTextContent(/^(5:00|4:59)$/));
-    expect(screen.getByRole("button", { name: "Continue" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Sign in to Portal" })).toBeDisabled();
   });
 
   it("returns to sign-in, without refreshing, when the session idles out (AC-104.7)", async () => {
@@ -185,7 +188,7 @@ describe("superadmin sign-in (US-104)", () => {
 
     await enterCode(user, "123456", /verify and sign in/i);
 
-    expect(await screen.findByRole("status")).toHaveTextContent(/inactivity/);
+    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
     expect(api.called("POST /auth/superadmin/refresh")).toHaveLength(0);
   });
 });
@@ -195,7 +198,7 @@ describe("route guards", () => {
     mockApi({});
     const router = renderApp("/dashboard");
 
-    expect(await screen.findByRole("heading", { name: "Superadmin sign-in" })).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Superadmin Portal" })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");
   });
 
