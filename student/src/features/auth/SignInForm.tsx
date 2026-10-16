@@ -1,4 +1,5 @@
 import type { StudentCredentials } from "@cbpupsis/shared/auth";
+import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
 type Field = keyof StudentCredentials;
@@ -133,12 +134,9 @@ export function SignInForm({
             </p>
           )}
         </div>
-        <a
-          className="forgot-password"
-          href="mailto:icto-admin@pup.edu.ph?subject=Student%20password%20assistance"
-        >
-          Forgot Password?
-        </a>
+        <Link to="/forgot-password" className="forgot-password">
+          Forgot password?
+        </Link>
         <button type="submit" className="primary-button">
           Sign in to Portal
         </button>

@@ -1,10 +1,13 @@
 import { ApiError, errorMessage } from "@cbpupsis/shared/api";
+import { NOTICES } from "@cbpupsis/shared/auth";
+import { useSearch } from "@tanstack/react-router";
 
 import { AuthSkeleton } from "../auth/AuthSkeleton";
 import { useMe, useSignOut } from "../auth/queries";
 import "../auth/auth.css";
 
 export function HomePage() {
+  const { notice } = useSearch({ strict: false });
   const me = useMe();
   const signOut = useSignOut();
 
@@ -25,6 +28,11 @@ export function HomePage() {
       </header>
       <main id="dashboard-main" tabIndex={-1}>
         <h1>Student dashboard</h1>
+        {notice === "password-changed" && (
+          <p className="auth-notice" role="status">
+            {NOTICES.passwordChanged}
+          </p>
+        )}
         {me.isPending && <AuthSkeleton />}
         {me.isError && (
           <div className="auth-error" role="alert">
