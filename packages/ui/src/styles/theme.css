@@ -1,0 +1,62 @@
+/* The brand tokens and base styles of every portal. Each app imports Tailwind, then this. */
+@theme {
+  --color-brand-maroon: #800000;
+  --color-brand-maroon-dark: #610000;
+  --color-brand-gold: #ffdc00;
+  --color-brand-cream: #fffbec;
+}
+:root {
+  font-family: "Segoe UI", Arial, sans-serif;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+body {
+  margin: 0;
+  min-width: 320px;
+}
+button,
+input,
+select {
+  font: inherit;
+}
+button,
+a,
+input,
+select {
+  -webkit-tap-highlight-color: transparent;
+}
+button,
+a {
+  touch-action: manipulation;
+}
+button {
+  cursor: pointer;
+}
+button:disabled {
+  cursor: not-allowed;
+}
+:focus-visible {
+  outline: 3px solid var(--color-brand-maroon-dark);
+  outline-offset: 4px;
+}
+@theme {
+  --color-brand-ink: #312925;
+  --color-brand-border: #8d8178;
+}
+
+@theme {
+  --color-brand-scene: #605a50;
+  --color-brand-card-edge: #e9aaa8;
+  --color-brand-input-border: #b8b6b4;
+  --color-brand-input-text: #37383d;
+  --color-brand-placeholder: #65666c;
+  --color-brand-muted: #666;
+  --color-brand-maroon-end: #962629;
+  --color-brand-help: #47403b;
+  --color-brand-footer-text: #545459;
+  --color-brand-error-surface: #fff5f2;
+  --color-brand-recovery-surface: #fffaf3;
+  --color-brand-skeleton: #b8ada2;
+  --color-brand-skeleton-highlight: #e5dbcf;
+}

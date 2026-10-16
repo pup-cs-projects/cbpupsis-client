@@ -1,0 +1,24 @@
+{
+  "name": "@cbpupsis/ui",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "React building blocks every CBPUPSIS portal shares: buttons, fields, alerts, the password checklist, and the brand theme.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./theme.css": "./src/styles/theme.css"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage"
+  },
+  "dependencies": {
+    "@cbpupsis/shared": "*",
+    "qrcode": "^1.5.4"
+  },
+  "peerDependencies": {
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}
