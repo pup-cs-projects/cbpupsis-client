@@ -663,3 +663,193 @@
     display: grid;
   }
 }
+
+/* Account flows: reset and change password, and the idle warning. Same block in every app. */
+.app-frame {
+  display: contents;
+}
+/* Headings take focus only to start a screen reader at a new step; they are not controls. */
+.login-card h1[tabindex="-1"]:focus {
+  outline: none;
+}
+.auth-step,
+.auth-error,
+.auth-notice {
+  animation: auth-enter 180ms ease-out;
+}
+@keyframes auth-enter {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}
+.account-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  margin-top: 23px;
+}
+.account-form .field-group {
+  gap: 6px;
+}
+.field-hint,
+.step-text {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-brand-help);
+}
+.sent-address {
+  overflow-wrap: anywhere;
+}
+.field-message {
+  min-height: 21px;
+  margin: 0;
+  color: var(--color-brand-maroon-dark);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.password-rules p {
+  margin: 0 0 6px;
+  font-size: 14px;
+  font-weight: 700;
+}
+.password-rules ul {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.password-rules li {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: var(--color-brand-help);
+}
+.password-rules li[data-met="true"] {
+  color: var(--color-brand-maroon-dark);
+  font-weight: 600;
+}
+.password-rules svg {
+  flex-shrink: 0;
+}
+.primary-button,
+.secondary-button {
+  position: relative;
+}
+.primary-button:active:not([aria-disabled="true"]):not(:disabled),
+.secondary-button:active:not([aria-disabled="true"]):not(:disabled) {
+  transform: translateY(1px);
+}
+.primary-button[aria-disabled="true"],
+.secondary-button[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+.primary-button[aria-disabled="true"]:not(.is-busy) {
+  opacity: 0.55;
+}
+.is-busy .button-label {
+  color: transparent;
+}
+.button-spinner {
+  position: absolute;
+  inset: 0;
+  width: 22px;
+  height: 22px;
+  margin: auto;
+  border: 3px solid currentColor;
+  border-right-color: transparent;
+  border-radius: 50%;
+  animation: button-spin 700ms linear infinite;
+}
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.link-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  text-decoration: none;
+}
+.secondary-button.is-busy,
+.account-form .secondary-button {
+  flex: 0 0 auto;
+  min-height: 48px;
+  padding: 10px 18px;
+}
+.back-link,
+.inline-link {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  color: var(--color-brand-maroon-dark);
+  font-weight: 600;
+}
+.back-link {
+  margin-top: 12px;
+}
+.idle-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 10;
+  display: grid;
+  place-items: center;
+  padding: 16px;
+  overflow-y: auto;
+  background: color-mix(in srgb, var(--color-brand-ink) 60%, transparent);
+  animation: auth-enter 180ms ease-out;
+}
+.idle-dialog {
+  width: min(100%, 480px);
+  padding: 28px;
+  border: 1px solid var(--color-brand-border);
+  border-radius: 16px;
+  background: white;
+  color: var(--color-brand-ink);
+}
+.idle-dialog h2 {
+  margin: 0 0 12px;
+  color: var(--color-brand-maroon-dark);
+  font-size: 24px;
+  font-weight: 750;
+  line-height: 1.3;
+}
+.idle-dialog p {
+  margin: 0;
+  line-height: 1.55;
+}
+.idle-timer {
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.idle-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-top: 20px;
+}
+.idle-actions .secondary-button {
+  flex: 0 0 auto;
+  min-height: 48px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .auth-step,
+  .auth-error,
+  .auth-notice,
+  .idle-backdrop {
+    animation: none;
+  }
+  .button-spinner {
+    animation-duration: 2s;
+  }
+  .primary-button:active,
+  .secondary-button:active {
+    transform: none;
+  }
+}

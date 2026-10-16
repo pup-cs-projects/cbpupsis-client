@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../api/errors";
 import { createSession, type SessionEvent, type Tokens } from "./session";
@@ -84,6 +84,30 @@ describe("createSession", () => {
     expect(session.isSignedIn()).toBe(true);
   });
 
+  it("signals a pending password change and keeps the session for the change itself", async () => {
+    const { session } = setup();
+    const changeRequired = vi.fn();
+    session.onPasswordChangeRequired(changeRequired);
+    session.signIn(first);
+    const blocked = new ApiError(403, "PASSWORD_CHANGE_REQUIRED");
+
+    await expect(session.authorized(() => Promise.reject(blocked))).rejects.toBe(blocked);
+    expect(changeRequired).toHaveBeenCalledTimes(1);
+    expect(session.isSignedIn()).toBe(true);
+  });
+
+  it("ends a timed-out session on the API and reports it apart from a sign-out", async () => {
+    const { session, logout, events } = setup();
+    session.signIn(first);
+
+    await session.timeOut();
+
+    expect(logout).toHaveBeenCalledWith("refresh-1");
+    expect(session.isSignedIn()).toBe(false);
+    expect(session.lastActivity()).toBeNull();
+    expect(events).toEqual(["signed-in", "timed-out"]);
+  });
+
   it("forgets the tokens on sign-out even when the API call to end the session fails", async () => {
     const { session, logout, events } = setup();
     logout.mockRejectedValue(new ApiError(0, "NETWORK_ERROR"));
@@ -94,5 +118,53 @@ describe("createSession", () => {
     expect(logout).toHaveBeenCalledWith("refresh-1");
     expect(session.isSignedIn()).toBe(false);
     expect(events).toEqual(["signed-in", "signed-out"]);
+  });
+});
+
+describe("lastActivity", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it("starts at sign-in and is cleared on sign-out", async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const { session } = setup();
+    expect(session.lastActivity()).toBeNull();
+
+    session.signIn(first);
+    expect(session.lastActivity()).toBe(1_000);
+
+    await session.signOut();
+    expect(session.lastActivity()).toBeNull();
+  });
+
+  it("moves to the start of each call the API answered, even with an error", async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const { session } = setup();
+    session.signIn(first);
+
+    vi.setSystemTime(5_000);
+    await session.authorized(async () => {
+      vi.setSystemTime(9_000);
+      return "ok";
+    });
+    expect(session.lastActivity()).toBe(5_000);
+
+    vi.setSystemTime(20_000);
+    await session
+      .authorized(() => Promise.reject(new ApiError(404, "RESOURCE_NOT_FOUND")))
+      .catch(() => undefined);
+    expect(session.lastActivity()).toBe(20_000);
+  });
+
+  it("does not move for a call that never reached the API", async () => {
+    vi.useFakeTimers({ now: 1_000 });
+    const { session } = setup();
+    session.signIn(first);
+
+    vi.setSystemTime(5_000);
+    await session
+      .authorized(() => Promise.reject(new ApiError(0, "NETWORK_ERROR")))
+      .catch(() => undefined);
+
+    expect(session.lastActivity()).toBe(1_000);
   });
 });

@@ -1,6 +1,6 @@
 import { ApiError, errorMessage } from "@cbpupsis/shared/api";
-import type { AdminPosition } from "@cbpupsis/shared/auth";
-import { Link } from "@tanstack/react-router";
+import { NOTICES, type AdminPosition } from "@cbpupsis/shared/auth";
+import { Link, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 import { AuthSkeleton } from "./AuthSkeleton";
 import { useMe, useSignOut } from "./useAdminAuth";
@@ -13,6 +13,7 @@ const POSITION_LABELS: Record<AdminPosition, string> = {
 };
 
 export function AdminDashboard() {
+  const { notice } = useSearch({ strict: false });
   const me = useMe();
   const signOut = useSignOut();
   const [menuOpen, setMenuOpen] = useState(false);
@@ -51,6 +52,11 @@ export function AdminDashboard() {
         </aside>
         <main id="dashboard-main" tabIndex={-1}>
           <h1>Administrative dashboard</h1>
+          {notice === "password-changed" && (
+            <p className="auth-notice" role="status">
+              {NOTICES.passwordChanged}
+            </p>
+          )}
           {me.isPending && <AuthSkeleton />}
           {me.isError && (
             <div className="auth-error" role="alert">

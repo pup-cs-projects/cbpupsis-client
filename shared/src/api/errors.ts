@@ -46,6 +46,10 @@ export type ApiErrorCode =
   | "AUTH_TEMPORARY_PASSWORD_EXPIRED"
   | "PASSWORD_CHANGE_REQUIRED"
   | "SUPERADMIN_ROLE_REQUIRED"
+  | "AUTH_PASSWORD_TOO_WEAK"
+  | "AUTH_RESET_TOKEN_EXPIRED"
+  | "AUTH_RESET_TOKEN_USED"
+  | "INVALID_EMAIL_ADDRESS"
   | "RATE_LIMIT_EXCEEDED"
   | "rate_limited"
   // Client-side: the request failed before or after the API answered.
@@ -54,6 +58,9 @@ export type ApiErrorCode =
   | "NOT_SIGNED_IN"
   | "WEBAUTHN_UNAVAILABLE"
   | "WEBAUTHN_CANCELLED"
+  // Client-side names for answers the API sends without a code (see auth/password.ts).
+  | "RESET_LINK_INVALID"
+  | "CURRENT_PASSWORD_INCORRECT"
   | (string & {});
 
 /** True for the refusals that come with a waiting period: lockout and rate limiting. */
@@ -70,12 +77,21 @@ export function isChallengeRejected(error: unknown): boolean {
   return error instanceof ApiError && error.status === 401 && error.code === undefined;
 }
 
+/** True when the account still holds a temporary password and must replace it first. */
+export function isPasswordChangeRequired(error: unknown): error is ApiError {
+  return (
+    error instanceof ApiError && error.status === 403 && error.code === "PASSWORD_CHANGE_REQUIRED"
+  );
+}
+
 const MESSAGES: Partial<Record<string, string>> = {
   AUTH_FAILED: "Those sign-in details do not match our records. Check them and try again.",
   AUTH_ID_FORMAT_INVALID:
     "Enter your ID in the format YYYY-NNNNN-XX-N, for example 2021-00123-MN-0.",
   AUTH_ACCOUNT_LOCKED: "Sign-in is temporarily locked after repeated failed attempts.",
-  RATE_LIMIT_EXCEEDED: "Too many attempts. Please wait before trying again.",
+  // The API sends this code only for password reset requests.
+  RATE_LIMIT_EXCEEDED:
+    "Too many reset requests. Wait before trying again, or use a link we already sent.",
   rate_limited: "Too many attempts. Please wait before trying again.",
   AUTH_MFA_INVALID: "That code is not valid. Enter the current code from your authenticator app.",
   AUTH_MFA_CODE_REUSED: "That code was already used. Wait for the next code in your app.",
@@ -86,9 +102,19 @@ const MESSAGES: Partial<Record<string, string>> = {
   AUTH_ADMIN_PROFILE_REQUIRED:
     "Your administrator profile is not set up yet. Contact ICTO to finish setting it up.",
   AUTH_SESSION_EXPIRED: "Your session ended after a period of inactivity. Sign in again.",
+  // A reset clears the temporary-password state, so it is a way forward that needs no one else.
   AUTH_TEMPORARY_PASSWORD_EXPIRED:
-    "Your temporary password has expired. Contact ICTO for a new one.",
+    "Your temporary password has expired. Reset your password to choose a new one, or ask ICTO to send a new temporary password.",
   PASSWORD_CHANGE_REQUIRED: "You must change your temporary password before continuing.",
+  AUTH_PASSWORD_TOO_WEAK: "That password does not meet every rule in the list. Choose another one.",
+  AUTH_RESET_TOKEN_EXPIRED: "That link has expired. Request a new one below.",
+  AUTH_RESET_TOKEN_USED:
+    "That link has already been used. If you just set a new password, sign in with it. Otherwise, request a new link below.",
+  RESET_LINK_INVALID:
+    "That link is not valid. Check that you opened the whole link from the email, or request a new one below.",
+  INVALID_EMAIL_ADDRESS: "Enter a valid email address, such as name@pup.edu.ph.",
+  CURRENT_PASSWORD_INCORRECT:
+    "That temporary password is not correct. Copy it again from the email with your account details.",
   NETWORK_ERROR: "We could not reach the server. Check your connection and try again.",
   INVALID_RESPONSE: "Something went wrong on our side. Please try again.",
   NOT_SIGNED_IN: "Sign in to continue.",

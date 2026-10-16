@@ -112,6 +112,44 @@ describe("student sign-in (US-101)", () => {
     expect(screen.getByLabelText(/^Password/)).toHaveValue("");
   });
 
+  it("goes straight from sign-in to the password change while a temporary password is pending", async () => {
+    mockApi({
+      "POST /auth/student/login": { status: 200, body: tokens },
+      "GET /auth/student/me": {
+        status: 403,
+        body: { detail: "Change it", code: "PASSWORD_CHANGE_REQUIRED" },
+      },
+    });
+    const router = renderApp("/");
+    await screen.findByRole("heading", { name: "Student Portal" });
+
+    await fillAndSubmit();
+
+    expect(await screen.findByRole("heading", { name: "Choose your own password" })).toHaveFocus();
+    expect(router.state.location.pathname).toBe("/change-password");
+  });
+
+  it("offers a reset when the temporary password has expired", async () => {
+    mockApi({
+      "POST /auth/student/login": {
+        status: 401,
+        body: { detail: "x", request_id: "req-t", code: "AUTH_TEMPORARY_PASSWORD_EXPIRED" },
+      },
+    });
+    renderApp("/");
+    await screen.findByRole("heading", { name: "Student Portal" });
+
+    await fillAndSubmit();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Your temporary password has expired.");
+    expect(alert).toHaveTextContent("Reference: req-t");
+    expect(screen.getByRole("link", { name: "Reset your password" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
+  });
+
   it("shows the lockout's remaining time and blocks resubmitting until it passes (AC-101.4)", async () => {
     mockApi({
       "POST /auth/student/login": {

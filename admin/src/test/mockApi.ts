@@ -1,6 +1,11 @@
 import { vi } from "vitest";
 
-type Reply = { status: number; body?: unknown; headers?: Record<string, string> };
+/**
+ * One reply: an HTTP response, "offline" for a request that never reaches the API, or "pending"
+ * for one that never answers (to see a busy state).
+ */
+type Reply =
+  { status: number; body?: unknown; headers?: Record<string, string> } | "offline" | "pending";
 
 /**
  * Stub `fetch` at the network boundary with replies keyed by "METHOD /path" (path relative to
@@ -27,6 +32,8 @@ export function mockApi(routes: Record<string, Reply | Reply[]>) {
       const index = used.get(route) ?? 0;
       used.set(route, index + 1);
       const reply = replies[Math.min(index, replies.length - 1)];
+      if (reply === "offline") throw new TypeError("Failed to fetch");
+      if (reply === "pending") return new Promise<Response>(() => {});
       return new Response(reply.body === undefined ? null : JSON.stringify(reply.body), {
         status: reply.status,
         headers: reply.headers,

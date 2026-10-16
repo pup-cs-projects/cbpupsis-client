@@ -242,6 +242,62 @@ describe("faculty sign-in (US-102)", () => {
     expect(screen.queryByText("TEST-1111")).not.toBeInTheDocument();
   });
 
+  it("goes from the second factor straight to the password change while a temporary password is pending", async () => {
+    mockApi({
+      "POST /auth/faculty/login": { status: 200, body: challenge(false) },
+      "POST /auth/faculty/mfa/verify": { status: 200, body: tokens },
+      "GET /auth/faculty/me": {
+        status: 403,
+        body: { detail: "Change it", code: "PASSWORD_CHANGE_REQUIRED" },
+      },
+    });
+    const router = renderApp("/");
+
+    await submitPassword();
+    await enterCode();
+
+    expect(await screen.findByRole("heading", { name: "Choose your own password" })).toHaveFocus();
+    expect(router.state.location.pathname).toBe("/change-password");
+  });
+
+  it("returns to sign-in with the inactivity notice when the session ends right after the code", async () => {
+    mockApi({
+      "POST /auth/faculty/login": { status: 200, body: challenge(false) },
+      "POST /auth/faculty/mfa/verify": { status: 200, body: tokens },
+      "GET /auth/faculty/me": {
+        status: 401,
+        body: { detail: "Expired", code: "AUTH_SESSION_EXPIRED" },
+      },
+    });
+    renderApp("/");
+
+    await submitPassword();
+    await enterCode();
+
+    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
+    expect(screen.getByRole("heading", { name: "Faculty Portal" })).toBeInTheDocument();
+  });
+
+  it("offers a reset when the temporary password has expired", async () => {
+    mockApi({
+      "POST /auth/faculty/login": {
+        status: 401,
+        body: { detail: "x", request_id: "req-t", code: "AUTH_TEMPORARY_PASSWORD_EXPIRED" },
+      },
+    });
+    renderApp("/");
+
+    await submitPassword();
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Your temporary password has expired.");
+    expect(alert).toHaveTextContent("Reference: req-t");
+    expect(screen.getByRole("link", { name: "Reset your password" })).toHaveAttribute(
+      "href",
+      "/forgot-password",
+    );
+  });
+
   it("offers retry when setup is unavailable", async () => {
     mockApi({
       "POST /auth/faculty/login": { status: 200, body: challenge(true) },

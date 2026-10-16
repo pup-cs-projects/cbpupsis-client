@@ -40,3 +40,23 @@ button:disabled {
   outline: 3px solid var(--color-brand-maroon-dark);
   outline-offset: 4px;
 }
+@theme {
+  --color-brand-ink: #312925;
+  --color-brand-border: #8d8178;
+}
+
+@theme {
+  --color-brand-scene: #605a50;
+  --color-brand-card-edge: #e9aaa8;
+  --color-brand-input-border: #b8b6b4;
+  --color-brand-input-text: #37383d;
+  --color-brand-placeholder: #65666c;
+  --color-brand-muted: #666;
+  --color-brand-maroon-end: #962629;
+  --color-brand-help: #47403b;
+  --color-brand-footer-text: #545459;
+  --color-brand-error-surface: #fff5f2;
+  --color-brand-recovery-surface: #fffaf3;
+  --color-brand-skeleton: #b8ada2;
+  --color-brand-skeleton-highlight: #e5dbcf;
+}
