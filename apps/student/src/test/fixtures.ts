@@ -2,7 +2,7 @@ import { session } from "../lib/auth";
 
 // What the shared account suites (@cbpupsis/account/testing) need to know about this portal.
 
-export const PORTAL_HEADING = "Student Portal";
+export const PORTAL_HEADING = "Welcome back, Iskolar.";
 export const ME_ROUTE = "GET /auth/student/me";
 export const LOGOUT_ROUTE = "POST /auth/student/logout";
 export const REFRESH_ROUTE = "POST /auth/student/refresh";
