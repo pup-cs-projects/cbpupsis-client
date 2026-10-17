@@ -16,7 +16,8 @@ export function AuthShell({
   children: ReactNode;
 }) {
   return (
-    <div className="auth-page">
+    // Locked to the viewport on desktop (1024px wide, 880px tall or more); shorter windows scroll so the form is never clipped. Spacing tightens with height in auth.css.
+    <div className="auth-page min-[1024px]:[@media(min-height:880px)]:h-screen min-[1024px]:[@media(min-height:880px)]:overflow-hidden">
       <a className="skip-link" href="#sign-in">
         {skipLabel}
       </a>
@@ -54,12 +55,18 @@ export function AuthShell({
           </section>
         </div>
       </main>
-      <footer className="portal-footer">
-        <p>© 2026 Polytechnic University of the Philippines</p>
+      <footer className="portal-footer min-h-[54px]! py-2! text-gray-700!">
+        <p className="text-xs!">© 2026 Polytechnic University of the Philippines</p>
         <nav aria-label="University information">
-          <a href="https://www.pup.edu.ph/privacy/">Privacy Policy</a>
-          <a href="https://www.pup.edu.ph/terms/">Terms of Service</a>
-          <a href="https://www.pup.edu.ph/students/registrar">University Registrar</a>
+          <a className="min-h-8! text-xs!" href="https://www.pup.edu.ph/privacy/">
+            Privacy Policy
+          </a>
+          <a className="min-h-8! text-xs!" href="https://www.pup.edu.ph/terms/">
+            Terms of Service
+          </a>
+          <a className="min-h-8! text-xs!" href="https://www.pup.edu.ph/students/registrar">
+            University Registrar
+          </a>
         </nav>
       </footer>
     </div>

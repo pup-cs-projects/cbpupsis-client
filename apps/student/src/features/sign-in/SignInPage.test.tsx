@@ -28,8 +28,13 @@ async function fillAndSubmit(
 ) {
   const user = userEvent.setup();
   if (details.studentNumber)
-    await user.type(screen.getByLabelText(/student number/i), details.studentNumber);
-  if (details.birthdate) await user.type(screen.getByLabelText(/birthdate/i), details.birthdate);
+    await user.type(screen.getByLabelText(/student id number/i), details.studentNumber);
+  if (details.birthdate) {
+    const [year, month, day] = details.birthdate.split("-").map(Number);
+    await user.selectOptions(screen.getByLabelText("Birth month"), String(month));
+    await user.selectOptions(screen.getByLabelText("Birth day"), String(day));
+    await user.selectOptions(screen.getByLabelText("Birth year"), String(year));
+  }
   if (details.password) await user.type(screen.getByLabelText(/^Password/), details.password);
   await user.click(screen.getByRole("button", { name: "Sign in to Portal" }));
   return user;
@@ -49,7 +54,7 @@ describe("student sign-in (US-101)", () => {
       "GET /auth/student/me": { status: 200, body: me },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit();
 
@@ -65,14 +70,30 @@ describe("student sign-in (US-101)", () => {
   it("requires the birthdate, as every student sign-in does, without calling the API", async () => {
     const api = mockApi({});
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit({ studentNumber: "2021-00123-MN-0", birthdate: "", password: "pw" });
 
-    expect(screen.getByLabelText(/birthdate/i)).toHaveAccessibleDescription(
-      "Enter your birthdate.",
-    );
-    expect(screen.getByLabelText(/birthdate/i)).toHaveFocus();
+    expect(screen.getByText("Please complete all fields to sign in.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Birth month")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Birth month")).toHaveFocus();
+    expect(api.calls).toHaveLength(0);
+  });
+
+  it("rejects a birthdate the calendar doesn't have without calling the API", async () => {
+    const api = mockApi({});
+    renderApp("/");
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+
+    await fillAndSubmit({
+      studentNumber: "2021-00123-MN-0",
+      birthdate: "2003-04-31",
+      password: "pw",
+    });
+
+    expect(screen.getByText("Choose a date that exists.")).toBeInTheDocument();
+    expect(screen.getByLabelText("Birth day")).toHaveAttribute("aria-invalid", "true");
+    expect(screen.getByLabelText("Birth day")).toHaveFocus();
     expect(api.calls).toHaveLength(0);
   });
 
@@ -84,11 +105,11 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit({ studentNumber: "21-123", birthdate: "2003-04-05", password: "pw" });
 
-    expect(await screen.findByLabelText(/student number/i)).toHaveAccessibleDescription(
+    expect(await screen.findByLabelText(/student id number/i)).toHaveAccessibleDescription(
       expect.stringMatching(/YYYY-NNNNN-XX-N/),
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
@@ -102,7 +123,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit();
 
@@ -121,7 +142,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     const router = renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit();
 
@@ -137,7 +158,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit();
 
@@ -158,7 +179,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit();
 
@@ -176,12 +197,12 @@ describe("student sign-in (US-101)", () => {
       "POST /auth/student/logout": { status: 204 },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit();
 
     expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
-    expect(screen.getByRole("heading", { name: "Student Portal" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Welcome back, Iskolar." })).toBeInTheDocument();
   });
 
   it("refreshes an expired access token and carries on without the student noticing", async () => {
@@ -197,7 +218,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit();
 
@@ -215,11 +236,13 @@ describe("student sign-in (US-101)", () => {
       "POST /auth/student/refresh": { status: 401, body: { detail: "Refresh token already used" } },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
 
     await fillAndSubmit();
 
-    expect(await screen.findByRole("heading", { name: "Student Portal" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Welcome back, Iskolar." }),
+    ).toBeInTheDocument();
     await waitFor(() => expect(session.isSignedIn()).toBe(false));
   });
 
@@ -230,13 +253,15 @@ describe("student sign-in (US-101)", () => {
       "POST /auth/student/logout": { status: 204 },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Student Portal" });
+    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
     const user = await fillAndSubmit();
     await screen.findByText(`Signed in as ${me.email}`);
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
-    expect(await screen.findByRole("heading", { name: "Student Portal" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Welcome back, Iskolar." }),
+    ).toBeInTheDocument();
     expect(api.called("POST /auth/student/logout")[0].body).toEqual({ refresh_token: "refresh-1" });
   });
 });
@@ -246,7 +271,9 @@ describe("route guards", () => {
     mockApi({});
     const router = renderApp("/dashboard");
 
-    expect(await screen.findByRole("heading", { name: "Student Portal" })).toBeInTheDocument();
+    expect(
+      await screen.findByRole("heading", { name: "Welcome back, Iskolar." }),
+    ).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");
   });
 

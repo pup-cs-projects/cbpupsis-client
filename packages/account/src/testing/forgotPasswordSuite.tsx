@@ -37,7 +37,7 @@ export function forgotPasswordSuite({
       renderApp("/");
       await screen.findByRole("heading", { name: PORTAL_HEADING });
 
-      await userEvent.click(screen.getByRole("link", { name: "Forgot password?" }));
+      await userEvent.click(screen.getByRole("link", { name: /^forgot password\?$/i }));
 
       expect(await screen.findByRole("heading", { name: "Reset your password" })).toHaveFocus();
     });
