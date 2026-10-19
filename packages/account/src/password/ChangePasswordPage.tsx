@@ -2,6 +2,7 @@ import { ApiError } from "@cbpupsis/shared/api";
 import { CHANGE_PASSWORD_POLICY, checkPassword, meetsPolicy } from "@cbpupsis/shared/auth";
 import {
   ErrorAlert,
+  Notice,
   PasswordChecklist,
   PasswordField,
   SubmitButton,
@@ -151,9 +152,7 @@ export function ChangePasswordPage() {
               Password changed
             </h1>
           </header>
-          <p className="auth-notice" role="status">
-            Your new password is set. Opening the {portalName}.
-          </p>
+          <Notice tone="success">Your new password is set. Opening the {portalName}.</Notice>
         </div>
       )}
     </AuthShell>

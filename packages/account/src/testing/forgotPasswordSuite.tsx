@@ -13,10 +13,8 @@ export function forgotPasswordSuite({
   PORTAL_HEADING,
 }: PortalFixtures) {
   const ROUTE = "POST /auth/forgot-password";
-  const accepted = {
-    status: 202,
-    body: { message: "If that address is registered, a reset link has been sent." },
-  };
+  const CONFIRMATION = "If that address is registered, a reset link has been sent.";
+  const accepted = { status: 202, body: { message: CONFIRMATION } };
 
   async function openPage() {
     renderApp("/forgot-password");
@@ -54,15 +52,14 @@ export function forgotPasswordSuite({
       expect(screen.getByText("ana@pup.edu.ph")).toBeInTheDocument();
     });
 
-    it("never shows the API's wording, so the confirmation is the same for every address", async () => {
+    it("confirms in the API's own words, which are the same for every address", async () => {
       mockApi({ [ROUTE]: accepted });
       await openPage();
 
       await userEvent.type(emailField(), "nobody@example.com{Enter}");
 
       await screen.findByRole("heading", { name: "Check your email" });
-      expect(screen.queryByText(/registered/)).not.toBeInTheDocument();
-      expect(screen.getByText(/belongs to a CBPUPSIS account/)).toBeInTheDocument();
+      expect(screen.getByText(CONFIRMATION)).toHaveAttribute("role", "status");
     });
 
     it("checks the address when the field is left, then on every keystroke", async () => {
@@ -71,12 +68,14 @@ export function forgotPasswordSuite({
       const user = userEvent.setup();
 
       await user.type(emailField(), "ana@");
-      expect(emailField()).not.toHaveAccessibleDescription(/valid email/);
+      expect(emailField()).not.toHaveAccessibleDescription(/such as name@pup.edu.ph/);
       await user.tab();
-      expect(emailField()).toHaveAccessibleDescription(/Enter a valid email address/);
+      expect(emailField()).toHaveAccessibleDescription(
+        /Enter an email address such as name@pup.edu.ph/,
+      );
 
       await user.type(emailField(), "pup.edu.ph");
-      expect(emailField()).not.toHaveAccessibleDescription(/valid email/);
+      expect(emailField()).not.toHaveAccessibleDescription(/such as name@pup.edu.ph/);
       expect(api.calls).toHaveLength(0);
     });
 
@@ -108,12 +107,13 @@ export function forgotPasswordSuite({
       expect(emailField()).toHaveValue("ana@pup.edu.ph");
     });
 
-    it("explains a refused request, with the wait and the reference, and blocks resending", async () => {
+    it("explains a refused request in the API's words, with the wait and the reference, and blocks resending", async () => {
+      const detail = "Too many requests. Try again later or use a link already sent to you.";
       mockApi({
         [ROUTE]: {
           status: 429,
           headers: { "Retry-After": "120" },
-          body: { detail: "Too many requests.", request_id: "req-7", code: "RATE_LIMIT_EXCEEDED" },
+          body: { detail, request_id: "req-7", code: "RATE_LIMIT_EXCEEDED" },
         },
       });
       await openPage();
@@ -121,8 +121,8 @@ export function forgotPasswordSuite({
       await userEvent.type(emailField(), "ana@pup.edu.ph{Enter}");
 
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent(/Too many reset requests/);
-      expect(alert).toHaveTextContent("Reference: req-7");
+      expect(alert).toHaveTextContent(detail);
+      expect(alert).toHaveTextContent("req-7");
       await waitFor(() => expect(screen.getByRole("timer")).toHaveTextContent(/^(2:00|1:59)$/));
       expect(screen.getByRole("button", { name: "Send reset link" })).toHaveAttribute(
         "aria-disabled",
@@ -158,8 +158,9 @@ export function forgotPasswordSuite({
       expect(api.called(ROUTE)).toHaveLength(1);
     });
 
-    it("sends another link on request and says so", async () => {
-      const api = mockApi({ [ROUTE]: accepted });
+    it("sends another link on request and confirms it again in the API's words", async () => {
+      const again = "A new link is on its way.";
+      const api = mockApi({ [ROUTE]: [accepted, { status: 202, body: { message: again } }] });
       await openPage();
       const user = userEvent.setup();
       await user.type(emailField(), "ana@pup.edu.ph{Enter}");
@@ -167,10 +168,7 @@ export function forgotPasswordSuite({
 
       await user.click(screen.getByRole("button", { name: "Send another link" }));
 
-      expect(await screen.findByText("Another link was sent to ana@pup.edu.ph.")).toHaveAttribute(
-        "role",
-        "status",
-      );
+      expect(await screen.findByText(again)).toHaveAttribute("role", "status");
       expect(api.called(ROUTE)).toHaveLength(2);
     });
   });

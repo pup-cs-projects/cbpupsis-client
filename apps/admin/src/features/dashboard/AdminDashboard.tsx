@@ -1,7 +1,6 @@
-import { useSignOut } from "@cbpupsis/account";
-import { ApiError, errorMessage } from "@cbpupsis/shared/api";
+import { SignOutButton } from "@cbpupsis/account";
 import { NOTICES, type AdminPosition } from "@cbpupsis/shared/auth";
-import { AuthSkeleton } from "@cbpupsis/ui";
+import { AuthSkeleton, ErrorAlert, Notice } from "@cbpupsis/ui";
 import { Link, useSearch } from "@tanstack/react-router";
 import { useState } from "react";
 
@@ -17,7 +16,6 @@ const POSITION_LABELS: Record<AdminPosition, string> = {
 export function AdminDashboard() {
   const { notice } = useSearch({ strict: false });
   const me = useMe();
-  const signOut = useSignOut();
   const [menuOpen, setMenuOpen] = useState(false);
   return (
     <div className="dashboard">
@@ -26,13 +24,7 @@ export function AdminDashboard() {
       </a>
       <header className="dashboard-header">
         <strong>CBPUPSIS · Admin Portal</strong>
-        <button
-          className="secondary-button"
-          disabled={signOut.isPending}
-          onClick={() => signOut.mutate()}
-        >
-          Sign out
-        </button>
+        <SignOutButton className="secondary-button" />
       </header>
       <div className="dashboard-layout">
         <aside>
@@ -55,22 +47,10 @@ export function AdminDashboard() {
         <main id="dashboard-main" tabIndex={-1}>
           <h1>Administrative dashboard</h1>
           {notice === "password-changed" && (
-            <p className="auth-notice" role="status">
-              {NOTICES.passwordChanged}
-            </p>
+            <Notice tone="success">{NOTICES.passwordChanged}</Notice>
           )}
           {me.isPending && <AuthSkeleton />}
-          {me.isError && (
-            <div className="auth-error" role="alert">
-              <p>{errorMessage(me.error)}</p>
-              {me.error instanceof ApiError && me.error.requestId && (
-                <p className="request-id">Reference: {me.error.requestId}</p>
-              )}
-              <button className="secondary-button" onClick={() => void me.refetch()}>
-                Try again
-              </button>
-            </div>
-          )}
+          {me.isError && <ErrorAlert error={me.error} onRetry={() => void me.refetch()} />}
           {me.isSuccess && (
             <p>
               Signed in as {me.data.email} ({POSITION_LABELS[me.data.position]}).

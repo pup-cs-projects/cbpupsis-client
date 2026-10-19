@@ -1,14 +1,17 @@
 /**
  * The one error every API call rejects with.
  *
- * `code` comes from the API's error envelope `{ detail, request_id, code? }` and is the only
- * thing to branch on: `detail` is prose the API may reword at any time. Failures that never
- * reached the API, or came back unreadable, get a client-side code instead.
+ * `detail` is the API's own sentence for a person, read from its error envelope
+ * `{ status, message, detail, request_id, code? }`; it is what the screen shows. `code` is the
+ * only thing to branch on: `detail` is prose the API may reword at any time. Failures that never
+ * reached the API, or came back unreadable, get a client-side code and no `detail`.
  */
 export class ApiError extends Error {
   /** HTTP status, or 0 when the request never got a response. */
   readonly status: number;
   readonly code: ApiErrorCode | undefined;
+  /** The API's message for a person, when it sent one in words. */
+  readonly detail: string | undefined;
   readonly requestId: string | undefined;
   /** Epoch milliseconds after which a 423 or 429 may be retried, when the API said. */
   readonly retryAt: number | undefined;
@@ -16,12 +19,13 @@ export class ApiError extends Error {
   constructor(
     status: number,
     code: ApiErrorCode | undefined,
-    options: { requestId?: string; retryAt?: number; message?: string } = {},
+    options: { detail?: string; requestId?: string; retryAt?: number } = {},
   ) {
-    super(options.message ?? code ?? `HTTP ${status}`);
+    super(options.detail ?? code ?? `HTTP ${status}`);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
+    this.detail = options.detail;
     this.requestId = options.requestId;
     this.retryAt = options.retryAt;
   }
@@ -84,52 +88,25 @@ export function isPasswordChangeRequired(error: unknown): error is ApiError {
   );
 }
 
-const MESSAGES: Partial<Record<string, string>> = {
-  AUTH_FAILED: "Those sign-in details do not match our records. Check them and try again.",
-  AUTH_ID_FORMAT_INVALID:
-    "Enter your ID in the format YYYY-NNNNN-XX-N, for example 2021-00123-MN-0.",
-  AUTH_ACCOUNT_LOCKED: "Sign-in is temporarily locked after repeated failed attempts.",
-  // The API sends this code only for password reset requests.
-  RATE_LIMIT_EXCEEDED:
-    "Too many reset requests. Wait before trying again, or use a link we already sent.",
-  rate_limited: "Too many attempts. Please wait before trying again.",
-  AUTH_MFA_INVALID: "That code is not valid. Enter the current code from your authenticator app.",
-  AUTH_MFA_CODE_REUSED: "That code was already used. Wait for the next code in your app.",
-  AUTH_MFA_REQUIRED: "Two-step verification is required. Sign in again to continue.",
-  AUTH_MFA_ENROLLMENT_REQUIRED: "Set up two-step verification to continue.",
-  AUTH_INSUFFICIENT_ROLE: "This account cannot sign in to this portal.",
-  SUPERADMIN_ROLE_REQUIRED: "This account cannot sign in to this portal.",
-  AUTH_ADMIN_PROFILE_REQUIRED:
-    "Your administrator profile is not set up yet. Contact ICTO to finish setting it up.",
-  AUTH_SESSION_EXPIRED: "Your session ended after a period of inactivity. Sign in again.",
-  // A reset clears the temporary-password state, so it is a way forward that needs no one else.
-  AUTH_TEMPORARY_PASSWORD_EXPIRED:
-    "Your temporary password has expired. Reset your password to choose a new one, or ask ICTO to send a new temporary password.",
-  PASSWORD_CHANGE_REQUIRED: "You must change your temporary password before continuing.",
-  AUTH_PASSWORD_TOO_WEAK: "That password does not meet every rule in the list. Choose another one.",
-  AUTH_RESET_TOKEN_EXPIRED: "That link has expired. Request a new one below.",
-  AUTH_RESET_TOKEN_USED:
-    "That link has already been used. If you just set a new password, sign in with it. Otherwise, request a new link below.",
-  RESET_LINK_INVALID:
-    "That link is not valid. Check that you opened the whole link from the email, or request a new one below.",
-  INVALID_EMAIL_ADDRESS: "Enter a valid email address, such as name@pup.edu.ph.",
-  CURRENT_PASSWORD_INCORRECT:
-    "That temporary password is not correct. Copy it again from the email with your account details.",
-  NETWORK_ERROR: "We could not reach the server. Check your connection and try again.",
-  INVALID_RESPONSE: "Something went wrong on our side. Please try again.",
+/**
+ * The only sentences the client writes for a failure: the ones where the API never answered,
+ * or did not answer in words. Everything the API says, it says through `detail`.
+ */
+const CLIENT_MESSAGES: Partial<Record<string, string>> = {
+  NETWORK_ERROR: "We could not reach the server. Check your connection, then try again.",
+  INVALID_RESPONSE: "The server sent an answer we could not read. Try again in a moment.",
   NOT_SIGNED_IN: "Sign in to continue.",
-  WEBAUTHN_UNAVAILABLE:
-    "Security keys are not available in this browser. Use your authenticator app instead.",
-  WEBAUTHN_CANCELLED: "Security key verification was cancelled or timed out. Try again.",
+  WEBAUTHN_UNAVAILABLE: "This browser cannot use security keys. Use your authenticator app.",
+  WEBAUTHN_CANCELLED: "The security key check was cancelled or timed out. Try again.",
+  // A reset address with no token in it: the page cannot ask the API about a link it lacks.
+  RESET_LINK_INVALID:
+    "This link is incomplete. Open the whole link from the email, or request a new one.",
 };
 
-// A bare 401 means a challenge or session token was refused; both read the same to a person.
-const CHALLENGE_REJECTED = "Your sign-in has expired. Sign in again to continue.";
-const FALLBACK = "Something went wrong. Please try again.";
+const FALLBACK = "Something went wrong. Try again in a moment.";
 
-/** The sentence to show a person for any error an API call rejected with. */
+/** The sentence to show a person for any error an API call rejected with: the API's own. */
 export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return FALLBACK;
-  if (isChallengeRejected(error)) return CHALLENGE_REJECTED;
-  return (error.code && MESSAGES[error.code]) || FALLBACK;
+  return error.detail ?? (error.code && CLIENT_MESSAGES[error.code]) ?? FALLBACK;
 }

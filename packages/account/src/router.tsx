@@ -13,6 +13,16 @@ import { ChangePasswordPage } from "./password/ChangePasswordPage";
 import { ForgotPasswordPage } from "./password/ForgotPasswordPage";
 import { ResetPasswordPage } from "./password/ResetPasswordPage";
 
+declare module "@tanstack/history" {
+  interface HistoryState {
+    /**
+     * The API's own sentence for why it ended the session, carried to sign-in in history state
+     * rather than the address, so it is never bookmarked, shared, or logged with the URL.
+     */
+    sessionEndedReason?: string;
+  }
+}
+
 /** Why sign-in is showing: the session ended (`expired`), or a reset just finished. */
 export interface SignInSearch {
   expired?: true | "idle";

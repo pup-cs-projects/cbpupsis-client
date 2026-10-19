@@ -126,8 +126,8 @@ export function changePasswordSuite({
       await fill(user, "not-it");
 
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent("That temporary password is not correct.");
-      expect(alert).toHaveTextContent("Reference: req-cur");
+      expect(alert).toHaveTextContent("Current password is incorrect");
+      expect(alert).toHaveTextContent("req-cur");
       expect(temporaryField()).toHaveValue("");
       expect(newField()).toHaveValue("");
       expect(temporaryField()).toHaveFocus();
@@ -140,7 +140,12 @@ export function changePasswordSuite({
       await openChange({
         [ROUTE]: {
           status: 401,
-          body: { detail: "x", request_id: "req-exp", code: "AUTH_TEMPORARY_PASSWORD_EXPIRED" },
+          body: {
+            detail:
+              "Your temporary password has expired. Ask the system administrator to issue a new one.",
+            request_id: "req-exp",
+            code: "AUTH_TEMPORARY_PASSWORD_EXPIRED",
+          },
         },
         [REFRESH_ROUTE]: { status: 200, body: refreshedPair },
       });
@@ -148,7 +153,9 @@ export function changePasswordSuite({
       await fill(userEvent.setup());
 
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent("Your temporary password has expired.");
+      expect(alert).toHaveTextContent(
+        "Your temporary password has expired. Ask the system administrator to issue a new one.",
+      );
       expect(screen.getByRole("link", { name: "Reset your password" })).toHaveAttribute(
         "href",
         "/forgot-password",
@@ -157,13 +164,19 @@ export function changePasswordSuite({
 
     it("explains a refused new password and returns focus to it", async () => {
       await openChange({
-        [ROUTE]: { status: 422, body: { detail: "x", code: "AUTH_PASSWORD_TOO_WEAK" } },
+        [ROUTE]: {
+          status: 422,
+          body: {
+            detail: "Password does not meet complexity requirements: different",
+            code: "AUTH_PASSWORD_TOO_WEAK",
+          },
+        },
       });
 
       await fill(userEvent.setup());
 
       expect(await screen.findByRole("alert")).toHaveTextContent(
-        "That password does not meet every rule in the list.",
+        "Password does not meet complexity requirements: different",
       );
       expect(newField()).toHaveFocus();
     });

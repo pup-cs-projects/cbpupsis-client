@@ -1,8 +1,15 @@
-import { AuthShell } from "@cbpupsis/account";
-import { ApiError, errorMessage, isChallengeRejected, isThrottled } from "@cbpupsis/shared/api";
-import { NOTICES } from "@cbpupsis/shared/auth";
-import { AuthSkeleton, formatTime, QrCode, useCodeWindow, useCountdown } from "@cbpupsis/ui";
-import { Link, useSearch } from "@tanstack/react-router";
+import { AuthShell, useSignInNotice } from "@cbpupsis/account";
+import { ApiError, isChallengeRejected, isThrottled } from "@cbpupsis/shared/api";
+import {
+  ErrorAlert,
+  formatTime,
+  Notice,
+  QrCode,
+  RetryCountdown,
+  useCodeWindow,
+  useCountdown,
+} from "@cbpupsis/ui";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { session } from "../../lib/auth";
@@ -13,7 +20,6 @@ export function AdminLoginPage() {
   const { login, enrollment, confirmation, verification, keyEnrollment, securityKey } =
     useAdminAuth();
   const enter = useEnterPortal();
-  const { expired: sessionExpired, notice } = useSearch({ strict: false });
   const [code, setCode] = useState("");
   const [enteredWindow, setEnteredWindow] = useState<number>();
   const headingRef = useRef<HTMLHeadingElement>(null);
@@ -44,14 +50,7 @@ export function AdminLoginPage() {
     keyEnrollment.isPending ||
     securityKey.isPending ||
     enter.isPending;
-  const status =
-    sessionExpired === "idle"
-      ? NOTICES.timedOut
-      : sessionExpired
-        ? NOTICES.sessionEnded
-        : notice === "password-reset"
-          ? NOTICES.passwordReset
-          : null;
+  const status = useSignInNotice();
   const title = enrolling
     ? "Secure your account"
     : challenge
@@ -110,14 +109,9 @@ export function AdminLoginPage() {
         {codeChanged ? "The previous code window has ended. Use the current code in your app." : ""}
         {remainingLock === 0 ? "The waiting period has ended. You can try signing in again." : ""}
       </div>
-      {status && !error && !challenge && (
-        <p className="auth-notice" role="status">
-          {status}
-        </p>
-      )}
+      {status && !error && !challenge && <Notice>{status}</Notice>}
       {error && (
-        <div className="auth-error" role="alert">
-          <p>{errorMessage(error)}</p>
+        <ErrorAlert error={error}>
           {error instanceof ApiError && error.code === "AUTH_TEMPORARY_PASSWORD_EXPIRED" && (
             <p>
               <Link to="/forgot-password" className="inline-link">
@@ -125,31 +119,13 @@ export function AdminLoginPage() {
               </Link>
             </p>
           )}
-          {lockError && (
-            <p>
-              {remainingLock === undefined ? (
-                "Contact ICTO if access is not restored."
-              ) : remainingLock > 0 ? (
-                <>
-                  Try again in{" "}
-                  <span role="timer" aria-label="Time before retry">
-                    {formatTime(remainingLock)}
-                  </span>
-                  .
-                </>
-              ) : (
-                "You can try again now."
-              )}
-            </p>
-          )}
-          {error instanceof ApiError && error.requestId && (
-            <p className="request-id">Reference: {error.requestId}</p>
-          )}
-        </div>
+          {lockError && <RetryCountdown remaining={remainingLock} />}
+        </ErrorAlert>
       )}
       {!challenge ? (
         <SignInForm
           disabled={busy || locked}
+          busy={busy}
           onSubmit={(credentials) => login.mutate(credentials)}
         />
       ) : (
@@ -168,16 +144,16 @@ export function AdminLoginPage() {
               >
                 {enrollment.isError ? "Retry authenticator setup" : "Set up authenticator"}
               </button>
-              {challenge.methods.includes("webauthn") && (
-                <button
-                  type="button"
-                  className="secondary-button security-key"
-                  disabled={busy || locked || expired}
-                  onClick={() => void finish(keyEnrollment.mutateAsync(challenge.challengeToken))}
-                >
-                  Register a security key
-                </button>
-              )}
+              {/* Every admin enrollment challenge may register a key: the API gates it on
+                  enrollment alone, and `methods` is empty here because nothing is enrolled. */}
+              <button
+                type="button"
+                className="secondary-button security-key"
+                disabled={busy || locked || expired}
+                onClick={() => void finish(keyEnrollment.mutateAsync(challenge.challengeToken))}
+              >
+                Register a security key
+              </button>
             </div>
           )}
           {enrolling && enrollment.data && (
@@ -260,7 +236,6 @@ export function AdminLoginPage() {
           </button>
         </div>
       )}
-      {busy && <AuthSkeleton />}
       <p className="account-help">
         Don&apos;t have an account? Contact{" "}
         <a href="mailto:icto-admin@pup.edu.ph">icto-admin@pup.edu.ph</a>

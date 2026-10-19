@@ -52,19 +52,29 @@ export function AuthShell({
             aria-busy={busy}
           >
             {children}
+            {/* The busy button shows progress; this says it to screen readers. */}
+            {busy && (
+              <p
+                className="sr-only"
+                role="status"
+                aria-label="Please wait, securely processing your request"
+              >
+                Please wait, securely processing your request.
+              </p>
+            )}
           </section>
         </div>
       </main>
-      <footer className="portal-footer min-h-[54px]! py-2! text-gray-700!">
+      <footer className="portal-footer text-brand-footer-text! min-h-[54px]! py-1!">
         <p className="text-xs!">© 2026 Polytechnic University of the Philippines</p>
         <nav aria-label="University information">
-          <a className="min-h-8! text-xs!" href="https://www.pup.edu.ph/privacy/">
+          <a className="min-h-11! text-xs!" href="https://www.pup.edu.ph/privacy/">
             Privacy Policy
           </a>
-          <a className="min-h-8! text-xs!" href="https://www.pup.edu.ph/terms/">
+          <a className="min-h-11! text-xs!" href="https://www.pup.edu.ph/terms/">
             Terms of Service
           </a>
-          <a className="min-h-8! text-xs!" href="https://www.pup.edu.ph/students/registrar">
+          <a className="min-h-11! text-xs!" href="https://www.pup.edu.ph/students/registrar">
             University Registrar
           </a>
         </nav>

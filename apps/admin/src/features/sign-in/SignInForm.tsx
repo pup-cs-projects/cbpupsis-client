@@ -4,9 +4,12 @@ import { useState, type FormEvent } from "react";
 
 export function SignInForm({
   disabled,
+  busy = false,
   onSubmit,
 }: {
   disabled: boolean;
+  /** A request is running: the button says so and shows progress. */
+  busy?: boolean;
   onSubmit: (credentials: AdminCredentials) => void;
 }) {
   const [visible, setVisible] = useState(false);
@@ -93,8 +96,8 @@ export function SignInForm({
         <Link to="/forgot-password" className="forgot-password">
           Forgot password?
         </Link>
-        <button type="submit" className="primary-button">
-          Sign in to Portal
+        <button type="submit" className={busy ? "primary-button is-busy" : "primary-button"}>
+          {busy ? "Signing in…" : "Sign in to Portal"}
         </button>
       </fieldset>
     </form>

@@ -1,5 +1,5 @@
 import { mockApi } from "@cbpupsis/account/testing";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +18,11 @@ const me = {
   email: "juan@iskolarngbayan.pup.edu.ph",
   role: "student",
 };
+
+// The API's own sentences (cbpupsis_shared/domains/auth/constants.py).
+const FAILED = "Invalid credentials. Please verify your Student ID, birthdate, and password.";
+const TEMPORARY_EXPIRED =
+  "Your temporary password has expired. Ask the system administrator to issue a new one.";
 
 async function fillAndSubmit(
   details = {
@@ -54,7 +59,7 @@ describe("student sign-in (US-101)", () => {
       "GET /auth/student/me": { status: 200, body: me },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit();
 
@@ -70,7 +75,7 @@ describe("student sign-in (US-101)", () => {
   it("requires the birthdate, as every student sign-in does, without calling the API", async () => {
     const api = mockApi({});
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit({ studentNumber: "2021-00123-MN-0", birthdate: "", password: "pw" });
 
@@ -83,7 +88,7 @@ describe("student sign-in (US-101)", () => {
   it("rejects a birthdate the calendar doesn't have without calling the API", async () => {
     const api = mockApi({});
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit({
       studentNumber: "2021-00123-MN-0",
@@ -101,35 +106,45 @@ describe("student sign-in (US-101)", () => {
     mockApi({
       "POST /auth/student/login": {
         status: 422,
-        body: { detail: "Bad format", request_id: "r1", code: "AUTH_ID_FORMAT_INVALID" },
+        body: {
+          detail: "Invalid Student ID format.",
+          request_id: "r1",
+          code: "AUTH_ID_FORMAT_INVALID",
+        },
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit({ studentNumber: "21-123", birthdate: "2003-04-05", password: "pw" });
 
     expect(await screen.findByLabelText(/student id number/i)).toHaveAccessibleDescription(
-      expect.stringMatching(/YYYY-NNNNN-XX-N/),
+      "Invalid Student ID format.",
     );
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("says only that the details do not match, clears the password, and stays on sign-in (AC-101.3)", async () => {
+  it("says only what the API says about the failed details, clears the password, and stays on sign-in (AC-101.3)", async () => {
     mockApi({
       "POST /auth/student/login": {
         status: 401,
-        body: { detail: "Sign-in failed", request_id: "req-42", code: "AUTH_FAILED" },
+        body: {
+          status: "error",
+          message: FAILED,
+          detail: FAILED,
+          request_id: "req-42",
+          code: "AUTH_FAILED",
+        },
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit();
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(/do not match/);
-    expect(alert).toHaveTextContent("Reference: req-42");
+    expect(alert).toHaveTextContent(FAILED);
+    expect(alert).toHaveTextContent("req-42");
     expect(screen.getByLabelText(/^Password/)).toHaveValue("");
   });
 
@@ -142,7 +157,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     const router = renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit();
 
@@ -154,17 +169,21 @@ describe("student sign-in (US-101)", () => {
     mockApi({
       "POST /auth/student/login": {
         status: 401,
-        body: { detail: "x", request_id: "req-t", code: "AUTH_TEMPORARY_PASSWORD_EXPIRED" },
+        body: {
+          detail: TEMPORARY_EXPIRED,
+          request_id: "req-t",
+          code: "AUTH_TEMPORARY_PASSWORD_EXPIRED",
+        },
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit();
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Your temporary password has expired.");
-    expect(alert).toHaveTextContent("Reference: req-t");
+    expect(alert).toHaveTextContent(TEMPORARY_EXPIRED);
+    expect(alert).toHaveTextContent("req-t");
     expect(screen.getByRole("link", { name: "Reset your password" })).toHaveAttribute(
       "href",
       "/forgot-password",
@@ -179,7 +198,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit();
 
@@ -187,22 +206,27 @@ describe("student sign-in (US-101)", () => {
     expect(screen.getByRole("button", { name: "Sign in to Portal" })).toBeDisabled();
   });
 
-  it("returns to sign-in with an inactivity notice when the API says the session idled out (AC-101.7)", async () => {
+  it("returns to sign-in with the API's own reason when it ends the session (AC-101.7)", async () => {
     mockApi({
       "POST /auth/student/login": { status: 200, body: tokens },
       "GET /auth/student/me": {
         status: 401,
-        body: { detail: "Expired", code: "AUTH_SESSION_EXPIRED" },
+        body: { detail: "Your session has ended. Sign in again.", code: "AUTH_SESSION_EXPIRED" },
       },
       "POST /auth/student/logout": { status: 204 },
     });
-    renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    const router = renderApp("/");
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit();
 
-    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
-    expect(screen.getByRole("heading", { name: "Welcome back, Iskolar." })).toBeInTheDocument();
+    expect(await screen.findByText("Your session has ended. Sign in again.")).toHaveAttribute(
+      "role",
+      "status",
+    );
+    // The reason rides in history state, never in the address.
+    expect(router.state.location.href).not.toMatch(/ended/);
+    expect(screen.getByRole("heading", { name: "Hello, Iskolar." })).toBeInTheDocument();
   });
 
   it("refreshes an expired access token and carries on without the student noticing", async () => {
@@ -218,7 +242,7 @@ describe("student sign-in (US-101)", () => {
       },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit();
 
@@ -236,13 +260,11 @@ describe("student sign-in (US-101)", () => {
       "POST /auth/student/refresh": { status: 401, body: { detail: "Refresh token already used" } },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
 
     await fillAndSubmit();
 
-    expect(
-      await screen.findByRole("heading", { name: "Welcome back, Iskolar." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Hello, Iskolar." })).toBeInTheDocument();
     await waitFor(() => expect(session.isSignedIn()).toBe(false));
   });
 
@@ -253,15 +275,17 @@ describe("student sign-in (US-101)", () => {
       "POST /auth/student/logout": { status: 204 },
     });
     renderApp("/");
-    await screen.findByRole("heading", { name: "Welcome back, Iskolar." });
+    await screen.findByRole("heading", { name: "Hello, Iskolar." });
     const user = await fillAndSubmit();
     await screen.findByText(`Signed in as ${me.email}`);
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
-    expect(
-      await screen.findByRole("heading", { name: "Welcome back, Iskolar." }),
-    ).toBeInTheDocument();
+    // Sign out asks first; confirm in the dialog.
+    const confirm = await screen.findByRole("alertdialog", { name: "Sign out?" });
+    await user.click(within(confirm).getByRole("button", { name: "Sign out" }));
+
+    expect(await screen.findByRole("heading", { name: "Hello, Iskolar." })).toBeInTheDocument();
     expect(api.called("POST /auth/student/logout")[0].body).toEqual({ refresh_token: "refresh-1" });
   });
 });
@@ -271,9 +295,7 @@ describe("route guards", () => {
     mockApi({});
     const router = renderApp("/dashboard");
 
-    expect(
-      await screen.findByRole("heading", { name: "Welcome back, Iskolar." }),
-    ).toBeInTheDocument();
+    expect(await screen.findByRole("heading", { name: "Hello, Iskolar." })).toBeInTheDocument();
     expect(router.state.location.pathname).toBe("/");
   });
 

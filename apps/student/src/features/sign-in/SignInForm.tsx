@@ -1,12 +1,12 @@
 import type { StudentCredentials } from "@cbpupsis/shared/auth";
 import { Link } from "@tanstack/react-router";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useState, type FormEvent } from "react";
 
 const INCOMPLETE = "Please complete all fields to sign in.";
-// Red outline for a control flagged by aria-invalid; `!` beats the shared auth.css border.
-const FLAGGED = "aria-invalid:border-red-400!";
+// Maroon outline for a control flagged by aria-invalid; `!` beats the shared auth.css border.
+const FLAGGED = "aria-invalid:border-brand-maroon!";
 // Type scale for the controls. Selects keep the shared dark/placeholder colour pair.
-const INPUT = `${FLAGGED} text-sm! font-normal! text-gray-900!`;
+const INPUT = `${FLAGGED} text-sm! font-normal! text-brand-ink!`;
 const SELECT = `${FLAGGED} text-sm! font-normal! max-lg:pr-8! max-lg:pl-3!`;
 const LABEL = "text-sm! font-semibold! text-white! drop-shadow-sm";
 
@@ -46,22 +46,25 @@ function isRealDate(iso: string) {
 
 export function SignInForm({
   disabled,
+  busy = false,
   onSubmit,
   idError,
-  banner,
 }: {
   disabled: boolean;
+  /** A request is running: the button says so, with the `.is-busy` line. */
+  busy?: boolean;
   onSubmit: (credentials: StudentCredentials) => void;
   /** Shown under the student number when the API answers AUTH_ID_FORMAT_INVALID. */
   idError?: string;
-  /** Notice or error shown directly above the submit button; nothing is reserved when empty. */
-  banner?: ReactNode;
 }) {
   const [visible, setVisible] = useState(false);
   // Names of the controls to outline in red, and the one line that explains why.
   const [invalid, setInvalid] = useState<string[]>([]);
   const [message, setMessage] = useState("");
   const isInvalid = (name: string) => invalid.includes(name);
+  // A flagged control is described by the one line that says why, plus any API field error.
+  const describedBy = (name: string, ...extra: (string | false | undefined)[]) =>
+    [isInvalid(name) && "sign-in-message", ...extra].filter(Boolean).join(" ") || undefined;
 
   function fail(form: HTMLFormElement, names: string[], text: string) {
     setInvalid(names);
@@ -125,7 +128,7 @@ export function SignInForm({
             required
             className={INPUT}
             aria-invalid={isInvalid("studentNumber") || Boolean(idError)}
-            aria-describedby={idError ? "student-number-error" : undefined}
+            aria-describedby={describedBy("studentNumber", idError && "student-number-error")}
           />
           {/* Only the API's malformed-ID answer stays inline; empty fields use the single line above the button. */}
           {idError && (
@@ -145,6 +148,7 @@ export function SignInForm({
               required
               className={SELECT}
               aria-invalid={isInvalid("birthMonth")}
+              aria-describedby={describedBy("birthMonth")}
             >
               <option value="" disabled>
                 Month
@@ -163,6 +167,7 @@ export function SignInForm({
               required
               className={SELECT}
               aria-invalid={isInvalid("birthDay")}
+              aria-describedby={describedBy("birthDay")}
             >
               <option value="" disabled>
                 Day
@@ -181,6 +186,7 @@ export function SignInForm({
               required
               className={SELECT}
               aria-invalid={isInvalid("birthYear")}
+              aria-describedby={describedBy("birthYear")}
             >
               <option value="" disabled>
                 Year
@@ -207,6 +213,7 @@ export function SignInForm({
               required
               className={INPUT}
               aria-invalid={isInvalid("password")}
+              aria-describedby={describedBy("password")}
             />
             <button
               type="button"
@@ -236,27 +243,29 @@ export function SignInForm({
           {/* Inside the group so it sits snug under the input whatever the form gap is. */}
           <Link
             to="/forgot-password"
-            className="forgot-password mt-0! min-h-8! px-0! text-xs! font-semibold! text-[#a6192e]! [text-shadow:0_1px_3px_rgb(255_255_255/0.4)] hover:underline"
+            className="forgot-password text-brand-maroon! mt-0! min-h-8! px-0! text-xs! font-semibold! [text-shadow:0_1px_3px_rgb(255_255_255/0.4)] hover:underline"
           >
             Forgot Password?
           </Link>
         </div>
         <div className="flex flex-col gap-3">
-          {banner}
           <div className="flex flex-col gap-1">
             {/* Always one line tall, so showing the message never moves anything. */}
-            <div aria-live="assertive" className="flex h-6 items-center justify-center">
+            <div aria-live="assertive" className="flex min-h-6 items-center justify-center">
               {message && (
-                <span className="rounded-full border border-red-500/40 bg-red-950/40 px-3 text-xs leading-5 font-medium text-red-200">
+                <span
+                  id="sign-in-message"
+                  className="border-brand-maroon/40 bg-brand-maroon-dark/80 rounded-full border px-3 text-xs leading-5 font-medium text-white"
+                >
                   {message}
                 </span>
               )}
             </div>
             <button
               type="submit"
-              className="primary-button h-[52px]! min-h-[52px]! text-sm! font-semibold! text-white!"
+              className={`primary-button h-[52px]! min-h-[52px]! text-sm! font-semibold! text-white!${busy ? "is-busy" : ""}`}
             >
-              Sign in to Portal
+              {busy ? "Signing in…" : "Sign in to Portal"}
             </button>
           </div>
         </div>

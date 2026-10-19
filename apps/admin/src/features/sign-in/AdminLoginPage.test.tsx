@@ -1,12 +1,20 @@
 import { mockApi } from "@cbpupsis/account/testing";
 import { ApiError } from "@cbpupsis/shared/api";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { NOTICES } from "@cbpupsis/shared/auth";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { session } from "../../lib/auth";
 import { createCredential, signChallenge } from "../../lib/webauthn";
 import { renderApp } from "../../test/renderApp";
+
+// The API's own sentences (cbpupsis_shared/domains/auth), shown unchanged.
+const LOCKED = "Account temporarily locked after repeated sign-in failures";
+const REUSED = "That security code has already been used; enter the current code";
+const SESSION_ENDED = "Your session has ended. Sign in again.";
+const TEMPORARY_EXPIRED =
+  "Your temporary password has expired. Ask the system administrator to issue a new one.";
 
 // The browser's security-key prompt cannot run in jsdom; everything else here is real.
 vi.mock("../../lib/webauthn", () => ({ createCredential: vi.fn(), signChallenge: vi.fn() }));
@@ -15,7 +23,8 @@ const challenge = (enrollmentRequired: boolean, credentialId: string | null = "c
   mfa_required: true,
   challenge_token: "test-challenge",
   enrollment_required: enrollmentRequired,
-  methods: ["totp", "webauthn"],
+  // The API lists the factors already enrolled, so a first sign-in has none.
+  methods: enrollmentRequired ? [] : credentialId ? ["totp", "webauthn"] : ["totp"],
   webauthn_challenge: "webauthn-challenge",
   webauthn_rp_id: "admin.cbpupsis",
   webauthn_credential_id: credentialId,
@@ -154,6 +163,36 @@ describe("admin sign-in (US-103)", () => {
     expect(session.isSignedIn()).toBe(false);
   });
 
+  it("takes a first sign-in, with no factor enrolled yet, to both setup options", async () => {
+    mockApi({ "POST /auth/admin/login": { status: 200, body: challenge(true, null) } });
+    renderApp("/");
+
+    await submitPassword();
+
+    expect(await screen.findByRole("heading", { name: "Secure your account" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Set up authenticator" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Register a security key" })).toBeEnabled();
+    expect(screen.queryByLabelText(/Authentication code/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Use a security key" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
+  it("asks a key-only admin for the key, not for an app code", async () => {
+    mockApi({
+      "POST /auth/admin/login": {
+        status: 200,
+        body: { ...challenge(false), methods: ["webauthn"] },
+      },
+    });
+    renderApp("/");
+
+    await submitPassword();
+
+    await screen.findByRole("heading", { name: "Two-step verification" });
+    expect(screen.getByRole("button", { name: "Use a security key" })).toBeEnabled();
+    expect(screen.queryByLabelText(/Authentication code/)).not.toBeInTheDocument();
+  });
+
   it("enrolls an authenticator app and signs in on the confirmed code (AC-103.2)", async () => {
     const api = mockApi({
       "POST /auth/admin/login": { status: 200, body: challenge(true, null) },
@@ -211,7 +250,7 @@ describe("admin sign-in (US-103)", () => {
       "POST /auth/admin/login": { status: 200, body: challenge(false) },
       "POST /auth/admin/mfa/verify": {
         status: 423,
-        body: { detail: "Locked", code: "AUTH_ACCOUNT_LOCKED", retry_after_seconds: 900 },
+        body: { detail: LOCKED, code: "AUTH_ACCOUNT_LOCKED", retry_after_seconds: 900 },
       },
     });
     renderApp("/");
@@ -219,10 +258,11 @@ describe("admin sign-in (US-103)", () => {
 
     await enterCode();
 
+    expect(await screen.findByRole("alert")).toHaveTextContent(LOCKED);
     await waitFor(() =>
-      expect(screen.getByRole("timer", { name: "Time before retry" })).toHaveTextContent(
-        /^(15:00|14:59)$/,
-      ),
+      expect(
+        screen.getByRole("timer", { name: "Time before you can try again" }),
+      ).toHaveTextContent(/^(15:00|14:59)$/),
     );
     expect(screen.getByLabelText(/Authentication code/)).toBeDisabled();
     expect(session.isSignedIn()).toBe(false);
@@ -233,7 +273,7 @@ describe("admin sign-in (US-103)", () => {
       "POST /auth/admin/login": { status: 200, body: challenge(false) },
       "POST /auth/admin/mfa/verify": {
         status: 401,
-        body: { detail: "Reused", code: "AUTH_MFA_CODE_REUSED", request_id: "req-9" },
+        body: { detail: REUSED, code: "AUTH_MFA_CODE_REUSED", request_id: "req-9" },
       },
     });
     renderApp("/");
@@ -242,7 +282,7 @@ describe("admin sign-in (US-103)", () => {
     await enterCode();
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("already used");
+    expect(alert).toHaveTextContent(REUSED);
     expect(alert).toHaveTextContent("req-9");
   });
 
@@ -264,18 +304,21 @@ describe("admin sign-in (US-103)", () => {
     expect(router.state.location.pathname).toBe("/change-password");
   });
 
-  it("returns to sign-in with the inactivity notice when the session ends right after the code", async () => {
+  it("returns to sign-in with the API's reason when the session ends right after the code", async () => {
     mockApi({
       "POST /auth/admin/login": { status: 200, body: challenge(false) },
       "POST /auth/admin/mfa/verify": { status: 200, body: tokens },
-      "GET /admin/me": { status: 401, body: { detail: "Expired", code: "AUTH_SESSION_EXPIRED" } },
+      "GET /admin/me": {
+        status: 401,
+        body: { detail: SESSION_ENDED, code: "AUTH_SESSION_EXPIRED" },
+      },
     });
     renderApp("/");
 
     await submitPassword();
     await enterCode();
 
-    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
+    expect(await screen.findByText(SESSION_ENDED)).toHaveAttribute("role", "status");
     expect(screen.getByRole("heading", { name: "Admin Portal" })).toBeInTheDocument();
   });
 
@@ -283,7 +326,11 @@ describe("admin sign-in (US-103)", () => {
     mockApi({
       "POST /auth/admin/login": {
         status: 401,
-        body: { detail: "x", request_id: "req-t", code: "AUTH_TEMPORARY_PASSWORD_EXPIRED" },
+        body: {
+          detail: TEMPORARY_EXPIRED,
+          request_id: "req-t",
+          code: "AUTH_TEMPORARY_PASSWORD_EXPIRED",
+        },
       },
     });
     renderApp("/");
@@ -291,8 +338,8 @@ describe("admin sign-in (US-103)", () => {
     await submitPassword();
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Your temporary password has expired.");
-    expect(alert).toHaveTextContent("Reference: req-t");
+    expect(alert).toHaveTextContent(TEMPORARY_EXPIRED);
+    expect(alert).toHaveTextContent("req-t");
     expect(screen.getByRole("link", { name: "Reset your password" })).toHaveAttribute(
       "href",
       "/forgot-password",
@@ -302,14 +349,14 @@ describe("admin sign-in (US-103)", () => {
   it("blocks an expired challenge and offers a fresh sign-in", async () => {
     mockApi({
       "POST /auth/admin/login": { status: 200, body: challenge(false) },
-      "POST /auth/admin/mfa/verify": { status: 401, body: { detail: "Invalid token" } },
+      "POST /auth/admin/mfa/verify": { status: 401, body: { detail: "Invalid or expired token" } },
     });
     renderApp("/");
     await submitPassword();
 
     await enterCode();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/expired/);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid or expired token");
     expect(screen.getByRole("button", { name: "Use a security key" })).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Back to sign in" }));
     expect(await screen.findByRole("heading", { name: "Admin Portal" })).toBeInTheDocument();
@@ -325,12 +372,12 @@ describe("session", () => {
     expect(router.state.location.pathname).toBe("/");
   });
 
-  it("returns to sign-in with an inactivity notice when the session idles out", async () => {
+  it("returns to sign-in with the client's own notice when the API ends the session without words", async () => {
     mockApi({ "GET /admin/me": { status: 401, body: { code: "AUTH_SESSION_EXPIRED" } } });
     session.signIn({ accessToken: "access-1", refreshToken: "refresh-1" });
     renderApp("/dashboard");
 
-    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
+    expect(await screen.findByText(NOTICES.sessionEnded)).toHaveAttribute("role", "status");
   });
 
   it("signs out from the dashboard, ending the session on the API", async () => {
@@ -342,7 +389,12 @@ describe("session", () => {
     renderApp("/dashboard");
     await screen.findByText(/Signed in as registrar@pup.edu.ph/);
 
-    await userEvent.setup().click(screen.getByRole("button", { name: "Sign out" }));
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Sign out" }));
+
+    // Sign out asks first; confirm in the dialog.
+    const confirm = await screen.findByRole("alertdialog", { name: "Sign out?" });
+    await user.click(within(confirm).getByRole("button", { name: "Sign out" }));
 
     expect(await screen.findByRole("heading", { name: "Admin Portal" })).toBeInTheDocument();
     expect(api.called("POST /auth/admin/logout")[0].body).toEqual({ refresh_token: "refresh-1" });
