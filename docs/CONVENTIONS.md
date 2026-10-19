@@ -121,14 +121,15 @@ From SRS 4.3 and 5.1. A screen missing one of these is unfinished.
 
 Each has a `type: decision` issue in the API repo. **Do not resolve one silently in code.**
 
-| Topic            | SRS says                                                             | Today                                                          |
-| ---------------- | -------------------------------------------------------------------- | -------------------------------------------------------------- |
-| Session storage  | Secure, HttpOnly cookies with SameSite and CSRF protection (SRS 4.2) | The API returns access and refresh tokens in the response body |
-| Session timeout  | 30 minutes of inactivity, with a warning 5 minutes before (FR1)      | Not implemented in the API or the client                       |
-| Login identifier | Student number `YYYY-NNNNN-XX-N` or employee id (FR1)                | The API logs in by email                                       |
+| Topic            | SRS says                                                             | Today                                                                                                                                   |
+| ---------------- | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Session storage  | Secure, HttpOnly cookies with SameSite and CSRF protection (SRS 4.2) | Tokens come back in the body and live in memory; a page reload restores the session from the HttpOnly refresh cookie. No CSRF token yet |
+| Session timeout  | 30 minutes of inactivity, with a warning 5 minutes before (FR1)      | Not implemented in the API or the client                                                                                                |
+| Login identifier | Student number `YYYY-NNNNN-XX-N` or employee id (FR1)                | The API logs in by email                                                                                                                |
 
-Until the session decision closes, keep tokens in memory only, never in `localStorage` or
-`sessionStorage`.
+Keep tokens in memory only, never in `localStorage` or `sessionStorage`. To survive a reload,
+`session.restore()` asks `POST /auth/{role}/refresh` with no body, and the API reads the
+refresh cookie that script can never see.
 
 ## Verifying
 

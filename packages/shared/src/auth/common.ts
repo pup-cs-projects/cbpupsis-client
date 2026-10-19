@@ -14,6 +14,7 @@ export interface MfaChallenge {
   challengeToken: string;
   /** True on first sign-in: the user must set up an authenticator before verifying. */
   enrollmentRequired: boolean;
+  /** The factors already enrolled: empty when `enrollmentRequired`, never empty otherwise. */
   methods: MfaMethod[];
 }
 
@@ -31,10 +32,16 @@ export function parseTokens(data: unknown, role: Role): Tokens {
 export function parseChallenge(data: unknown, allowed: readonly MfaMethod[]): MfaChallenge {
   const body = parse.record(data);
   if (body.mfa_required !== true) parse.invalid();
+  const enrollmentRequired = parse.boolean(body.enrollment_required);
+  // `methods` lists the factors already enrolled, so it is empty on a first sign-in. A
+  // returning sign-in with no method could never be verified, so that stays a contract error.
+  const methods = enrollmentRequired
+    ? parse.array(body.methods)
+    : parse.nonEmptyArray(body.methods);
   return {
     challengeToken: parse.string(body.challenge_token),
-    enrollmentRequired: parse.boolean(body.enrollment_required),
-    methods: parse.nonEmptyArray(body.methods).map((method) => parse.oneOf(method, allowed)),
+    enrollmentRequired,
+    methods: methods.map((method) => parse.oneOf(method, allowed)),
   };
 }
 
@@ -42,8 +49,10 @@ export function parseChallenge(data: unknown, allowed: readonly MfaMethod[]): Mf
 export function sessionEndpoints(client: ApiClient, role: Role) {
   const base = `/auth/${role}`;
   return {
-    async refresh(refreshToken: string): Promise<Tokens> {
-      const body: Schemas["RefreshRequest"] = { refresh_token: refreshToken };
+    /** Without a token, the browser's HttpOnly refresh cookie carries it (after a reload). */
+    async refresh(refreshToken?: string): Promise<Tokens> {
+      const body: Schemas["RefreshRequest"] | undefined =
+        refreshToken === undefined ? undefined : { refresh_token: refreshToken };
       return parseTokens(await client.request(`${base}/refresh`, { body }), role);
     },
     async logout(refreshToken: string): Promise<void> {

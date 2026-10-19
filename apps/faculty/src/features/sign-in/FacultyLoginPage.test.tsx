@@ -1,16 +1,24 @@
 import { mockApi } from "@cbpupsis/account/testing";
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { NOTICES } from "@cbpupsis/shared/auth";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { session } from "../../lib/auth";
 import { renderApp } from "../../test/renderApp";
 
+// The API's own sentences (cbpupsis_shared/domains/auth), shown unchanged.
+const ID_FORMAT = "Invalid employee ID format. Expected format: YYYY-NNNNN-XX-N";
+const SESSION_ENDED = "Your session has ended. Sign in again.";
+const TEMPORARY_EXPIRED =
+  "Your temporary password has expired. Ask the system administrator to issue a new one.";
+
 const challenge = (enrollmentRequired: boolean) => ({
   mfa_required: true,
   challenge_token: "test-challenge",
   enrollment_required: enrollmentRequired,
-  methods: ["totp"],
+  // The API lists the factors already enrolled, so a first sign-in has none.
+  methods: enrollmentRequired ? [] : ["totp"],
 });
 const tokens = {
   access_token: "access-1",
@@ -75,7 +83,7 @@ describe("faculty sign-in (US-102)", () => {
     });
   });
 
-  it("shows skeleton loading and prevents duplicate submission", async () => {
+  it("shows the busy button and prevents duplicate submission", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(() => new Promise(() => {})),
@@ -85,7 +93,7 @@ describe("faculty sign-in (US-102)", () => {
     await submitPassword();
 
     expect(await screen.findByRole("status", { name: /Please wait/ })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Sign in to Portal" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Signing in…" })).toBeDisabled();
   });
 
   it("does not create a session after the password step (AC-102.1)", async () => {
@@ -102,14 +110,14 @@ describe("faculty sign-in (US-102)", () => {
     mockApi({
       "POST /auth/faculty/login": {
         status: 422,
-        body: { detail: "Bad format", code: "AUTH_ID_FORMAT_INVALID" },
+        body: { detail: ID_FORMAT, code: "AUTH_ID_FORMAT_INVALID" },
       },
     });
     renderApp("/");
 
     await submitPassword();
 
-    expect(await screen.findByText(/YYYY-NNNNN-XX-N/)).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Faculty ID/)).toHaveAccessibleDescription(ID_FORMAT);
     expect(screen.getByLabelText(/Faculty ID/)).toHaveAttribute("aria-invalid", "true");
   });
 
@@ -158,7 +166,11 @@ describe("faculty sign-in (US-102)", () => {
       "POST /auth/faculty/login": { status: 200, body: challenge(false) },
       "POST /auth/faculty/mfa/verify": {
         status: 401,
-        body: { detail: "Reused", code: "AUTH_MFA_CODE_REUSED", request_id: "request-123" },
+        body: {
+          detail: "That security code has already been used; enter the current code",
+          code: "AUTH_MFA_CODE_REUSED",
+          request_id: "request-123",
+        },
       },
     });
     renderApp("/");
@@ -167,7 +179,9 @@ describe("faculty sign-in (US-102)", () => {
     await enterCode();
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("already used");
+    expect(alert).toHaveTextContent(
+      "That security code has already been used; enter the current code",
+    );
     expect(alert).toHaveTextContent("request-123");
     expect(session.isSignedIn()).toBe(false);
   });
@@ -177,7 +191,11 @@ describe("faculty sign-in (US-102)", () => {
       "POST /auth/faculty/login": { status: 200, body: challenge(false) },
       "POST /auth/faculty/mfa/verify": {
         status: 423,
-        body: { detail: "Locked", code: "AUTH_ACCOUNT_LOCKED", retry_after_seconds: 2 },
+        body: {
+          detail: "Account temporarily locked after repeated sign-in failures",
+          code: "AUTH_ACCOUNT_LOCKED",
+          retry_after_seconds: 2,
+        },
       },
     });
     renderApp("/");
@@ -185,9 +203,13 @@ describe("faculty sign-in (US-102)", () => {
 
     await enterCode();
 
-    await screen.findByRole("alert");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Account temporarily locked after repeated sign-in failures",
+    );
     expect(screen.getByLabelText(/Authentication code/)).toBeDisabled();
-    expect(screen.getByRole("timer", { name: "Time before retry" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("timer", { name: "Time before you can try again" }),
+    ).toBeInTheDocument();
     await waitFor(() => expect(screen.getByLabelText(/Authentication code/)).toBeEnabled(), {
       timeout: 4000,
     });
@@ -196,17 +218,31 @@ describe("faculty sign-in (US-102)", () => {
   it("blocks an expired challenge and offers a fresh sign-in", async () => {
     mockApi({
       "POST /auth/faculty/login": { status: 200, body: challenge(false) },
-      "POST /auth/faculty/mfa/verify": { status: 401, body: { detail: "Invalid token" } },
+      "POST /auth/faculty/mfa/verify": {
+        status: 401,
+        body: { detail: "Invalid or expired token" },
+      },
     });
     renderApp("/");
     await submitPassword();
 
     await enterCode();
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/expired/);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid or expired token");
     expect(screen.getByLabelText(/Authentication code/)).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Back to sign in" }));
     expect(await screen.findByRole("heading", { name: "Faculty Portal" })).toBeInTheDocument();
+  });
+
+  it("takes a first sign-in, with no factor enrolled yet, to authenticator setup", async () => {
+    mockApi({ "POST /auth/faculty/login": { status: 200, body: challenge(true) } });
+    renderApp("/");
+
+    await submitPassword();
+
+    expect(await screen.findByRole("heading", { name: "Secure your account" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Set up authenticator" })).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
   it("sets up the authenticator, shows recovery codes once, then opens the dashboard (AC-102.2)", async () => {
@@ -260,13 +296,13 @@ describe("faculty sign-in (US-102)", () => {
     expect(router.state.location.pathname).toBe("/change-password");
   });
 
-  it("returns to sign-in with the inactivity notice when the session ends right after the code", async () => {
+  it("returns to sign-in with the API's reason when the session ends right after the code", async () => {
     mockApi({
       "POST /auth/faculty/login": { status: 200, body: challenge(false) },
       "POST /auth/faculty/mfa/verify": { status: 200, body: tokens },
       "GET /auth/faculty/me": {
         status: 401,
-        body: { detail: "Expired", code: "AUTH_SESSION_EXPIRED" },
+        body: { detail: SESSION_ENDED, code: "AUTH_SESSION_EXPIRED" },
       },
     });
     renderApp("/");
@@ -274,7 +310,7 @@ describe("faculty sign-in (US-102)", () => {
     await submitPassword();
     await enterCode();
 
-    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
+    expect(await screen.findByText(SESSION_ENDED)).toHaveAttribute("role", "status");
     expect(screen.getByRole("heading", { name: "Faculty Portal" })).toBeInTheDocument();
   });
 
@@ -282,7 +318,11 @@ describe("faculty sign-in (US-102)", () => {
     mockApi({
       "POST /auth/faculty/login": {
         status: 401,
-        body: { detail: "x", request_id: "req-t", code: "AUTH_TEMPORARY_PASSWORD_EXPIRED" },
+        body: {
+          detail: TEMPORARY_EXPIRED,
+          request_id: "req-t",
+          code: "AUTH_TEMPORARY_PASSWORD_EXPIRED",
+        },
       },
     });
     renderApp("/");
@@ -290,8 +330,8 @@ describe("faculty sign-in (US-102)", () => {
     await submitPassword();
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Your temporary password has expired.");
-    expect(alert).toHaveTextContent("Reference: req-t");
+    expect(alert).toHaveTextContent(TEMPORARY_EXPIRED);
+    expect(alert).toHaveTextContent("req-t");
     expect(screen.getByRole("link", { name: "Reset your password" })).toHaveAttribute(
       "href",
       "/forgot-password",
@@ -301,25 +341,30 @@ describe("faculty sign-in (US-102)", () => {
   it("offers retry when setup is unavailable", async () => {
     mockApi({
       "POST /auth/faculty/login": { status: 200, body: challenge(true) },
-      "POST /auth/faculty/mfa/totp/enroll": { status: 503, body: { detail: "Unavailable" } },
+      "POST /auth/faculty/mfa/totp/enroll": {
+        status: 503,
+        body: { detail: "Authenticator setup is unavailable right now." },
+      },
     });
     renderApp("/");
     await submitPassword();
 
     fireEvent.click(await screen.findByRole("button", { name: "Set up authenticator" }));
 
-    expect(await screen.findByRole("alert")).toHaveTextContent("try again");
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Authenticator setup is unavailable right now.",
+    );
     expect(screen.getByRole("button", { name: "Retry authenticator setup" })).toBeEnabled();
   });
 });
 
 describe("session", () => {
-  it("returns to sign-in with an inactivity notice when the session idles out", async () => {
+  it("returns to sign-in with the client's own notice when the API ends the session without words", async () => {
     mockApi({ "GET /auth/faculty/me": { status: 401, body: { code: "AUTH_SESSION_EXPIRED" } } });
     session.signIn({ accessToken: "access-1", refreshToken: "refresh-1" });
     renderApp("/dashboard");
 
-    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
+    expect(await screen.findByText(NOTICES.sessionEnded)).toHaveAttribute("role", "status");
     expect(session.isSignedIn()).toBe(false);
   });
 
@@ -341,6 +386,9 @@ describe("session", () => {
     await screen.findByText(`Signed in as ${me.email}`);
 
     fireEvent.click(screen.getByRole("button", { name: "Sign out" }));
+    // Sign out asks first; confirm in the dialog.
+    const confirm = await screen.findByRole("alertdialog", { name: "Sign out?" });
+    fireEvent.click(within(confirm).getByRole("button", { name: "Sign out" }));
 
     expect(await screen.findByRole("heading", { name: "Faculty Portal" })).toBeInTheDocument();
     expect(api.called("POST /auth/faculty/logout")[0].body).toEqual({ refresh_token: "refresh-1" });

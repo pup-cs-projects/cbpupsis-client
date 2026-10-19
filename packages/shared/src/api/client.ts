@@ -81,7 +81,19 @@ function toApiError(response: Response, data: unknown): ApiError {
     Number.isFinite(retrySeconds) && retrySeconds >= 0
       ? Date.now() + retrySeconds * 1000
       : undefined;
-  return new ApiError(response.status, code, { requestId, retryAt });
+  return new ApiError(response.status, code, { detail: detailOf(envelope), requestId, retryAt });
+}
+
+/**
+ * The API's sentence for a person: `detail` when it is prose, else `message` (both carry the
+ * same text in today's envelope). FastAPI's 422 sends `detail` as a list of field errors, which
+ * is not a sentence, so it yields nothing and the screen falls back to its own words.
+ */
+function detailOf(envelope: Record<string, unknown>): string | undefined {
+  for (const value of [envelope.detail, envelope.message]) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

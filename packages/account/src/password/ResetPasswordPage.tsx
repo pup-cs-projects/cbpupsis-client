@@ -3,6 +3,7 @@ import { checkPassword, meetsPolicy, resetLinkProblem } from "@cbpupsis/shared/a
 import {
   AuthSkeleton,
   ErrorAlert,
+  Notice,
   PasswordChecklist,
   PasswordField,
   SubmitButton,
@@ -179,9 +180,7 @@ export function ResetPasswordPage({ token }: { token?: string }) {
               Password changed
             </h1>
           </header>
-          <p className="auth-notice" role="status">
-            Your new password is set. Taking you to sign in.
-          </p>
+          <Notice tone="success">Your new password is set. Taking you to sign in.</Notice>
         </div>
       )}
     </AuthShell>

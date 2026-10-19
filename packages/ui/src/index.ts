@@ -1,7 +1,7 @@
 // The React side of what the portals share. Framework-free code (the API client, the session,
 // the password rules) stays in @cbpupsis/shared; whole account screens are @cbpupsis/account.
 export { AuthSkeleton } from "./components/AuthSkeleton";
-export { ErrorAlert } from "./components/ErrorAlert";
+export { ErrorAlert, Notice, RetryCountdown } from "./components/messages";
 export { PasswordField, TextField } from "./components/fields";
 export { PasswordChecklist } from "./components/PasswordChecklist";
 export { QrCode } from "./components/QrCode";

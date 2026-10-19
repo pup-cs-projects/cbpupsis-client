@@ -86,7 +86,11 @@ export function IdleWarning({
         <p className="sr-only" aria-live="polite">
           {remaining > 0 && remaining <= 60 ? "Less than one minute left before sign-out." : ""}
         </p>
-        {stayError !== null && stayError !== undefined && <ErrorAlert error={stayError} />}
+        {/* Inline, not a toast: outside this aria-modal dialog a toast would be hidden from screen
+            readers and beyond the reach of the dialog's focus trap. */}
+        {stayError !== null && stayError !== undefined && (
+          <ErrorAlert error={stayError} placement="inline" />
+        )}
         <div className="idle-actions" ref={stayButton}>
           <SubmitButton type="button" busy={staying} onClick={onStay}>
             Stay signed in

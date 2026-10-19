@@ -5,10 +5,13 @@ import { useState, type FormEvent } from "react";
 export function SignInForm({
   onSubmit,
   disabled,
+  busy = false,
   idError,
 }: {
   onSubmit: (credentials: FacultyCredentials) => void;
   disabled: boolean;
+  /** A request is running: the button says so and shows progress. */
+  busy?: boolean;
   /** Shown under the id when the API answers AUTH_ID_FORMAT_INVALID. */
   idError?: string;
 }) {
@@ -88,8 +91,8 @@ export function SignInForm({
             Forgot password?
           </Link>
         </div>
-        <button type="submit" className="primary-button">
-          Sign in to Portal
+        <button type="submit" className={busy ? "primary-button is-busy" : "primary-button"}>
+          {busy ? "Signing in…" : "Sign in to Portal"}
         </button>
       </fieldset>
     </form>

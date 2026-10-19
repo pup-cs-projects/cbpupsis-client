@@ -6,11 +6,20 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { session } from "../../lib/auth";
 import { renderApp } from "../../test/renderApp";
 
+// The API's own sentences (cbpupsis_shared/domains/auth), shown unchanged.
+const LOCKED = "Account temporarily locked after repeated sign-in failures";
+const REUSED = "That security code has already been used; enter the current code";
+const SESSION_ENDED = "Your session has ended. Sign in again.";
+const TEMPORARY_EXPIRED =
+  "Your temporary password has expired. Ask the system administrator to issue a new one.";
+const MFA_INVALID = "The security code or hardware-key response is invalid";
+
 const challenge = (enrollmentRequired: boolean) => ({
   mfa_required: true,
   challenge_token: "challenge-1",
   enrollment_required: enrollmentRequired,
-  methods: ["totp"],
+  // The API lists the factors already enrolled, so a first sign-in has none.
+  methods: enrollmentRequired ? [] : ["totp"],
 });
 const tokens = {
   access_token: "access-1",
@@ -79,6 +88,17 @@ describe("superadmin sign-in (US-104)", () => {
     });
   });
 
+  it("takes a first sign-in, with no factor enrolled yet, to authenticator setup", async () => {
+    mockApi({ "POST /auth/superadmin/login": { status: 200, body: challenge(true) } });
+    renderApp("/");
+
+    await signInWithPassword();
+
+    expect(await screen.findByRole("heading", { name: "Secure your account" })).toHaveFocus();
+    expect(screen.getByRole("button", { name: "Set up authenticator" })).toBeEnabled();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("walks a first-time superadmin through authenticator setup, then signs in (AC-104.2)", async () => {
     const api = mockApi({
       "POST /auth/superadmin/login": { status: 200, body: challenge(true) },
@@ -111,7 +131,7 @@ describe("superadmin sign-in (US-104)", () => {
       "POST /auth/superadmin/login": { status: 200, body: challenge(false) },
       "POST /auth/superadmin/mfa/verify": {
         status: 401,
-        body: { detail: "Invalid code", code: "AUTH_MFA_INVALID", request_id: "req-7" },
+        body: { detail: MFA_INVALID, code: "AUTH_MFA_INVALID", request_id: "req-7" },
       },
     });
     renderApp("/");
@@ -119,7 +139,7 @@ describe("superadmin sign-in (US-104)", () => {
 
     await enterCode(user, "000000", /verify and sign in/i);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/not valid/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(MFA_INVALID);
     expect(screen.getByLabelText(/authentication code/i)).toHaveValue("");
     expect(screen.getByRole("heading", { name: "Two-step verification" })).toBeInTheDocument();
   });
@@ -129,7 +149,7 @@ describe("superadmin sign-in (US-104)", () => {
       "POST /auth/superadmin/login": { status: 200, body: challenge(false) },
       "POST /auth/superadmin/mfa/verify": {
         status: 401,
-        body: { detail: "Reused", code: "AUTH_MFA_CODE_REUSED" },
+        body: { detail: REUSED, code: "AUTH_MFA_CODE_REUSED" },
       },
     });
     renderApp("/");
@@ -137,7 +157,7 @@ describe("superadmin sign-in (US-104)", () => {
 
     await enterCode(user, "123456", /verify and sign in/i);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/already used/);
+    expect(await screen.findByRole("alert")).toHaveTextContent(REUSED);
   });
 
   it("goes from the second factor straight to the password change while a temporary password is pending", async () => {
@@ -162,7 +182,11 @@ describe("superadmin sign-in (US-104)", () => {
     mockApi({
       "POST /auth/superadmin/login": {
         status: 401,
-        body: { detail: "x", request_id: "req-t", code: "AUTH_TEMPORARY_PASSWORD_EXPIRED" },
+        body: {
+          detail: TEMPORARY_EXPIRED,
+          request_id: "req-t",
+          code: "AUTH_TEMPORARY_PASSWORD_EXPIRED",
+        },
       },
     });
     renderApp("/");
@@ -170,8 +194,8 @@ describe("superadmin sign-in (US-104)", () => {
     await signInWithPassword();
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent("Your temporary password has expired.");
-    expect(alert).toHaveTextContent("Reference: req-t");
+    expect(alert).toHaveTextContent(TEMPORARY_EXPIRED);
+    expect(alert).toHaveTextContent("req-t");
     expect(screen.getByRole("link", { name: "Reset your password" })).toHaveAttribute(
       "href",
       "/forgot-password",
@@ -191,7 +215,7 @@ describe("superadmin sign-in (US-104)", () => {
 
     await enterCode(user, "123456", /verify and sign in/i);
 
-    expect(await screen.findByRole("alert")).toHaveTextContent(/expired/);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Invalid authentication token");
     expect(screen.getByLabelText(/authentication code/i)).toBeDisabled();
     await user.click(screen.getByRole("button", { name: "Back to sign in" }));
     expect(await screen.findByRole("heading", { name: "Superadmin Portal" })).toBeInTheDocument();
@@ -201,13 +225,14 @@ describe("superadmin sign-in (US-104)", () => {
     mockApi({
       "POST /auth/superadmin/login": {
         status: 423,
-        body: { detail: "Locked", code: "AUTH_ACCOUNT_LOCKED", retry_after_seconds: 300 },
+        body: { detail: LOCKED, code: "AUTH_ACCOUNT_LOCKED", retry_after_seconds: 300 },
       },
     });
     renderApp("/");
 
     await signInWithPassword();
 
+    expect(await screen.findByRole("alert")).toHaveTextContent(LOCKED);
     await waitFor(() => expect(screen.getByRole("timer")).toHaveTextContent(/^(5:00|4:59)$/));
     expect(screen.getByRole("button", { name: "Sign in to Portal" })).toBeDisabled();
   });
@@ -218,7 +243,7 @@ describe("superadmin sign-in (US-104)", () => {
       "POST /auth/superadmin/mfa/verify": { status: 200, body: tokens },
       "GET /superadmin/me": {
         status: 401,
-        body: { detail: "Expired", code: "AUTH_SESSION_EXPIRED" },
+        body: { detail: SESSION_ENDED, code: "AUTH_SESSION_EXPIRED" },
       },
     });
     renderApp("/");
@@ -226,7 +251,7 @@ describe("superadmin sign-in (US-104)", () => {
 
     await enterCode(user, "123456", /verify and sign in/i);
 
-    expect(await screen.findByText(/inactivity/)).toHaveAttribute("role", "status");
+    expect(await screen.findByText(SESSION_ENDED)).toHaveAttribute("role", "status");
     expect(api.called("POST /auth/superadmin/refresh")).toHaveLength(0);
   });
 });

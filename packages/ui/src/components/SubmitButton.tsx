@@ -1,8 +1,8 @@
 import type { MouseEvent, ReactNode } from "react";
 
 /**
- * A button that shows its own busy state without changing size: the label stays in place
- * (transparent, still the accessible name) under a spinner.
+ * A button that shows its own busy state without changing size: the label stays readable and
+ * a short line runs along the bottom edge (`.is-busy` in the account styles).
  *
  * Busy is aria-disabled rather than disabled, so keyboard focus stays on the button while the
  * request runs; the click (and so the form submit) is swallowed instead.
@@ -39,7 +39,6 @@ export function SubmitButton({
       onClick={click}
     >
       <span className="button-label">{children}</span>
-      {busy && <span className="button-spinner" aria-hidden="true" />}
     </button>
   );
 }

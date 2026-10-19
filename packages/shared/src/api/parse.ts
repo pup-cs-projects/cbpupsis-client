@@ -40,8 +40,13 @@ export function oneOf<const T extends string>(value: unknown, allowed: readonly 
   return allowed.includes(value as T) ? (value as T) : invalid();
 }
 
+export function array(value: unknown): unknown[] {
+  return Array.isArray(value) ? value : invalid();
+}
+
 export function nonEmptyArray(value: unknown): unknown[] {
-  return Array.isArray(value) && value.length > 0 ? value : invalid();
+  const items = array(value);
+  return items.length > 0 ? items : invalid();
 }
 
 export function stringArray(value: unknown): string[] {

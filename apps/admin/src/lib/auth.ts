@@ -11,7 +11,7 @@ export const authApi = createAdminAuthApi(apiClient);
 /** Password reset and change: the same /auth endpoints for every role. */
 export const passwordApi = createPasswordApi(apiClient);
 
-/** This app's one session. Tokens stay in memory: a reload signs the admin out. */
+/** This app's one session. Tokens stay in memory; a reload restores it from the refresh cookie. */
 export const session = createSession(authApi);
 
 /** What the shared account flows need from this portal. */

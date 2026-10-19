@@ -90,12 +90,70 @@ describe("createApiClient", () => {
   });
 });
 
-describe("errorMessage", () => {
-  it("never shows the API's detail prose, only copy keyed by code", () => {
-    const error = new ApiError(401, "AUTH_FAILED", { message: "internal wording" });
+describe("the API's own words", () => {
+  it("reads detail from the envelope when it is a sentence", async () => {
+    respond(401, {
+      status: "error",
+      message: "Invalid employee ID or password.",
+      detail: "Invalid employee ID or password.",
+      request_id: "req-2",
+      code: "AUTH_FAILED",
+    });
 
-    expect(errorMessage(error)).not.toContain("internal wording");
-    expect(errorMessage(error)).toMatch(/do not match/);
+    const error = await rejection(client.request("/auth/faculty/login"));
+
+    expect(error.detail).toBe("Invalid employee ID or password.");
+    expect(errorMessage(error)).toBe("Invalid employee ID or password.");
+  });
+
+  it("falls back to message when detail is missing or blank", async () => {
+    respond(400, { message: "Enter a valid email address.", detail: "  ", request_id: "r" });
+
+    const error = await rejection(client.request("/auth/forgot-password"));
+
+    expect(errorMessage(error)).toBe("Enter a valid email address.");
+  });
+
+  it("finds no sentence in FastAPI's list of field errors, and says something generic", async () => {
+    respond(422, {
+      detail: [{ loc: ["body", "email"], msg: "field required", type: "missing" }],
+      request_id: "req-422",
+    });
+
+    const error = await rejection(client.request("/auth/forgot-password"));
+
+    expect(error.detail).toBeUndefined();
+    expect(error.requestId).toBe("req-422");
+    expect(errorMessage(error)).toBe("Something went wrong. Try again in a moment.");
+  });
+
+  it("has no API text for an error with no body, so it says something generic", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(null, { status: 502 })));
+
+    const error = await rejection(client.request("/auth/student/login"));
+
+    expect(error).toMatchObject({ status: 502, detail: undefined });
+    expect(errorMessage(error)).toBe("Something went wrong. Try again in a moment.");
+  });
+
+  it("writes its own sentence only when the API never answered", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("Failed to fetch")));
+
+    const error = await rejection(client.request("/auth/student/login"));
+
+    expect(error.detail).toBeUndefined();
+    expect(errorMessage(error)).toBe(
+      "We could not reach the server. Check your connection, then try again.",
+    );
+  });
+
+  it("shows the API's wording unchanged, whatever its code", () => {
+    expect(errorMessage(new ApiError(500, undefined, { detail: "Internal server error" }))).toBe(
+      "Internal server error",
+    );
+    expect(errorMessage(new ApiError(401, "SOMETHING_NEW", { detail: "New wording." }))).toBe(
+      "New wording.",
+    );
   });
 
   it("treats a bare 401 as a rejected challenge, distinct from a wrong code", () => {
@@ -103,8 +161,8 @@ describe("errorMessage", () => {
     expect(isChallengeRejected(new ApiError(401, "AUTH_MFA_INVALID"))).toBe(false);
   });
 
-  it("falls back to a generic sentence for an unknown code or a non-API error", () => {
-    expect(errorMessage(new ApiError(500, "SOMETHING_NEW"))).toMatch(/try again/);
-    expect(errorMessage(new Error("boom"))).toMatch(/try again/);
+  it("falls back to a generic sentence for a wordless code or a non-API error", () => {
+    expect(errorMessage(new ApiError(500, "SOMETHING_NEW"))).toMatch(/Try again/);
+    expect(errorMessage(new Error("boom"))).toMatch(/Try again/);
   });
 });

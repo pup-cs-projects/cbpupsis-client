@@ -88,9 +88,10 @@ describe("checkPassword", () => {
 
 describe("password reset", () => {
   it("requests a link by email only", async () => {
-    const fetchMock = respond({ status: 202, body: { message: "If that address..." } });
+    const message = "If that address is registered, a reset link has been sent.";
+    const fetchMock = respond({ status: 202, body: { message } });
 
-    await api.requestReset("ana@pup.edu.ph");
+    await expect(api.requestReset("ana@pup.edu.ph")).resolves.toEqual({ message });
 
     expect(sent(fetchMock)).toEqual({
       url: "http://api.test/api/v1/auth/forgot-password",
@@ -125,7 +126,11 @@ describe("password reset", () => {
 
     const error = await api.checkResetLink("nope").catch((caught: unknown) => caught);
 
-    expect(error).toMatchObject({ code: "RESET_LINK_INVALID", requestId: "r1" });
+    expect(error).toMatchObject({
+      code: "RESET_LINK_INVALID",
+      detail: "Invalid or expired token",
+      requestId: "r1",
+    });
     expect(resetLinkProblem(error)).toBe("invalid");
   });
 
