@@ -53,3 +53,5 @@ export {
   type SuperadminCredentials,
   type SuperadminProfile,
 } from "./superadmin";
+
+export { createProfileApi, type UserProfile } from "./profile";
