@@ -419,32 +419,41 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 }
 
 /**
- * Who is signed in, and Sign out (with its confirmation). The name shows only once the API
- * gives one; it is never derived from the email.
+ * Who is signed in, and Sign out (with its confirmation). The picture and name open the profile.
+ * The name shows only once the API gives one; it is never derived from the email.
  */
 function ProfileCard({ expanded }: { expanded: boolean }) {
   const me = useMe();
-  const name = useStudentName();
-  const fullName = name.data?.fullName;
+  const fullName = useStudentName().data;
 
   return (
     <div className="shrink-0 border-t border-white/15 p-3">
       <div className={`flex items-center ${expanded ? "gap-3" : "flex-col gap-2"}`}>
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-white">
-          <UserCircleIcon />
-        </div>
         {me.isPending && <p className="sr-only">Loading your account</p>}
         {me.isSuccess && <p className="sr-only">Signed in as {me.data.email}</p>}
-        {expanded && (
-          <div className="min-w-0 flex-1" aria-hidden="true">
-            <p className="truncate text-xs leading-tight font-semibold text-white">
-              {(fullName ?? "Student").toUpperCase()}
-            </p>
-            {me.isSuccess && (
-              <p className="truncate text-xs leading-tight text-white/80">{me.data.email}</p>
-            )}
-          </div>
-        )}
+        <Link
+          to="/profile"
+          aria-label="Your profile"
+          className={`focus-visible:outline-brand-gold! flex min-h-11 min-w-0 items-center rounded-lg text-white hover:bg-white/10 aria-[current=page]:bg-white/20 ${
+            expanded ? "flex-1 gap-3 pr-2" : "justify-center"
+          }`}
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20">
+            <UserCircleIcon />
+          </span>
+          {expanded && (
+            <span className="min-w-0 flex-1" aria-hidden="true">
+              <span className="block truncate text-xs leading-tight font-semibold">
+                {(fullName ?? "Student").toUpperCase()}
+              </span>
+              {me.isSuccess && (
+                <span className="block truncate text-xs leading-tight text-white/80">
+                  {me.data.email}
+                </span>
+              )}
+            </span>
+          )}
+        </Link>
         <SignOutButton className="focus-visible:outline-brand-gold! grid size-11 shrink-0 place-items-center rounded-lg text-white hover:bg-white/10">
           <SignOutIcon />
           <span className="sr-only">Sign out</span>
