@@ -1,3 +1,4 @@
+import { errorMessage } from "@cbpupsis/shared/api";
 import { useRef, useState } from "react";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
@@ -23,8 +24,11 @@ function CameraIcon() {
   );
 }
 
-/** Center-crops a File to a square JPEG data URL using the Canvas API. */
-function cropToSquare(file: File): Promise<string> {
+/**
+ * Center-crops a File to a square JPEG using the Canvas API. Re-encoding also turns a WebP into
+ * a JPEG, which is what the API accepts.
+ */
+function cropToSquare(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
     const objectUrl = URL.createObjectURL(file);
     const img = new Image();
@@ -51,7 +55,11 @@ function cropToSquare(file: File): Promise<string> {
         side,
       );
       URL.revokeObjectURL(objectUrl);
-      resolve(canvas.toDataURL("image/jpeg", 0.85));
+      canvas.toBlob(
+        (blob) => (blob ? resolve(blob) : reject(new Error("Image could not be encoded"))),
+        "image/jpeg",
+        0.85,
+      );
     };
     img.onerror = () => {
       URL.revokeObjectURL(objectUrl);
@@ -64,7 +72,8 @@ function cropToSquare(file: File): Promise<string> {
 interface AvatarUploadProps {
   /** Current saved avatar URL; null falls back to the placeholder. */
   avatarUrl: string | null;
-  onConfirm: (dataUrl: string) => void;
+  /** Uploads the cropped picture; rejects with the API's error, which is shown here. */
+  onConfirm: (image: Blob) => Promise<void>;
 }
 
 export function AvatarUpload({ avatarUrl, onConfirm }: AvatarUploadProps) {
@@ -116,16 +125,23 @@ export function AvatarUpload({ avatarUrl, onConfirm }: AvatarUploadProps) {
     const file = pendingFileRef.current;
     if (!file) return;
     setIsCropping(true);
+    let image: Blob;
     try {
-      const dataUrl = await cropToSquare(file);
+      image = await cropToSquare(file);
+    } catch {
+      setValidationError("Failed to process the image. Please try another file.");
+      setIsCropping(false);
+      return;
+    }
+    try {
+      await onConfirm(image);
       if (previewObjectUrl) {
         URL.revokeObjectURL(previewObjectUrl);
         setPreviewObjectUrl(null);
       }
       pendingFileRef.current = null;
-      onConfirm(dataUrl);
-    } catch {
-      setValidationError("Failed to process the image. Please try another file.");
+    } catch (error) {
+      setValidationError(errorMessage(error));
     } finally {
       setIsCropping(false);
     }

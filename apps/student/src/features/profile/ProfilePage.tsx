@@ -1,3 +1,5 @@
+import { ErrorAlert } from "@cbpupsis/ui";
+
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { CredentialCard } from "./CredentialCard";
 import { EmergencyContactsSection } from "./EmergencyContactsSection";
@@ -5,7 +7,7 @@ import { PersonalInfoSection } from "./PersonalInfoSection";
 import { useStudentProfile } from "./useStudentProfile";
 
 export function ProfilePage() {
-  const { data, updateAvatarUrl, updatePersonalInfo, setAllEmergencyContacts } =
+  const { data, loading, error, retry, updateAvatar, updatePersonalInfo, setAllEmergencyContacts } =
     useStudentProfile();
 
   return (
@@ -22,21 +24,34 @@ export function ProfilePage() {
           </p>
         </div>
 
-        {/* Institutional credentials + avatar */}
-        <CredentialCard
-          credentials={data.credentials}
-          fullName={data.personalInfo.fullLegalName}
-          onAvatarConfirm={updateAvatarUrl}
-        />
+        {loading && (
+          <p role="status" className="text-brand-muted text-sm">
+            Loading your profile…
+          </p>
+        )}
+        {!loading && !data && (
+          <ErrorAlert error={error} title="Your profile could not be loaded" onRetry={retry} />
+        )}
 
-        {/* Personal information form */}
-        <PersonalInfoSection info={data.personalInfo} onSave={updatePersonalInfo} />
+        {data && (
+          <>
+            {/* Institutional credentials + avatar */}
+            <CredentialCard
+              credentials={data.credentials}
+              fullName={data.personalInfo.fullLegalName}
+              onAvatarConfirm={updateAvatar}
+            />
 
-        {/* Emergency contacts */}
-        <EmergencyContactsSection
-          contacts={data.emergencyContacts}
-          onSaveAll={setAllEmergencyContacts}
-        />
+            {/* Personal information form */}
+            <PersonalInfoSection info={data.personalInfo} onSave={updatePersonalInfo} />
+
+            {/* Emergency contacts */}
+            <EmergencyContactsSection
+              contacts={data.emergencyContacts}
+              onSaveAll={setAllEmergencyContacts}
+            />
+          </>
+        )}
       </div>
     </DashboardLayout>
   );

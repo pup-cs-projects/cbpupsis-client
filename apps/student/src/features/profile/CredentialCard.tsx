@@ -14,7 +14,7 @@ interface CredentialCardProps {
   credentials: StudentCredentials;
   /** The student's full legal name from PersonalInformation. */
   fullName: string;
-  onAvatarConfirm: (dataUrl: string) => void;
+  onAvatarConfirm: (image: Blob) => Promise<void>;
 }
 
 export function CredentialCard({ credentials, fullName, onAvatarConfirm }: CredentialCardProps) {
