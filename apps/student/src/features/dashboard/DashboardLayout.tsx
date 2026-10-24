@@ -1,5 +1,5 @@
 import { SignOutButton } from "@cbpupsis/account";
-import { Link, type LinkProps } from "@tanstack/react-router";
+import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useMe } from "../sign-in/queries";
@@ -105,7 +105,7 @@ const NAV_SECTIONS: NavSection[] = [
     icon: <AcademicsIcon />,
     children: [
       { label: "My Schedule", to: "/schedule" },
-      { label: "My Grades" },
+      { label: "My Grades", to: "/grades" },
       { label: "Enrollment" },
     ],
   },
@@ -152,7 +152,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     }
   });
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const pathname = useLocation({ select: (location) => location.pathname });
+  // The section holding the current page: open on arrival, and marked even when collapsed.
+  const activeSection = NAV_SECTIONS.find((section) =>
+    section.children?.some((item) => item.to === pathname),
+  )?.id;
+  const [openSection, setOpenSection] = useState<string | null>(activeSection ?? null);
 
   function persistExpanded(next: boolean) {
     setIsExpanded(next);
@@ -313,7 +318,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               {NAV_SECTIONS.map((section) => {
                 const open = expanded && openSection === section.id;
                 const rowClass = `${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${
-                  open ? "bg-white/10 text-white" : ""
+                  open || section.id === activeSection ? "bg-white/10 text-white" : ""
                 }`;
                 return (
                   <li key={section.id}>
@@ -365,7 +370,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                             {item.kind === "signout" ? (
                               <SignOutButton className={subItem}>{item.label}</SignOutButton>
                             ) : item.to ? (
-                              <Link to={item.to} className={subItem}>
+                              <Link
+                                to={item.to}
+                                className={`${subItem} aria-[current=page]:bg-white/20 aria-[current=page]:font-semibold aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-gold)]`}
+                              >
                                 {item.label}
                               </Link>
                             ) : (

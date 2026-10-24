@@ -62,4 +62,7 @@ button:disabled {
   --color-brand-success: #1f7a3a;
   /* The student dashboard's warm page background, behind white cards. */
   --color-brand-paper: #fdfbf7;
+  /* The grades page's table header and Initiate Appeal button (Figma). 11.6:1 with white. */
+  --color-brand-crimson: #7b1113;
+  --color-brand-crimson-dark: #630e10;
 }
