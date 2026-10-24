@@ -7,7 +7,8 @@
   "exports": {
     "./api": "./src/api/index.ts",
     "./auth": "./src/auth/index.ts",
-    "./profile": "./src/profile/index.ts"
+    "./profile": "./src/profile/index.ts",
+    "./schedule": "./src/schedule/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

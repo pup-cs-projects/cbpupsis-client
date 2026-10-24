@@ -1,41 +1,69 @@
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { useState } from "react";
 
-import { MOCK_SCHEDULE, mockIcsExport } from "./scheduleMocks";
-import type { CalendarConnectStart, ExportFile, StudentSchedule } from "./scheduleTypes";
+import type { StudentSchedule as ApiSchedule } from "@cbpupsis/shared/schedule";
 
-/*
- * The schedule page's data calls. No endpoint exists for any of them yet.
- *
- * As in dashboard/api.ts, each call reads import.meta.env.DEV inline, so a production build
- * folds it to the empty branch and drops scheduleMocks.ts from the bundle. When an endpoint
- * lands, its call goes in packages/shared (CONVENTIONS: data flow), parsed at the boundary, and
- * the function here calls it through the portal's session; then delete its mock.
- *
- * The two exports return files, not JSON: they need a blob-reading request beside
- * ApiClient.request in packages/shared/api.
- */
+import { scheduleApi as api, session } from "../../lib/auth";
+import {
+  WEEKDAYS,
+  type CalendarConnectStart,
+  type CourseItem,
+  type ExportFile,
+  type StudentSchedule,
+} from "./scheduleTypes";
+
+const SEMESTERS: Record<string, string> = {
+  first: "First Semester",
+  second: "Second Semester",
+  summer: "Summer Term",
+};
+
+/** The API's schedule in the page's shape; null (the empty state) without a term or classes. */
+export function toPageSchedule(schedule: ApiSchedule): StudentSchedule | null {
+  if (!schedule.term || schedule.courses.length === 0) return null;
+  const courses: CourseItem[] = schedule.courses.map((course) => ({
+    id: course.sectionId,
+    courseCode: course.code,
+    courseTitle: course.title,
+    units: course.units,
+    schedule: course.meetings.map((meeting) => ({
+      day: WEEKDAYS[meeting.dayOfWeek] ?? "Mon",
+      timeStart: meeting.startTime,
+      timeEnd: meeting.endTime,
+    })),
+    faculty: course.facultyName ?? "To be announced",
+    location: course.room ?? course.meetings.find((m) => m.room)?.room ?? "To be announced",
+  }));
+  return {
+    summary: {
+      totalUnits: schedule.totalCredits,
+      totalCourses: courses.length,
+      academicYear: schedule.term.year.replace("-", "–"),
+      semester: SEMESTERS[schedule.term.semester] ?? schedule.term.semester,
+    },
+    courses,
+  };
+}
+
+/** The schedule page's data calls, through the portal's session. */
 export const scheduleApi = {
-  // TODO(api): GET /schedule: the signed-in student's current-term courses and summary.
   async schedule(): Promise<StudentSchedule | null> {
-    return import.meta.env.DEV ? MOCK_SCHEDULE : null;
+    return toPageSchedule(await session.authorized((token) => api.current(token)));
   },
 
-  // TODO(api): GET /export/pdf: the Certificate of Registration for the current term, as
-  // application/pdf, with its filename in Content-Disposition. Null until then.
+  /** The Certificate of Registration for the current term, as a PDF. */
   async exportPdf(): Promise<ExportFile | null> {
-    return null;
+    return session.authorized((token) => api.export(token, "pdf"));
   },
 
-  // TODO(api): GET /export/ics: the term's classes as weekly recurring events (text/calendar).
-  // Dev builds one locally from the mock schedule so the button can be tried end to end.
+  /** The term's classes as weekly recurring events (text/calendar). */
   async exportIcs(): Promise<ExportFile | null> {
-    return import.meta.env.DEV ? mockIcsExport(MOCK_SCHEDULE) : null;
+    return session.authorized((token) => api.export(token, "ics"));
   },
 
-  // TODO(api): POST /calendar/google/connect: returns Google's OAuth consent URL. The API keeps
-  // the state parameter and handles the callback, then redirects back to /schedule with
-  // ?calendar=connected (or =denied), which this page should read and announce.
+  // TODO(api): Google sync is served (/students/me/schedule/google-calendar) but off unless
+  // GOOGLE_CALENDAR_ENABLED, and needs this portal to post Google's callback code back. Until
+  // that flow is built, the button says it is not available yet.
   async connectGoogleCalendar(): Promise<CalendarConnectStart | null> {
     return null;
   },
