@@ -424,8 +424,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
  */
 function ProfileCard({ expanded }: { expanded: boolean }) {
   const me = useMe();
-  const name = useStudentName();
-  const fullName = name.data?.fullName;
+  const fullName = useStudentName().data;
 
   return (
     <div className="shrink-0 border-t border-white/15 p-3">
