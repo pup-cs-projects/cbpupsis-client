@@ -30,6 +30,14 @@ const calendarDayNoYear = new Intl.DateTimeFormat("en-PH", {
   day: "numeric",
 });
 
+// en-CA writes dates as "2026-06-29", the calendar-date form the screens take.
+const isoDayInManila = new Intl.DateTimeFormat("en-CA", {
+  timeZone: TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
 // Newer ICU puts a narrow no-break space before AM and PM; keep one plain space everywhere.
 const tidy = (text: string) => text.replace(/\u202f/g, " ");
 
@@ -47,6 +55,11 @@ export function formatEventDates(startsOn: string, endsOn?: string | null) {
   const end = fromCalendarDate(endsOn);
   const sameYear = start.getUTCFullYear() === end.getUTCFullYear();
   return `${(sameYear ? calendarDayNoYear : calendarDay).format(start)} - ${calendarDay.format(end)}`;
+}
+
+/** The Manila calendar date ("2026-06-29") an instant falls on, for date-only displays. */
+export function calendarDateInManila(iso: string) {
+  return isoDayInManila.format(new Date(iso));
 }
 
 /** "June 27, 2026 • 10:42 AM", in Manila, for an instant the API sends in UTC. */
