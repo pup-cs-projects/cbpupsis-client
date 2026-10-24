@@ -3,6 +3,7 @@ import {
   createRoute,
   createRouter,
   redirect,
+  type AnyRoute,
   type RouteComponent,
   type RouterHistory,
 } from "@tanstack/react-router";
@@ -38,6 +39,16 @@ export interface PortalRouterOptions {
   notFound?: RouteComponent;
   /** Tests pass a memory history; the app uses the browser's. */
   history?: RouterHistory;
+  /**
+   * Portal-specific routes to append to the shared route tree. Receives the root route so
+   * callers can set `getParentRoute` without needing to import it separately.
+   */
+  extraRoutes?: (rootRoute: ReturnType<typeof createRootRoute>) => AnyRoute[];
+  /**
+   * Dev-only: when set, visiting `/` redirects here unconditionally (bypasses sign-in).
+   * Ignored in production builds; callers should gate with `import.meta.env.DEV`.
+   */
+  devBootstrapPath?: string;
 }
 
 /**
@@ -51,6 +62,8 @@ export function createPortalRouter({
   dashboard,
   notFound,
   history,
+  extraRoutes,
+  devBootstrapPath,
 }: PortalRouterOptions) {
   const { session } = config;
 
@@ -71,6 +84,8 @@ export function createPortalRouter({
       ...(search.notice === "password-reset" ? { notice: "password-reset" } : {}),
     }),
     beforeLoad: () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      if (devBootstrapPath) throw redirect({ to: devBootstrapPath as any });
       if (session.isSignedIn()) throw redirect({ to: "/dashboard" });
     },
     component: signIn,
@@ -118,6 +133,7 @@ export function createPortalRouter({
     resetPasswordRoute,
     changePasswordRoute,
     dashboardRoute,
+    ...(extraRoutes ? extraRoutes(rootRoute) : []),
   ]);
 
   return createRouter({ routeTree, history });
