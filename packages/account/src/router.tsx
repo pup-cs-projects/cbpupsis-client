@@ -3,6 +3,7 @@ import {
   createRoute,
   createRouter,
   redirect,
+  type AnyRootRoute,
   type AnyRoute,
   type RouteComponent,
   type RouterHistory,
@@ -37,13 +38,19 @@ export interface PortalRouterOptions {
   /** The portal's first screen after sign-in, at `/dashboard`. */
   dashboard: RouteComponent;
   notFound?: RouteComponent;
+  /** Opt-in shared status pages; existing portals keep their current routes. */
+  statusPages?: {
+    notFound: RouteComponent;
+    serverError: RouteComponent;
+    maintenance: RouteComponent;
+  };
   /** Tests pass a memory history; the app uses the browser's. */
   history?: RouterHistory;
   /**
    * Portal-specific routes to append to the shared route tree. Receives the root route so
    * callers can set `getParentRoute` without needing to import it separately.
    */
-  extraRoutes?: (rootRoute: ReturnType<typeof createRootRoute>) => AnyRoute[];
+  extraRoutes?: (rootRoute: AnyRootRoute) => AnyRoute[];
   /**
    * Dev-only: when set, visiting `/` redirects here unconditionally (bypasses sign-in).
    * Ignored in production builds; callers should gate with `import.meta.env.DEV`.
@@ -61,6 +68,7 @@ export function createPortalRouter({
   signIn,
   dashboard,
   notFound,
+  statusPages,
   history,
   extraRoutes,
   devBootstrapPath,
@@ -69,7 +77,8 @@ export function createPortalRouter({
 
   const rootRoute = createRootRoute({
     component: () => <AppFrame config={config} />,
-    notFoundComponent: notFound,
+    notFoundComponent: statusPages?.notFound ?? notFound,
+    errorComponent: statusPages?.serverError,
   });
 
   const signInRoute = createRoute({
@@ -133,6 +142,25 @@ export function createPortalRouter({
     resetPasswordRoute,
     changePasswordRoute,
     dashboardRoute,
+    ...(statusPages
+      ? [
+          createRoute({
+            getParentRoute: () => rootRoute,
+            path: "/not-found",
+            component: statusPages.notFound,
+          }),
+          createRoute({
+            getParentRoute: () => rootRoute,
+            path: "/error",
+            component: statusPages.serverError,
+          }),
+          createRoute({
+            getParentRoute: () => rootRoute,
+            path: "/maintenance",
+            component: statusPages.maintenance,
+          }),
+        ]
+      : []),
     ...(extraRoutes ? extraRoutes(rootRoute) : []),
   ]);
 

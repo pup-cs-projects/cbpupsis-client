@@ -2,7 +2,7 @@
 
 |                  |                                                                                                                                                                                                                                                                 |
 | ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Last updated** | 2026-09-15                                                                                                                                                                                                                                                      |
+| **Last updated** | 2026-10-24                                                                                                                                                                                                                                                      |
 | **Related**      | [CONTRIBUTING.md](../CONTRIBUTING.md) · [API error codes](https://github.com/pup-cs-projects/cbpupsis-api/blob/dev/docs/tech-book/ERROR-CODES.md) · [Writing issues](https://github.com/pup-cs-projects/cbpupsis-api/blob/dev/docs/tech-book/WRITING-ISSUES.md) |
 
 The rules every change to `cbpupsis-client` follows. Keep this page open while building a
@@ -157,4 +157,7 @@ plainly what you ran and what you did not.
   over a contract gap with client-side transformation.
 - **Personal tooling stays personal.** Editor settings and AI assistant configuration are
   gitignored and never committed.
-- The husky pre-commit hook refuses commits directly on `main` or `dev`. Branch first.
+- The husky pre-commit hook refuses commits directly on `main`, `staging`, or `dev`. Branch first.
+- **Every portal calls the API at `/api/v1`, on its own domain,** when deployed: CloudFront
+  forwards that path to the role's API. `VITE_API_BASE_URL` is a full URL only in local
+  development.

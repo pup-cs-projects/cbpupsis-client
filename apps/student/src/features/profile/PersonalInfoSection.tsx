@@ -1,4 +1,4 @@
-import { Notice } from "@cbpupsis/ui";
+import { ErrorAlert, Notice } from "@cbpupsis/ui";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import type { PersonalInformation } from "./profileTypes";
@@ -229,7 +229,8 @@ const FIELD_ORDER: EditableKeys[] = [
 
 interface PersonalInfoSectionProps {
   info: PersonalInformation;
-  onSave: (patch: Draft) => void;
+  /** Rejects with the API's error, which the form shows; the draft stays open to fix. */
+  onSave: (patch: Draft) => Promise<void>;
 }
 
 export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) {
@@ -244,6 +245,8 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
   const [errors, setErrors] = useState<FieldErrors>({});
   // Each increment forces Notice to remount so saving twice re-shows the toast.
   const [savedKey, setSavedKey] = useState(0);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<unknown>(null);
 
   // Refs for focus management.
   const editButtonRef = useRef<HTMLButtonElement>(null);
@@ -283,6 +286,7 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
       currentResidence: info.currentResidence,
     });
     setErrors({});
+    setSaveError(null);
     setIsEditing(true);
   }
 
@@ -292,7 +296,8 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
     draft.homeAddress !== info.homeAddress ||
     draft.currentResidence !== info.currentResidence;
 
-  function handleSave() {
+  async function handleSave() {
+    if (saving) return;
     const e = validate();
     if (Object.keys(e).length > 0) {
       setErrors(e);
@@ -309,7 +314,16 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
       return;
     }
     if (isDirty) {
-      onSave(draft);
+      setSaving(true);
+      setSaveError(null);
+      try {
+        await onSave(draft);
+      } catch (error) {
+        setSaveError(error);
+        return;
+      } finally {
+        setSaving(false);
+      }
       setSavedKey((n) => n + 1);
     }
     setIsEditing(false);
@@ -318,7 +332,7 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    handleSave();
+    void handleSave();
   }
 
   const CONTENT_ID = "personal-info-content";
@@ -330,6 +344,9 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
         <Notice key={savedKey} tone="success">
           Personal information updated successfully.
         </Notice>
+      )}
+      {saveError !== null && (
+        <ErrorAlert error={saveError} title="Personal information was not saved" />
       )}
 
       {/* Section header */}
@@ -355,6 +372,7 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
               type="submit"
               form="personal-info-form"
               aria-label="Save changes to personal information"
+              disabled={saving}
               className="text-brand-muted hover:text-brand-maroon focus-visible:outline-brand-maroon grid min-h-11 min-w-11 place-items-center rounded-lg transition-colors"
             >
               <SaveIcon />
@@ -409,7 +427,7 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
                 id="phoneNumber"
                 label="Phone Number"
                 type="tel"
-                value={draft.phoneNumber}
+                value={isEditing ? draft.phoneNumber : info.phoneNumber}
                 error={errors.phoneNumber}
                 isEditing={isEditing}
                 inputRef={phoneNumberRef}
@@ -419,7 +437,7 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
                 id="personalEmail"
                 label="Email Address"
                 type="email"
-                value={draft.personalEmail}
+                value={isEditing ? draft.personalEmail : info.personalEmail}
                 error={errors.personalEmail}
                 isEditing={isEditing}
                 inputRef={personalEmailRef}
@@ -432,7 +450,7 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
               <ProfileField
                 id="homeAddress"
                 label="Home Address (Permanent)"
-                value={draft.homeAddress}
+                value={isEditing ? draft.homeAddress : info.homeAddress}
                 error={errors.homeAddress}
                 isEditing={isEditing}
                 inputRef={homeAddressRef}
@@ -445,7 +463,7 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
               <ProfileField
                 id="currentResidence"
                 label="Current Residence Address"
-                value={draft.currentResidence}
+                value={isEditing ? draft.currentResidence : info.currentResidence}
                 error={errors.currentResidence}
                 isEditing={isEditing}
                 inputRef={currentResidenceRef}

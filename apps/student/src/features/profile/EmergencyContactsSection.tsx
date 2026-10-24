@@ -1,4 +1,4 @@
-import { Notice } from "@cbpupsis/ui";
+import { ErrorAlert, Notice } from "@cbpupsis/ui";
 import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 
 import type { EmergencyContact } from "./profileTypes";
@@ -545,7 +545,8 @@ function ContactCard({ contact, isManageMode, onEdit, onDelete }: ContactCardPro
 
 interface EmergencyContactsSectionProps {
   contacts: EmergencyContact[];
-  onSaveAll: (contacts: EmergencyContact[]) => void;
+  /** Rejects with the API's error; manage mode stays open so nothing typed is lost. */
+  onSaveAll: (contacts: EmergencyContact[]) => Promise<void>;
 }
 
 type DialogState =
@@ -562,7 +563,11 @@ export function EmergencyContactsSection({ contacts, onSaveAll }: EmergencyConta
   const [removingId, setRemovingId] = useState<string | null>(null);
   // Local draft buffer — changes are committed only when the save icon is clicked.
   const [draftContacts, setDraftContacts] = useState<EmergencyContact[]>(contacts);
+  const [saving, setSaving] = useState(false);
+  const [saveError, setSaveError] = useState<unknown>(null);
   const editButtonRef = useRef<HTMLButtonElement>(null);
+  // Outside manage mode the list is what the API holds; the draft exists only while editing.
+  const shownContacts = isManageMode ? draftContacts : contacts;
 
   const hasPrimary = draftContacts.some((c) => c.isPrimary);
   const CONTENT_ID = "emergency-contacts-content";
@@ -598,9 +603,25 @@ export function EmergencyContactsSection({ contacts, onSaveAll }: EmergencyConta
     setIsOpen((o) => !o);
   }
 
-  function handleSave() {
+  function enterManageMode() {
+    setDraftContacts(contacts);
+    setSaveError(null);
+    setIsManageMode(true);
+  }
+
+  async function handleSave() {
+    if (saving) return;
     if (getIsDirty()) {
-      onSaveAll(draftContacts);
+      setSaving(true);
+      setSaveError(null);
+      try {
+        await onSaveAll(draftContacts);
+      } catch (error) {
+        setSaveError(error);
+        return;
+      } finally {
+        setSaving(false);
+      }
       setSavedKey((n) => n + 1);
     }
     exitManageMode();
@@ -663,6 +684,9 @@ export function EmergencyContactsSection({ contacts, onSaveAll }: EmergencyConta
           Emergency contacts updated successfully.
         </Notice>
       )}
+      {saveError !== null && (
+        <ErrorAlert error={saveError} title="Emergency contacts were not saved" />
+      )}
 
       {/* Section header — mirrors PersonalInfoSection layout */}
       <div className="flex items-center justify-between gap-4">
@@ -681,7 +705,7 @@ export function EmergencyContactsSection({ contacts, onSaveAll }: EmergencyConta
               type="button"
               aria-label="Edit emergency contacts"
               className="text-brand-muted hover:text-brand-maroon focus-visible:outline-brand-maroon grid min-h-11 min-w-11 place-items-center rounded-lg transition-colors"
-              onClick={() => setIsManageMode(true)}
+              onClick={enterManageMode}
             >
               <EditIcon />
             </button>
@@ -692,7 +716,8 @@ export function EmergencyContactsSection({ contacts, onSaveAll }: EmergencyConta
               type="button"
               aria-label="Save changes to emergency contacts"
               className="text-brand-muted hover:text-brand-maroon focus-visible:outline-brand-maroon grid min-h-11 min-w-11 place-items-center rounded-lg transition-colors"
-              onClick={handleSave}
+              disabled={saving}
+              onClick={() => void handleSave()}
             >
               <SaveIcon />
             </button>
@@ -717,12 +742,12 @@ export function EmergencyContactsSection({ contacts, onSaveAll }: EmergencyConta
       >
         <div className="overflow-hidden" id={CONTENT_ID}>
           <div className="mt-4">
-            {draftContacts.length === 0 && (
+            {shownContacts.length === 0 && (
               <p className="text-brand-muted mb-4 text-sm">No emergency contacts added yet.</p>
             )}
 
             {/* Each card wrapped for slide-and-fade exit animation */}
-            {draftContacts.map((contact) => {
+            {shownContacts.map((contact) => {
               const isRemoving = removingId === contact.id;
               return (
                 <div

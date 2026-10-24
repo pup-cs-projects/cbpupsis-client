@@ -1,6 +1,5 @@
-// What the Course Schedule page (US-STU-003) shows. The API serves none of it yet (see
-// useCourseSchedule.ts); these shapes are what the screen needs, to be replaced by the generated
-// API types once the endpoints exist.
+// What the Course Schedule page (US-STU-003) shows. useCourseSchedule.ts maps the API's
+// schedule (packages/shared/schedule) into these shapes.
 
 export const WEEKDAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"] as const;
 export type Weekday = (typeof WEEKDAYS)[number];
@@ -38,7 +37,7 @@ export interface ScheduleSummary {
   semester: string;
 }
 
-/** GET /schedule: the signed-in student's current term. */
+/** The signed-in student's current term. */
 export interface StudentSchedule {
   summary: ScheduleSummary;
   courses: CourseItem[];
