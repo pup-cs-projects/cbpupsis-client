@@ -1,0 +1,165 @@
+# Deploys the portals: every push to `staging` deploys the staging environment,
+# and every push to `main` deploys production.
+#
+#   ci -> approve -> build and upload each portal -> smoke test
+#
+# Each portal is served by CloudFront from a private S3 bucket, and CloudFront
+# forwards /api/* to that role's API on the same origin. So every build calls
+# the API at the relative path /api/v1: one build works under any domain, and
+# the browser never makes a cross-origin request.
+#
+# `approve` runs in the GitHub Environment of the target (staging or
+# production). Give production required reviewers in the repository settings
+# and every production deploy waits for one click.
+#
+# AWS access is keyless. Each run exchanges its GitHub OIDC token for a one-hour
+# role that trusts only this repository's `staging` or `main` branch (see
+# cbpupsis-infra, modules/github-deploy-roles). The role ARNs are repository
+# variables, not secrets: AWS_DEPLOY_ROLE_STAGING and AWS_DEPLOY_ROLE_PROD.
+#
+# The superadmin portal is not deployed: no environment hosts it yet.
+
+name: deploy
+
+on:
+  push:
+    branches: [staging, main]
+  workflow_dispatch:
+
+# One deploy per branch at a time, never cancelled midway.
+concurrency:
+  group: deploy-${{ github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+
+jobs:
+  ci:
+    name: CI
+    uses: ./.github/workflows/ci.yml
+
+  target:
+    name: Resolve target
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      environment: ${{ steps.resolve.outputs.environment }}
+      github_environment: ${{ steps.resolve.outputs.github_environment }}
+      role: ${{ steps.resolve.outputs.role }}
+    steps:
+      - id: resolve
+        env:
+          REF: ${{ github.ref_name }}
+          STAGING_ROLE: ${{ vars.AWS_DEPLOY_ROLE_STAGING }}
+          PROD_ROLE: ${{ vars.AWS_DEPLOY_ROLE_PROD }}
+        run: |
+          case "$REF" in
+            staging) environment=staging; github_environment=staging;    role="$STAGING_ROLE"; var=AWS_DEPLOY_ROLE_STAGING ;;
+            main)    environment=prod;    github_environment=production; role="$PROD_ROLE";    var=AWS_DEPLOY_ROLE_PROD ;;
+            *) echo "::error::Only staging and main deploy. This run is on '$REF'."; exit 1 ;;
+          esac
+          if [ -z "$role" ]; then
+            echo "::error::Repository variable $var is not set. See cbpupsis-infra README, CI/CD."
+            exit 1
+          fi
+          {
+            echo "environment=$environment"
+            echo "github_environment=$github_environment"
+            echo "role=$role"
+          } >> "$GITHUB_OUTPUT"
+
+  approve:
+    name: Approve ${{ needs.target.outputs.github_environment }}
+    needs: [ci, target]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    environment: ${{ needs.target.outputs.github_environment }}
+    steps:
+      - run: echo "Approved $GITHUB_SHA for ${{ needs.target.outputs.github_environment }}."
+
+  deploy:
+    name: Deploy ${{ matrix.app }}
+    needs: [target, approve]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [student, faculty, admin]
+    env:
+      APP: ${{ matrix.app }}
+      ENVIRONMENT_NAME: ${{ needs.target.outputs.environment }}
+      BUCKET: cbpupsis-${{ matrix.app }}-storage-${{ needs.target.outputs.environment }}
+      DIST: apps/${{ matrix.app }}/dist
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Install
+        env:
+          HUSKY: "0"
+        run: npm ci
+
+      - name: Build
+        env:
+          VITE_API_BASE_URL: /api/v1
+        run: npm run build -w "apps/$APP"
+
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ needs.target.outputs.role }}
+          aws-region: ${{ env.AWS_REGION }}
+          mask-aws-account-id: true
+
+      - name: Upload
+        # Order matters: the hashed assets go up first and index.html last, so
+        # no visitor is ever served an index.html whose scripts are not there
+        # yet. Hashed assets never change under the same name, so they cache for
+        # a year; index.html is revalidated on every load, so a deploy is seen
+        # immediately. Nothing is deleted: a tab opened before the deploy still
+        # loads the old chunks it asks for.
+        run: |
+          aws s3 sync "$DIST/assets" "s3://$BUCKET/assets" \
+            --cache-control "public,max-age=31536000,immutable"
+          aws s3 sync "$DIST" "s3://$BUCKET" --exclude "assets/*" --exclude "index.html" \
+            --cache-control "public,max-age=300"
+          aws s3 cp "$DIST/index.html" "s3://$BUCKET/index.html" \
+            --cache-control "no-cache"
+
+      - id: portal
+        name: Invalidate the CDN
+        run: |
+          read -r id domain < <(aws cloudfront list-distributions \
+            --query "DistributionList.Items[?Comment=='$APP-cdn-$ENVIRONMENT_NAME'] | [0].[Id, DomainName]" \
+            --output text)
+          aws cloudfront create-invalidation --distribution-id "$id" --paths "/*" >/dev/null
+          echo "domain=$domain" >> "$GITHUB_OUTPUT"
+
+      - name: Smoke test
+        # A client-side route must come back as the SPA shell (index.html),
+        # which proves the bucket, OAC, and the SPA rewrite all work.
+        env:
+          DOMAIN: ${{ steps.portal.outputs.domain }}
+        run: |
+          url="https://$DOMAIN/smoke-test-route"
+          for attempt in 1 2 3 4 5 6; do
+            if curl -fsS --max-time 30 "$url" | grep -q 'id="root"'; then
+              echo "Attempt $attempt: $url serves the SPA."
+              exit 0
+            fi
+            echo "Attempt $attempt: $url does not serve the SPA yet."
+            sleep 10
+          done
+          echo "::error::$APP portal failed its smoke test: $url did not serve index.html."
+          exit 1

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatEventDates, formatTimestamp } from "./datetime";
+import { formatClockTime, formatEventDates, formatTimestamp, manilaWeekday } from "./datetime";
 
 describe("event dates", () => {
   it("shows one day in full", () => {
@@ -24,5 +24,19 @@ describe("timestamps", () => {
     expect(formatTimestamp("2026-06-27T02:42:00Z")).toBe("June 27, 2026 • 10:42 AM");
     // 20:15 UTC on June 26 is already June 27 in Manila.
     expect(formatTimestamp("2026-06-26T20:15:00Z")).toBe("June 27, 2026 • 4:15 AM");
+  });
+});
+
+describe("class times", () => {
+  it("reads 24-hour wall-clock times as 12-hour", () => {
+    expect(formatClockTime("07:30")).toBe("7:30 AM");
+    expect(formatClockTime("12:00")).toBe("12:00 PM");
+    expect(formatClockTime("00:05")).toBe("12:05 AM");
+    expect(formatClockTime("16:00")).toBe("4:00 PM");
+  });
+
+  it("names today's weekday in Manila", () => {
+    // 17:00 UTC on a Sunday is already Monday in Manila.
+    expect(manilaWeekday(new Date("2026-10-25T17:00:00Z"))).toBe("Mon");
   });
 });
