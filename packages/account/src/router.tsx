@@ -3,6 +3,7 @@ import {
   createRoute,
   createRouter,
   redirect,
+  type AnyRootRoute,
   type AnyRoute,
   type RouteComponent,
   type RouterHistory,
@@ -43,7 +44,7 @@ export interface PortalRouterOptions {
    * Portal-specific routes to append to the shared route tree. Receives the root route so
    * callers can set `getParentRoute` without needing to import it separately.
    */
-  extraRoutes?: (rootRoute: ReturnType<typeof createRootRoute>) => AnyRoute[];
+  extraRoutes?: (rootRoute: AnyRootRoute) => AnyRoute[];
   /**
    * Dev-only: when set, visiting `/` redirects here unconditionally (bypasses sign-in).
    * Ignored in production builds; callers should gate with `import.meta.env.DEV`.
