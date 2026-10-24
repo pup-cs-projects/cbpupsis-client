@@ -1,6 +1,5 @@
-// What the My Grades page (US-STU-004) shows. The API serves none of it yet (see useGrades.ts);
-// these shapes are what the screen needs, to be replaced by the generated API types once the
-// endpoints exist.
+// What the My Grades page (US-STU-004) shows. useGrades.ts maps the API's transcript
+// (packages/shared/grades) into these shapes.
 
 export type GradeStatus = "Passed" | "Failed" | "Incomplete" | "Dropped" | "In Progress";
 
@@ -55,7 +54,7 @@ export interface CumulativeSummary {
   exclusionNote: string;
 }
 
-/** GET /grades: the signed-in student's transcript. */
+/** The signed-in student's transcript. */
 export interface StudentGrades {
   summary: CumulativeSummary;
   /** The term the student first enrolled in (matriculation). */

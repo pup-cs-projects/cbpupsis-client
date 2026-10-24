@@ -1,6 +1,7 @@
 import type { AccountConfig } from "@cbpupsis/account";
 import { createApiClient } from "@cbpupsis/shared/api";
 import { createPasswordApi, createSession, createStudentAuthApi } from "@cbpupsis/shared/auth";
+import { createStudentGradesApi } from "@cbpupsis/shared/grades";
 import { createStudentProfileApi } from "@cbpupsis/shared/profile";
 import { createStudentScheduleApi } from "@cbpupsis/shared/schedule";
 
@@ -12,6 +13,9 @@ export const authApi = createStudentAuthApi(apiClient);
 
 /** Password reset and change: the same /auth endpoints for every role. */
 export const passwordApi = createPasswordApi(apiClient);
+
+/** The student's grades and transcript (US-STU-004). */
+export const gradesApi = createStudentGradesApi(apiClient);
 
 /** The student's own profile, picture, and emergency contacts (US-STU-002). */
 export const profileApi = createStudentProfileApi(apiClient);

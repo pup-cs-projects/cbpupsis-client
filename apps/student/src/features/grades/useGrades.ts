@@ -1,37 +1,115 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { MOCK_GRADES, MOCK_GRADES_EMPTY } from "./gradesMocks";
-import type { Semester, StudentGrades, TermGrades, TermRef } from "./gradesTypes";
+import type { GradeTerm, TranscriptTerm } from "@cbpupsis/shared/grades";
 
-/*
- * The grades page's data call. No endpoint exists for it yet.
- *
- * As in dashboard/api.ts, the call reads import.meta.env.DEV inline, so a production build folds
- * it to the empty branch and drops gradesMocks.ts from the bundle. When the endpoint lands, its
- * call goes in packages/shared (CONVENTIONS: data flow), parsed at the boundary, and the
- * function here calls it through the portal's session; then delete the mock.
- */
-export const gradesApi = {
-  // TODO(api): GET /grades: the signed-in student's transcript (every term, newest first) with
-  // the cumulative summary. GPA, GWA, standing, and the appeal window are the registrar's
-  // values; the client displays them and never recomputes them.
-  async grades(): Promise<StudentGrades | null> {
-    if (!import.meta.env.DEV) return null;
-    return devPreview(MOCK_GRADES);
-  },
+import { gradesApi as api, session } from "../../lib/auth";
+import type {
+  GradeEntry,
+  GradeStatus,
+  Semester,
+  StandingStatus,
+  StudentGrades,
+  TermGrades,
+  TermRef,
+} from "./gradesTypes";
+
+const SEMESTER_LABELS: Record<string, Semester> = {
+  first: "First Semester",
+  second: "Second Semester",
 };
 
-/**
- * Dev only: `/grades?preview=empty|error|loading` shows the page's other states without an API.
- * Lives inside the DEV branch above, so production never reads it.
- */
-function devPreview(grades: StudentGrades): Promise<StudentGrades> {
-  const preview = new URLSearchParams(window.location.search).get("preview");
-  if (preview === "empty") return Promise.resolve(MOCK_GRADES_EMPTY);
-  if (preview === "error") return Promise.reject(new Error("Preview: grades failed to load."));
-  if (preview === "loading") return new Promise(() => {});
-  return Promise.resolve(grades);
+/** The API's standings, in the page's fewer words. */
+function standingStatus(value: string | null): StandingStatus {
+  if (value === null) return "Pending Evaluation";
+  if (value === "Good Standing") return "Good Standing";
+  if (value.startsWith("Warning")) return "Warning";
+  if (value === "Probation") return "Probationary";
+  return "Dismissed"; // College Dropping, University Dismissal
 }
+
+const STATUSES: Record<string, GradeStatus> = {
+  Passed: "Passed",
+  Failed: "Failed",
+  Incomplete: "Incomplete",
+  Withdrawn: "Dropped",
+};
+
+/** "06/24/2026", in Manila time. */
+const POSTED = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Manila",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+function termRef(term: GradeTerm): TermRef | null {
+  const semester = SEMESTER_LABELS[term.semester];
+  // The transcript counts two regular semesters a year; a summer term has no row on it.
+  return semester ? { academicYear: term.academicYear.replace("-", "–"), semester } : null;
+}
+
+/** A PUP student number starts with the year of admission: 2021-00456-MN-0. */
+function entryTermOf(studentNumber: string): TermRef {
+  const year = Number.parseInt(studentNumber.slice(0, 4), 10);
+  return { academicYear: `${year}–${year + 1}`, semester: "First Semester" };
+}
+
+function toTermGrades(record: TranscriptTerm, standing: string | null): TermGrades | null {
+  const ref = termRef(record.term);
+  if (!ref) return null;
+  return {
+    ...ref,
+    termId: record.term.id,
+    gpa: record.gwa,
+    standingStatus: standingStatus(standing),
+    // The API has no appeal window yet; the page says appeals are unavailable.
+    isAppealOpen: false,
+    appealDeadlineDays: null,
+    grades: record.courses.map((course): GradeEntry => ({
+      id: course.enrollmentId,
+      courseCode: course.code,
+      courseTitle: course.title,
+      units: course.units,
+      finalGrade: course.finalGrade === "Inc" ? "INC" : course.finalGrade,
+      status: STATUSES[course.status] ?? "In Progress",
+      datePosted: POSTED.format(new Date(course.postedAt)),
+    })),
+  };
+}
+
+/** The grades page's data call: the transcript, plus each listed term's stored standing. */
+export const gradesApi = {
+  async grades(): Promise<StudentGrades | null> {
+    return session.authorized(async (token) => {
+      const [transcript, current] = await Promise.all([api.transcript(token), api.term(token)]);
+      // The transcript has no standing; the per-term read does.
+      const standings = await Promise.all(
+        transcript.terms.map((record) => api.term(token, record.term)),
+      );
+      const terms = transcript.terms
+        .map((record, index) => toTermGrades(record, standings[index]?.academicStanding ?? null))
+        .filter((term): term is TermGrades => term !== null);
+
+      const entryTerm = entryTermOf(transcript.studentNumber);
+      const currentTerm = (current.term && termRef(current.term)) ?? terms[0] ?? entryTerm;
+      const latestCompleted = transcript.terms.find((record) => record.completed && record.gwa);
+
+      return {
+        summary: {
+          latestGpa: latestCompleted?.gwa ?? null,
+          cumulativeGwa: transcript.cumulativeGwa,
+          totalUnitsEarned: transcript.totalUnitsEarned,
+          exclusionNote:
+            "The GWA leaves out NSTP and courses without a numeric grade (INC, W). " +
+            "Terms still in progress are not counted yet.",
+        },
+        entryTerm,
+        currentTerm,
+        terms,
+      };
+    });
+  },
+};
 
 export const gradesKeys = {
   all: ["grades"] as const,
