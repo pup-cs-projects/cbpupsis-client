@@ -103,7 +103,11 @@ const NAV_SECTIONS: NavSection[] = [
     id: "academics",
     label: "Academics",
     icon: <AcademicsIcon />,
-    children: [{ label: "My Schedule" }, { label: "My Grades" }, { label: "Enrollment" }],
+    children: [
+      { label: "My Schedule", to: "/schedule" },
+      { label: "My Grades" },
+      { label: "Enrollment" },
+    ],
   },
   {
     id: "finance",

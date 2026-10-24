@@ -54,3 +54,22 @@ export function formatTimestamp(iso: string) {
   const date = new Date(iso);
   return `${dayInManila.format(date)} • ${tidy(timeInManila.format(date))}`;
 }
+
+/** "7:30 AM" for a Manila wall-clock time the API sends as 24-hour "07:30". */
+export function formatClockTime(hhmm: string) {
+  const [hours, minutes] = hhmm.split(":").map(Number);
+  const period = hours < 12 ? "AM" : "PM";
+  return `${hours % 12 || 12}:${String(minutes).padStart(2, "0")} ${period}`;
+}
+
+const weekdayInManila = new Intl.DateTimeFormat("en-US", { timeZone: TIME_ZONE, weekday: "short" });
+
+/** "Mon" … "Sun": the day it is in Manila now, wherever the student is. */
+export function manilaWeekday(now = new Date()) {
+  return weekdayInManila.format(now);
+}
+
+/** "7:30 AM – 10:30 AM", for a class meeting's start and end. */
+export function formatTimeRange(start: string, end: string) {
+  return `${formatClockTime(start)} – ${formatClockTime(end)}`;
+}
