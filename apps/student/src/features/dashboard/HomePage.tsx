@@ -8,13 +8,7 @@ import { formatEventDates, formatTimestamp } from "../../lib/datetime";
 import { useMe } from "../sign-in/queries";
 import { BullhornIcon } from "./BullhornIcon";
 import { DashboardLayout } from "./DashboardLayout";
-import {
-  useAnnouncements,
-  useCurrentTerm,
-  useEvents,
-  useRecentActivity,
-  useStudentName,
-} from "./queries";
+import { useDashboard } from "./queries";
 import type { ActivityStatus, CalendarEvent } from "./types";
 
 // Campus photos served from apps/student/public/assets/gallery/
@@ -26,11 +20,12 @@ const GALLERY_PHOTOS = [
   { id: 5, src: "/assets/gallery/pup-student.webp", alt: "Campus Life" },
 ] as const;
 
-// The bar's color is never alone: each item also carries its status in words.
+// The bar's color is never alone: each item also carries its status in words. Only a warning
+// (a failed sign-in, say) shows its word on screen; the others are routine.
 const STATUS: Record<ActivityStatus, { word: string; bar: string; visible: boolean }> = {
-  completed: { word: "Completed", bar: "bg-brand-success", visible: false },
-  pending: { word: "Pending", bar: "bg-brand-gold", visible: true },
-  failed: { word: "Failed", bar: "bg-brand-maroon", visible: true },
+  success: { word: "Completed", bar: "bg-brand-success", visible: false },
+  info: { word: "Update", bar: "bg-brand-gold", visible: false },
+  warning: { word: "Needs attention", bar: "bg-brand-maroon", visible: true },
 };
 
 // ---- Icons (decorative) ----
@@ -91,26 +86,25 @@ function Loading({ label }: { label: string }) {
 export function HomePage() {
   const { notice } = useSearch({ strict: false });
   const me = useMe();
-  const name = useStudentName();
-  const term = useCurrentTerm();
-  const announcements = useAnnouncements();
-  const events = useEvents();
-  const activity = useRecentActivity();
-  const fullName = name.data?.fullName;
+  // One request for the whole page (GET /student/me/dashboard); every section reads from it.
+  const dashboard = useDashboard();
+  const data = dashboard.data;
+  const fullName = data?.fullName;
 
   return (
     <DashboardLayout>
       {notice === "password-changed" && <Notice tone="success">{NOTICES.passwordChanged}</Notice>}
       {me.isError && <ErrorAlert error={me.error} onRetry={() => void me.refetch()} />}
-      {name.isError && <ErrorAlert error={name.error} onRetry={() => void name.refetch()} />}
-      {term.isError && <ErrorAlert error={term.error} onRetry={() => void term.refetch()} />}
+      {dashboard.isError && (
+        <ErrorAlert error={dashboard.error} onRetry={() => void dashboard.refetch()} />
+      )}
 
       <div className="space-y-7 px-4 py-8 sm:px-8">
         {/* ---- Welcome Banner ---- */}
         <section aria-labelledby="welcome-heading">
-          {term.data && (
+          {data?.term && (
             <p className="text-brand-muted text-xs font-semibold tracking-widest uppercase">
-              Academic Year {term.data.academicYear}
+              Academic Year {data.term.academicYear}
             </p>
           )}
           <h1
@@ -125,10 +119,10 @@ export function HomePage() {
               "Welcome back!"
             )}
           </h1>
-          {term.data && (
+          {data?.term && (
             <p className="text-brand-muted mt-2 text-sm">
               Currently viewing{" "}
-              <span className="text-brand-ink font-semibold">{term.data.termName}</span> data.
+              <span className="text-brand-ink font-semibold">{data.term.termName}</span> data.
             </p>
           )}
         </section>
@@ -166,20 +160,14 @@ export function HomePage() {
               Announcements
             </h2>
 
-            {announcements.isPending && <Loading label="Loading announcements" />}
-            {announcements.isError && (
-              <ErrorAlert
-                error={announcements.error}
-                onRetry={() => void announcements.refetch()}
-              />
-            )}
-            {announcements.isSuccess &&
-              (announcements.data.length === 0 ? (
+            {dashboard.isPending && <Loading label="Loading announcements" />}
+            {data &&
+              (data.announcements.length === 0 ? (
                 <div className="border-brand-border/25 text-brand-muted rounded-xl border bg-white px-5 py-6 text-sm">
-                  No announcements yet.
+                  {data.emptyMessages.announcements}
                 </div>
               ) : (
-                announcements.data.map((item) => (
+                data.announcements.map((item) => (
                   <article
                     key={item.id}
                     aria-labelledby={`announcement-${item.id}`}
@@ -209,22 +197,19 @@ export function HomePage() {
                 Events
               </h2>
 
-              {events.isPending && <Loading label="Loading events" />}
-              {events.isError && (
-                <ErrorAlert error={events.error} onRetry={() => void events.refetch()} />
-              )}
-              {events.isSuccess &&
-                (events.data.length === 0 ? (
-                  <p className="text-brand-muted px-1 text-sm">No upcoming events scheduled.</p>
+              {dashboard.isPending && <Loading label="Loading events" />}
+              {data &&
+                (data.events.length === 0 ? (
+                  <p className="text-brand-muted px-1 text-sm">{data.emptyMessages.events}</p>
                 ) : (
                   <ul className="space-y-0.5">
-                    {events.data.map((event) => (
+                    {data.events.map((event) => (
                       <EventRow key={event.id} event={event} />
                     ))}
                   </ul>
                 ))}
 
-              {events.isSuccess && events.data.length > 3 && (
+              {data && data.events.length > 3 && (
                 // No calendar route yet: unavailable rather than a dead button.
                 <button
                   type="button"
@@ -247,16 +232,13 @@ export function HomePage() {
                 Recent Activity
               </h2>
 
-              {activity.isPending && <Loading label="Loading recent activity" />}
-              {activity.isError && (
-                <ErrorAlert error={activity.error} onRetry={() => void activity.refetch()} />
-              )}
-              {activity.isSuccess &&
-                (activity.data.length === 0 ? (
-                  <p className="text-brand-muted text-sm">No recent activity recorded.</p>
+              {dashboard.isPending && <Loading label="Loading recent activity" />}
+              {data &&
+                (data.recentActivity.length === 0 ? (
+                  <p className="text-brand-muted text-sm">{data.emptyMessages.recentActivity}</p>
                 ) : (
                   <ul className="space-y-3">
-                    {activity.data.map((item) => {
+                    {data.recentActivity.map((item) => {
                       const status = STATUS[item.status];
                       return (
                         <li key={item.id} className="flex gap-3">

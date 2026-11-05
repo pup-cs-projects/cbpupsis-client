@@ -91,8 +91,10 @@
   box-shadow:
     inset 0 1px 1px rgb(255 255 255 / 40%),
     0 16px 48px rgb(35 14 9 / 18%);
-  backdrop-filter: blur(16px);
+  /* Prefixed first, standard last. In the other order the production minifier keeps only the
+     -webkit- line, which Chrome ignores, so the card loses its frosted blur once deployed. */
   -webkit-backdrop-filter: blur(16px);
+  backdrop-filter: blur(16px);
   color: var(--color-brand-ink);
 }
 .login-card h1 {
