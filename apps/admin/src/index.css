@@ -2,3 +2,29 @@
 @import "@cbpupsis/ui/theme.css";
 @source "../../../packages/ui/src";
 @source "../../../packages/account/src";
+
+/* Pointer feedback for interactive controls in the admin portal only. */
+a[href]:not([aria-disabled="true"]),
+button:not(:disabled):not([aria-disabled="true"]),
+select:not(:disabled),
+input[type="radio"]:not(:disabled),
+input[type="checkbox"]:not(:disabled),
+input[type="date"]:not(:disabled) {
+  cursor: pointer;
+}
+
+input[type="date"]::-webkit-calendar-picker-indicator {
+  cursor: pointer;
+}
+
+button:disabled,
+select:disabled,
+input:disabled,
+[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+
+/* Keep form control focus outlines flush with the control edge. */
+:is(button, input, select, textarea):focus-visible {
+  outline-offset: 0;
+}
