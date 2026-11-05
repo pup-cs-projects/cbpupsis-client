@@ -5,14 +5,20 @@
 # One workspace: the root scripts run every package in packages/ and every app
 # in apps/, from the one root package-lock.json.
 
+#
+# Pushes to staging and main run these same jobs as the first stage of
+# deploy.yml (workflow_call), so a release is never deployed untested and never
+# tested twice.
+
 name: ci
 
 on:
   push:
-    branches: [main, dev]
+    branches: [dev]
   pull_request:
-    branches: [main, dev]
+    branches: [main, staging, dev]
   workflow_dispatch:
+  workflow_call:
 
 concurrency:
   group: ci-${{ github.ref }}

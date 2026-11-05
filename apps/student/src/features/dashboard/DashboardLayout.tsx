@@ -1,5 +1,5 @@
 import { SignOutButton } from "@cbpupsis/account";
-import { Link, type LinkProps } from "@tanstack/react-router";
+import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useMe } from "../sign-in/queries";
@@ -28,6 +28,12 @@ function Icon({ children, className = "size-5" }: { children: ReactNode; classNa
 const MenuIcon = () => (
   <Icon>
     <path d="M4 6h16M4 12h16M4 18h16" />
+  </Icon>
+);
+const HomeIcon = () => (
+  <Icon>
+    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+    <polyline points="9 22 9 12 15 12 15 22" />
   </Icon>
 );
 const AcademicsIcon = () => (
@@ -82,7 +88,7 @@ const SignOutIcon = () => (
 // ---- Data ----
 
 // Items without a `to` or `href` have no route yet: unavailable, never a dead link.
-type SubItem = { label: string; to?: LinkProps["to"]; href?: string };
+type SubItem = { label: string; to?: LinkProps["to"]; href?: string; kind?: "signout" };
 
 type NavSection = {
   id: string;
@@ -97,7 +103,11 @@ const NAV_SECTIONS: NavSection[] = [
     id: "academics",
     label: "Academics",
     icon: <AcademicsIcon />,
-    children: [{ label: "My Schedule" }, { label: "My Grades" }, { label: "Enrollment" }],
+    children: [
+      { label: "My Schedule", to: "/schedule" },
+      { label: "My Grades", to: "/grades" },
+      { label: "Enrollment" },
+    ],
   },
   {
     id: "finance",
@@ -115,7 +125,11 @@ const NAV_SECTIONS: NavSection[] = [
     id: "settings",
     label: "Settings",
     icon: <GearIcon />,
-    children: [{ label: "Profile" }, { label: "Change Password", to: "/change-password" }],
+    children: [
+      { label: "Profile", to: "/profile" },
+      { label: "Change Password", to: "/change-password" },
+      { label: "Logout", kind: "signout" as const },
+    ],
   },
   // The same support address as the sign-in page.
   { id: "help", label: "Help & Support", icon: <HelpIcon />, href: "mailto:icto-admin@pup.edu.ph" },
@@ -130,9 +144,29 @@ const SIDEBAR_ID = "student-sidebar";
  * obelisk sidebar (a drawer below 768px), and the main landmark the skip link jumps to.
  */
 export function DashboardLayout({ children }: { children: ReactNode }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      return localStorage.getItem("student-sidebar-expanded") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const pathname = useLocation({ select: (location) => location.pathname });
+  // The section holding the current page: open on arrival, and marked even when collapsed.
+  const activeSection = NAV_SECTIONS.find((section) =>
+    section.children?.some((item) => item.to === pathname),
+  )?.id;
+  const [openSection, setOpenSection] = useState<string | null>(activeSection ?? null);
+
+  function persistExpanded(next: boolean) {
+    setIsExpanded(next);
+    try {
+      localStorage.setItem("student-sidebar-expanded", String(next));
+    } catch {
+      // Storage unavailable (private mode, quota) — the preference just won't persist.
+    }
+  }
   const menuButton = useRef<HTMLButtonElement>(null);
   const expanded = isExpanded || drawerOpen;
 
@@ -150,7 +184,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   function handleSectionClick(id: string) {
     if (!expanded) {
-      setIsExpanded(true);
+      persistExpanded(true);
       setOpenSection(id);
     } else {
       setOpenSection((prev) => (prev === id ? null : id));
@@ -204,27 +238,17 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           </Link>
         </div>
 
-        <nav aria-label="Main" className="hidden items-center gap-12 sm:flex print:hidden">
-          <Link
-            to="/dashboard"
-            activeOptions={{ includeSearch: false }}
-            className="text-brand-ink hover:text-brand-maroon aria-[current=page]:text-brand-maroon inline-flex min-h-11 items-center text-sm font-medium transition-colors"
+        <nav aria-label="Main" className="hidden items-center sm:flex print:hidden">
+          {/* Notifications: not built yet — unavailable, never a dead link. */}
+          <span
+            role="link"
+            aria-disabled="true"
+            title="Coming soon"
+            className="text-brand-ink inline-flex min-h-11 cursor-default items-center text-sm font-medium"
           >
-            Home
-          </Link>
-          {["Profile", "Notifications"].map((label) => (
-            // Not built yet: not a link target and not focusable; screen readers hear why.
-            <span
-              key={label}
-              role="link"
-              aria-disabled="true"
-              title="Coming soon"
-              className="text-brand-ink inline-flex min-h-11 cursor-default items-center text-sm font-medium"
-            >
-              {label}
-              <span className="sr-only">, coming soon</span>
-            </span>
-          ))}
+            Notifications
+            <span className="sr-only">, coming soon</span>
+          </span>
         </nav>
       </header>
 
@@ -262,16 +286,31 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 if (drawerOpen) {
                   setDrawerOpen(false);
                   menuButton.current?.focus();
-                } else setIsExpanded((v) => !v);
+                } else persistExpanded(!isExpanded);
               }}
             >
               <MenuIcon />
+            </button>
+
+            <div className="mx-3 my-1.5 border-t border-white/15" />
+
+            {/* Dashboard — wired route with active highlight */}
+            <Link
+              to="/dashboard"
+              activeOptions={{ includeSearch: false }}
+              aria-label="Dashboard"
+              className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} aria-[current=page]:bg-white/20 aria-[current=page]:text-white`}
+            >
+              <HomeIcon />
               {expanded && (
-                <span className="text-sm font-semibold whitespace-nowrap" aria-hidden="true">
+                <span
+                  className="flex-1 text-left text-sm font-semibold whitespace-nowrap"
+                  aria-hidden="true"
+                >
                   Dashboard
                 </span>
               )}
-            </button>
+            </Link>
 
             <div className="mx-3 my-1.5 border-t border-white/15" />
 
@@ -279,7 +318,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               {NAV_SECTIONS.map((section) => {
                 const open = expanded && openSection === section.id;
                 const rowClass = `${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${
-                  open ? "bg-white/10 text-white" : ""
+                  open || section.id === activeSection ? "bg-white/10 text-white" : ""
                 }`;
                 return (
                   <li key={section.id}>
@@ -328,8 +367,13 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                       <ul className="bg-black/15">
                         {section.children.map((item) => (
                           <li key={item.label}>
-                            {item.to ? (
-                              <Link to={item.to} className={subItem}>
+                            {item.kind === "signout" ? (
+                              <SignOutButton className={subItem}>{item.label}</SignOutButton>
+                            ) : item.to ? (
+                              <Link
+                                to={item.to}
+                                className={`${subItem} aria-[current=page]:bg-white/20 aria-[current=page]:font-semibold aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-gold)]`}
+                              >
                                 {item.label}
                               </Link>
                             ) : (
@@ -375,32 +419,41 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 }
 
 /**
- * Who is signed in, and Sign out (with its confirmation). The name shows only once the API
- * gives one; it is never derived from the email.
+ * Who is signed in, and Sign out (with its confirmation). The picture and name open the profile.
+ * The name shows only once the API gives one; it is never derived from the email.
  */
 function ProfileCard({ expanded }: { expanded: boolean }) {
   const me = useMe();
-  const name = useStudentName();
-  const fullName = name.data?.fullName;
+  const fullName = useStudentName().data;
 
   return (
     <div className="shrink-0 border-t border-white/15 p-3">
       <div className={`flex items-center ${expanded ? "gap-3" : "flex-col gap-2"}`}>
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-white">
-          <UserCircleIcon />
-        </div>
         {me.isPending && <p className="sr-only">Loading your account</p>}
         {me.isSuccess && <p className="sr-only">Signed in as {me.data.email}</p>}
-        {expanded && (
-          <div className="min-w-0 flex-1" aria-hidden="true">
-            <p className="truncate text-xs leading-tight font-semibold text-white">
-              {(fullName ?? "Student").toUpperCase()}
-            </p>
-            {me.isSuccess && (
-              <p className="truncate text-xs leading-tight text-white/80">{me.data.email}</p>
-            )}
-          </div>
-        )}
+        <Link
+          to="/profile"
+          aria-label="Your profile"
+          className={`focus-visible:outline-brand-gold! flex min-h-11 min-w-0 items-center rounded-lg text-white hover:bg-white/10 aria-[current=page]:bg-white/20 ${
+            expanded ? "flex-1 gap-3 pr-2" : "justify-center"
+          }`}
+        >
+          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20">
+            <UserCircleIcon />
+          </span>
+          {expanded && (
+            <span className="min-w-0 flex-1" aria-hidden="true">
+              <span className="block truncate text-xs leading-tight font-semibold">
+                {(fullName ?? "Student").toUpperCase()}
+              </span>
+              {me.isSuccess && (
+                <span className="block truncate text-xs leading-tight text-white/80">
+                  {me.data.email}
+                </span>
+              )}
+            </span>
+          )}
+        </Link>
         <SignOutButton className="focus-visible:outline-brand-gold! grid size-11 shrink-0 place-items-center rounded-lg text-white hover:bg-white/10">
           <SignOutIcon />
           <span className="sr-only">Sign out</span>
