@@ -1,3 +1,4 @@
+export { createAdminEnrollmentApi, type AdminEnrollmentApi } from "./admin";
 export type {
   AddDropCourseRead,
   AddDropDecisionRequest,
