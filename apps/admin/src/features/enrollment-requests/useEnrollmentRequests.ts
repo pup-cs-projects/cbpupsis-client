@@ -2,8 +2,9 @@ import { ApiError } from "@cbpupsis/shared/api";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
 
+import { reviewFailure } from "./reviewErrors";
 import type {
-  EnrollmentRequest,
+  EnrollmentRequestList,
   EnrollmentReviewDataSource,
   RequestKind,
   ReviewSubmission,
@@ -11,9 +12,8 @@ import type {
 
 export const enrollmentReviewKeys = {
   all: ["enrollment-requests"] as const,
-  user: (userId: string) => [...enrollmentReviewKeys.all, userId] as const,
-  list: (userId: string, kind: RequestKind) =>
-    [...enrollmentReviewKeys.user(userId), kind] as const,
+  user: (userId: string) => ["enrollment-requests", userId] as const,
+  list: (userId: string, kind: RequestKind) => ["enrollment-requests", userId, kind] as const,
 };
 
 export function useEnrollmentRequests(
@@ -24,6 +24,8 @@ export function useEnrollmentRequests(
 ) {
   const queryClient = useQueryClient();
   const [notice, setNotice] = useState("");
+  const [rowNotices, setRowNotices] = useState<Record<string, string>>({});
+  const rowKey = (requestId: string) => `${userId}:${kind}:${requestId}`;
   const key = enrollmentReviewKeys.list(userId ?? "signed-out", kind);
   const query = useQuery({
     queryKey: key,
@@ -34,20 +36,25 @@ export function useEnrollmentRequests(
     enabled: Boolean(source && userId && enabled),
     retry: false,
   });
-
   const mutation = useMutation({
     mutationFn: async (submission: ReviewSubmission) => {
-      if (!source || !enabled || !userId) throw new Error("Enrollment review is not available");
-      const updated = await source.decide(kind, submission);
-      if (!updated || updated.id !== submission.requestId || updated.kind !== kind)
+      if (!source || !enabled || !userId || submission.kind !== kind)
+        throw new Error("Enrollment review is not available");
+      const updated = await source.decide(submission);
+      if (!updated || updated.id !== submission.requestId || updated.kind !== submission.kind)
         throw new ApiError(0, "INVALID_RESPONSE");
       return updated;
     },
     retry: false,
     onSuccess: (updated) => {
-      // Only use the server-confirmed state. Never advance a workflow locally.
-      queryClient.setQueryData<EnrollmentRequest[]>(key, (items) =>
-        items?.map((item) => (item.id === updated.id ? updated : item)),
+      const updatedKey = enrollmentReviewKeys.list(userId!, updated.kind);
+      queryClient.setQueryData<EnrollmentRequestList>(updatedKey, (list) =>
+        list
+          ? {
+              ...list,
+              items: list.items.map((item) => (item.id === updated.id ? updated : item)),
+            }
+          : list,
       );
       setNotice(
         source?.isMock
@@ -60,32 +67,47 @@ export function useEnrollmentRequests(
     onError: (error, submission) => {
       if (!(error instanceof ApiError)) return;
       if (error.code === "RESOURCE_NOT_FOUND") {
-        queryClient.setQueryData<EnrollmentRequest[]>(key, (items) =>
-          items?.filter((item) => item.id !== submission.requestId),
+        queryClient.setQueryData<EnrollmentRequestList>(
+          enrollmentReviewKeys.list(userId!, submission.kind),
+          (list) =>
+            list
+              ? {
+                  items: list.items.filter((item) => item.id !== submission.requestId),
+                  total: list.items.some((item) => item.id === submission.requestId)
+                    ? Math.max(0, list.total - 1)
+                    : list.total,
+                }
+              : list,
         );
         setNotice("This request is no longer available.");
       } else if (
         error.code === "REQUEST_ALREADY_DECIDED" ||
         error.code === "ENROLL_WAIVER_STEP_MISMATCH"
       ) {
-        setNotice(
-          error.code === "REQUEST_ALREADY_DECIDED"
-            ? "Already decided. The request list is being refreshed."
-            : "This waiver is not at your step. The request list is being refreshed.",
-        );
+        const message = reviewFailure(error).message;
+        setRowNotices((items) => ({
+          ...items,
+          [`${userId}:${submission.kind}:${submission.requestId}`]: message,
+        }));
+        setNotice(message);
       } else return;
       if (userId)
         void queryClient.invalidateQueries({ queryKey: enrollmentReviewKeys.user(userId) });
     },
   });
-
   return {
     ...query,
     connected: Boolean(source),
+    isMock: Boolean(source?.isMock),
     loading: Boolean(source && enabled && userId && query.isPending),
     submitting: mutation.isPending,
     notice,
     dismissNotice: () => setNotice(""),
+    rowNotices: Object.fromEntries(
+      (query.data?.items ?? []).flatMap((item) =>
+        rowNotices[rowKey(item.id)] ? [[item.id, rowNotices[rowKey(item.id)]]] : [],
+      ),
+    ),
     decide: async (submission: ReviewSubmission) => {
       await mutation.mutateAsync(submission);
     },

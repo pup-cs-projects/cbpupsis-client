@@ -6,22 +6,14 @@ import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { useMe } from "../sign-in/useAdminAuth";
 import { RequestReviewDialog } from "./RequestReviewDialog";
 import { RequestsTable } from "./RequestsTable";
-import { ReviewerRoleIcon } from "./ReviewerRoleIcon";
-import {
-  canReview,
-  isPending,
-  isReviewerRole,
-  manilaDate,
-  REQUEST_TABS,
-  REVIEW_ROLES,
-} from "./reviewRules";
+import { canReview, isPending, isReviewerRole, manilaDate, REQUEST_TABS } from "./reviewRules";
 import { enrollmentReviewDataSource } from "./dataSource";
 import { createMockReviewDataSource } from "./mockDataSource";
-import type { EnrollmentReviewDataSource, RequestKind, ReviewerRole } from "./types";
+import type { EnrollmentReviewDataSource, RequestKind } from "./types";
 import { useEnrollmentRequests } from "./useEnrollmentRequests";
 
 const filterField =
-  "border-brand-border/35 focus:border-brand-maroon min-h-11 w-full rounded-lg border bg-white px-3 py-2 text-sm";
+  "border-brand-border/35 focus:border-brand-maroon focus-visible:outline-offset-0! min-h-11 w-full rounded-lg border bg-white px-3 py-2 text-sm";
 
 export function EnrollmentRequestsPage({
   dataSource = enrollmentReviewDataSource,
@@ -36,10 +28,8 @@ export function EnrollmentRequestsPage({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(5);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [viewRole, setViewRole] = useState<ReviewerRole | null>(null);
   const actualRole = isReviewerRole(me.data?.position) ? me.data.position : null;
-  const role = viewRole ?? actualRole ?? "registrar";
-  const canSubmit = role === actualRole;
+  const role = actualRole;
   const ownerId = me.data?.id;
   const source = useMemo(
     () =>
@@ -51,13 +41,13 @@ export function EnrollmentRequestsPage({
   );
   const review = useEnrollmentRequests(tab, me.data?.id, Boolean(actualRole), source);
   const tabInfo = REQUEST_TABS.find((item) => item.kind === tab)!;
-  const requests = review.data ?? [];
+  const requests = review.data?.items ?? [];
   const dateInvalid = Boolean(fromDate && toDate && fromDate > toDate);
   const search = query.trim().toLowerCase();
   const filtered = requests
     .filter((item) => {
       const matchesSearch =
-        `${item.id} ${item.student.name} ${item.student.number} ${item.student.program} ${item.courses.map((course) => `${course.code} ${course.title}`).join(" ")}`
+        `${item.id} ${item.student.id} ${item.student.name ?? ""} ${item.student.number ?? ""} ${item.student.program ?? ""} ${item.sectionId ?? ""} ${item.prerequisite ?? ""} ${item.courses.map((course) => `${course.code} ${course.title}`).join(" ")}`
           .toLowerCase()
           .includes(search);
       const date = manilaDate(item.filedAt);
@@ -73,12 +63,15 @@ export function EnrollmentRequestsPage({
     .sort((a, b) =>
       sort === "newest" ? b.filedAt.localeCompare(a.filedAt) : a.filedAt.localeCompare(b.filedAt),
     );
-  const pages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const hasFilters = Boolean(query || status !== "all" || fromDate || toDate);
+  const total = hasFilters ? filtered.length : (review.data?.total ?? 0);
+  const pages = Math.max(1, Math.ceil(total / pageSize));
   const currentPage = Math.min(page, pages);
   const visibleRequests = filtered.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   const selected = requests.find((item) => item.id === selectedId);
-  const hasFilters = Boolean(query || status !== "all" || fromDate || toDate);
-  const actionable = requests.filter((item) => canSubmit && canReview(item, role)).length;
+  const actionable = requests.filter(
+    (item) => role && !review.rowNotices[item.id] && canReview(item, role),
+  ).length;
   const pending = requests.filter((item) => isPending(item.state)).length;
 
   function clearFilters() {
@@ -138,44 +131,6 @@ export function EnrollmentRequestsPage({
               Review course changes, academic overloads, and co-requisite waivers in one place.
             </p>
           </div>
-          {actualRole && (
-            <div className="w-full max-w-xs sm:w-64">
-              <label
-                htmlFor="review-role-view"
-                className="text-brand-muted mb-2 block text-xs font-semibold"
-              >
-                Review role
-              </label>
-              <div className="relative">
-                <span className="text-brand-muted pointer-events-none absolute top-3 left-3">
-                  <ReviewerRoleIcon />
-                </span>
-                <select
-                  id="review-role-view"
-                  value={role}
-                  onChange={(event) => {
-                    if (isReviewerRole(event.target.value)) {
-                      setViewRole(event.target.value);
-                      setSelectedId(null);
-                      review.dismissNotice();
-                    }
-                  }}
-                  className="border-brand-border/35 min-h-11 w-full rounded-lg border bg-white py-2 pr-3 pl-10 text-sm"
-                >
-                  {Object.entries(REVIEW_ROLES).map(([value, label]) => (
-                    <option key={value} value={value}>
-                      {label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <p className="text-brand-muted mt-2 text-xs leading-relaxed">
-                {canSubmit
-                  ? "Your signed-in role."
-                  : "Read-only view. Signed in as " + REVIEW_ROLES[actualRole] + "."}
-              </p>
-            </div>
-          )}
         </header>
         {me.isPending && (
           <div
@@ -211,14 +166,14 @@ export function EnrollmentRequestsPage({
             {review.notice && (
               <div
                 role="status"
-                className="border-brand-success/25 bg-brand-success/5 text-brand-success flex items-center justify-between gap-3 rounded-xl border px-5 py-3 text-sm"
+                className="border-brand-border/25 text-brand-help flex items-center justify-between gap-3 rounded-xl border px-5 py-3 text-sm"
               >
                 <p>{review.notice}</p>
                 <button
                   type="button"
                   aria-label="Dismiss decision message"
                   onClick={review.dismissNotice}
-                  className="grid size-11 shrink-0 place-items-center rounded-lg text-xl"
+                  className="grid size-11 shrink-0 place-items-center rounded-lg text-xl focus-visible:outline-offset-0!"
                 >
                   ×
                 </button>
@@ -228,18 +183,14 @@ export function EnrollmentRequestsPage({
               {[
                 {
                   label: "Total requests",
-                  value: requests.length,
+                  value: review.data?.total ?? 0,
                   caption: tabInfo.label,
                   icon: "book",
                 },
                 {
                   label: "Your review queue",
                   value: actionable,
-                  caption: !canSubmit
-                    ? "Read-only role view"
-                    : actionable
-                      ? "Ready for your decision"
-                      : "No decisions at your step",
+                  caption: actionable ? "Ready for your decision" : "No decisions at your step",
                   icon: "briefcase",
                 },
                 {
@@ -293,7 +244,7 @@ export function EnrollmentRequestsPage({
                     tabIndex={tab === item.kind ? 0 : -1}
                     onClick={() => changeTab(item.kind)}
                     onKeyDown={(event) => tabKeyDown(event, index)}
-                    className={`flex min-h-16 shrink-0 items-center gap-2 border-b-2 px-4 py-4 text-sm font-semibold ${tab === item.kind ? "border-brand-maroon text-brand-maroon" : "text-brand-muted hover:text-brand-maroon border-transparent"}`}
+                    className={`flex min-h-16 shrink-0 items-center gap-2 border-b-2 px-4 py-4 text-sm font-semibold focus-visible:-outline-offset-3! ${tab === item.kind ? "border-brand-maroon text-brand-maroon" : "text-brand-muted hover:text-brand-maroon border-transparent"}`}
                   >
                     {item.label}
                   </button>
@@ -350,7 +301,7 @@ export function EnrollmentRequestsPage({
                           setStatus(event.target.value);
                           setPage(1);
                         }}
-                        className={filterField}
+                        className={`${filterField} cursor-pointer`}
                       >
                         <option value="all">All statuses</option>
                         <option value="pending">Pending review</option>
@@ -372,7 +323,7 @@ export function EnrollmentRequestsPage({
                           setFromDate(event.target.value);
                           setPage(1);
                         }}
-                        className={`${filterField} min-w-0`}
+                        className={`${filterField} min-w-0 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer`}
                         aria-invalid={dateInvalid || undefined}
                         aria-describedby={dateInvalid ? "request-date-error" : undefined}
                       />
@@ -391,7 +342,7 @@ export function EnrollmentRequestsPage({
                           setToDate(event.target.value);
                           setPage(1);
                         }}
-                        className={`${filterField} min-w-0`}
+                        className={`${filterField} min-w-0 cursor-pointer [&::-webkit-calendar-picker-indicator]:cursor-pointer`}
                         aria-invalid={dateInvalid || undefined}
                         aria-describedby={dateInvalid ? "request-date-error" : undefined}
                       />
@@ -405,8 +356,7 @@ export function EnrollmentRequestsPage({
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <p className="text-brand-muted text-xs" role="status">
                       {review.isSuccess
-                        ? filtered.length +
-                          (filtered.length === 1 ? " request found" : " requests found")
+                        ? total + (total === 1 ? " request found" : " requests found")
                         : review.loading
                           ? "Loading requests…"
                           : "Request data unavailable"}
@@ -417,7 +367,7 @@ export function EnrollmentRequestsPage({
                         type="button"
                         onClick={clearFilters}
                         disabled={!hasFilters || !review.isSuccess}
-                        className="text-brand-maroon disabled:text-brand-muted min-h-11 px-2 text-xs font-semibold disabled:cursor-default"
+                        className="text-brand-maroon disabled:text-brand-muted min-h-11 px-2 text-xs font-semibold focus-visible:outline-offset-0! disabled:cursor-default"
                       >
                         Clear filters
                       </button>
@@ -432,7 +382,7 @@ export function EnrollmentRequestsPage({
                           setSort(event.target.value);
                           setPage(1);
                         }}
-                        className="border-brand-border/30 text-brand-muted min-h-11 rounded-lg border px-3 py-2 text-xs"
+                        className="border-brand-border/30 text-brand-muted min-h-11 cursor-pointer rounded-lg border px-3 py-2 text-xs focus-visible:outline-offset-0!"
                       >
                         <option value="newest">Newest first</option>
                         <option value="oldest">Oldest first</option>
@@ -465,9 +415,9 @@ export function EnrollmentRequestsPage({
                 ) : visibleRequests.length ? (
                   <RequestsTable
                     requests={visibleRequests}
-                    role={role}
+                    role={actualRole}
                     onOpen={setSelectedId}
-                    readOnly={!canSubmit}
+                    rowNotices={review.rowNotices}
                   />
                 ) : (
                   <div className="px-6 py-14 text-center">
@@ -504,15 +454,15 @@ export function EnrollmentRequestsPage({
                         setPageSize(Number(event.target.value));
                         setPage(1);
                       }}
-                      className="border-brand-border/30 min-h-11 rounded-lg border bg-white px-3 py-2"
+                      className="border-brand-border/30 min-h-11 cursor-pointer rounded-lg border bg-white px-3 py-2 focus-visible:outline-offset-0!"
                     >
                       <option value={5}>5</option>
                       <option value={10}>10</option>
                       <option value={20}>20</option>
                     </select>
                     <span>
-                      Showing {filtered.length ? (currentPage - 1) * pageSize + 1 : 0}-
-                      {Math.min(currentPage * pageSize, filtered.length)} of {filtered.length}
+                      Showing {total ? (currentPage - 1) * pageSize + 1 : 0}-
+                      {Math.min(currentPage * pageSize, total)} of {total}
                     </span>
                   </div>
                   <nav aria-label="Request pagination" className="flex items-center gap-2">
@@ -520,7 +470,7 @@ export function EnrollmentRequestsPage({
                       type="button"
                       disabled={currentPage === 1}
                       onClick={() => setPage(currentPage - 1)}
-                      className="border-brand-border/30 min-h-11 rounded-lg border px-3 py-2 font-semibold disabled:opacity-40"
+                      className="border-brand-border/30 min-h-11 cursor-pointer rounded-lg border px-3 py-2 font-semibold focus-visible:outline-offset-0! disabled:opacity-40"
                     >
                       Previous
                     </button>
@@ -531,7 +481,7 @@ export function EnrollmentRequestsPage({
                       type="button"
                       disabled={currentPage === pages}
                       onClick={() => setPage(currentPage + 1)}
-                      className="border-brand-border/30 min-h-11 rounded-lg border px-3 py-2 font-semibold disabled:opacity-40"
+                      className="border-brand-border/30 min-h-11 cursor-pointer rounded-lg border px-3 py-2 font-semibold focus-visible:outline-offset-0! disabled:opacity-40"
                     >
                       Next
                     </button>
@@ -552,15 +502,12 @@ export function EnrollmentRequestsPage({
           <RequestReviewDialog
             key={selected.id}
             request={selected}
-            role={role}
+            role={actualRole}
             onClose={() => setSelectedId(null)}
             onSubmit={review.decide}
             submitting={review.submitting}
-            readOnlyReason={
-              !canSubmit
-                ? "This role view is read-only. Sign in with this role to make a decision."
-                : undefined
-            }
+            isMock={review.isMock}
+            readOnlyReason={review.rowNotices[selected.id]}
           />
         )}
       </div>

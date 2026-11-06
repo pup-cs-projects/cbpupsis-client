@@ -73,7 +73,12 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         {
           label: "Reports",
           icon: <DashboardIcon name="briefcase" />,
-          children: [{ label: "User Management" }, { label: "Enrollment" }, { label: "Financial" }],
+          children: [
+            { label: "User Management" },
+            { label: "Enrollment" },
+            { label: "Financial" },
+            { label: "System Health" },
+          ],
         },
         {
           label: "Settings",

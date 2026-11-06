@@ -6,15 +6,17 @@ import {
   isPending,
   REVIEW_ROLES,
   reviewActionLabel,
+  WAIVER_CONDITION_LABELS,
 } from "./reviewRules";
+import { toReviewSubmission } from "./reviewMapper";
 import { reviewFailure } from "./reviewErrors";
 import { StatusBadge } from "./StatusBadge";
 import type { Decision, EnrollmentRequest, ReviewerRole, ReviewSubmission } from "./types";
 
 const primaryButton =
-  "bg-brand-maroon hover:bg-brand-maroon-dark min-h-11 rounded-lg px-5 py-3 text-sm font-semibold text-white disabled:opacity-50";
+  "bg-brand-maroon hover:bg-brand-maroon-dark focus-visible:outline-offset-0! min-h-11 rounded-lg px-5 py-3 text-sm font-semibold text-white disabled:opacity-50";
 const fieldClass =
-  "border-brand-border/40 focus:border-brand-maroon min-h-11 w-full rounded-lg border bg-white px-3 py-2 text-sm";
+  "border-brand-border/40 focus:border-brand-maroon focus-visible:outline-offset-0! min-h-11 w-full rounded-lg border bg-white px-3 py-2 text-sm";
 
 export function RequestReviewDialog({
   request,
@@ -23,6 +25,7 @@ export function RequestReviewDialog({
   onSubmit,
   submitting = false,
   readOnlyReason,
+  isMock = false,
 }: {
   request: EnrollmentRequest;
   role: ReviewerRole;
@@ -30,6 +33,7 @@ export function RequestReviewDialog({
   onSubmit: (submission: ReviewSubmission) => Promise<void>;
   submitting?: boolean;
   readOnlyReason?: string;
+  isMock?: boolean;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   const submissionStarted = useRef(false);
@@ -85,13 +89,7 @@ export function RequestReviewDialog({
     setRequestId(undefined);
     setInvalidField(null);
     try {
-      await onSubmit({
-        requestId: request.id,
-        decision,
-        remarks: remarks.trim(),
-        vpaaReference: reference.trim(),
-        version: request.version,
-      });
+      await onSubmit(toReviewSubmission(request, decision, remarks, reference));
       onClose();
     } catch (failure) {
       const result = reviewFailure(failure);
@@ -129,7 +127,7 @@ export function RequestReviewDialog({
           type="button"
           onClick={onClose}
           aria-label="Close request review"
-          className="text-brand-muted hover:bg-brand-paper grid size-11 shrink-0 place-items-center rounded-lg text-2xl"
+          className="text-brand-muted hover:bg-brand-paper grid size-11 shrink-0 place-items-center rounded-lg text-2xl focus-visible:outline-offset-0!"
         >
           ×
         </button>
@@ -142,10 +140,13 @@ export function RequestReviewDialog({
       >
         <div className="border-brand-border/20 bg-brand-paper flex flex-wrap items-start justify-between gap-3 rounded-xl border p-4">
           <div>
-            <h3 className="text-base font-bold">{request.student.name}</h3>
-            <p className="text-brand-muted mt-1 text-sm">{request.student.number}</p>
+            <h3 className="text-base font-bold">{request.student.name ?? "Student ID"}</h3>
+            <p className="text-brand-muted mt-1 text-sm">
+              {request.student.number ?? request.student.id}
+            </p>
             <p className="text-brand-muted mt-1 text-xs">
-              {request.student.program} · {request.student.year}
+              {request.student.program ?? ""}
+              {request.term ? ` · ${request.term}` : ""}
             </p>
           </div>
           <StatusBadge state={request.state} />
@@ -196,59 +197,73 @@ export function RequestReviewDialog({
             </ol>
           </section>
         )}
-        <section aria-label="Requested course changes">
-          <h3 className="mb-3 text-sm font-semibold">
-            {request.kind === "add-drop" ? "Course changes" : "Requested course"}
-          </h3>
-          <ul className="space-y-2">
-            {request.courses.map((course) => (
-              <li
-                key={`${course.code}-${course.action}-${course.section}`}
-                className="border-brand-border/25 rounded-lg border p-3"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold">
-                      {course.code} · {course.title}
-                    </p>
-                    <p className="text-brand-muted mt-1 text-xs">
-                      {course.section} · {course.units} units
-                    </p>
+        {request.kind === "add-drop" && (
+          <section aria-label="Requested course changes">
+            <h3 className="mb-3 text-sm font-semibold">Course changes</h3>
+            <ul className="space-y-2">
+              {request.courses.map((course) => (
+                <li
+                  key={`${course.code}-${course.action}-${course.section}`}
+                  className="border-brand-border/25 rounded-lg border p-3"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">
+                        {course.code} · {course.title}
+                      </p>
+                      <p className="text-brand-muted mt-1 text-xs break-all">
+                        Section ID: {course.section} · {course.units} units
+                      </p>
+                    </div>
+                    <span
+                      className={`rounded px-2 py-1 text-xs font-bold ${course.action === "DROP" ? "bg-brand-maroon/10 text-brand-maroon" : "bg-brand-skeleton/15 text-brand-help"}`}
+                    >
+                      {course.action}
+                    </span>
                   </div>
-                  <span
-                    className={`rounded px-2 py-1 text-xs font-bold ${course.action === "DROP" ? "bg-brand-maroon/10 text-brand-maroon" : "bg-brand-skeleton/15 text-brand-help"}`}
-                  >
-                    {course.action}
-                  </span>
-                </div>
-                {course.reason && (
-                  <p className="text-brand-muted mt-2 text-xs leading-relaxed">{course.reason}</p>
-                )}
-              </li>
-            ))}
-          </ul>
-        </section>
-        <div className="bg-brand-paper grid grid-cols-2 gap-4 rounded-xl p-4 text-sm">
-          <p>
-            <span className="text-brand-muted block text-xs">Current load</span>
-            <strong className="mt-1 block text-xl">
-              {request.unitsBefore} <span className="text-xs font-normal">units</span>
-            </strong>
-          </p>
-          <p>
-            <span className="text-brand-muted block text-xs">Requested load</span>
-            <strong className="text-brand-maroon mt-1 block text-xl">
-              {request.unitsAfter} <span className="text-xs font-normal">units</span>
-            </strong>
-          </p>
-        </div>
+                  {course.reason && (
+                    <p className="text-brand-muted mt-2 text-xs leading-relaxed">{course.reason}</p>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </section>
+        )}
+        {request.kind === "add-drop" && (
+          <div className="bg-brand-paper grid grid-cols-2 gap-4 rounded-xl p-4 text-sm">
+            <p>
+              <span className="text-brand-muted block text-xs">Current load</span>
+              <strong className="mt-1 block text-xl">
+                {request.unitsBefore} <span className="text-xs font-normal">units</span>
+              </strong>
+            </p>
+            <p>
+              <span className="text-brand-muted block text-xs">Requested load</span>
+              <strong className="text-brand-maroon mt-1 block text-xl">
+                {request.unitsAfter} <span className="text-xs font-normal">units</span>
+              </strong>
+            </p>
+          </div>
+        )}
+        {request.kind === "overload" && (
+          <section className="bg-brand-paper rounded-xl p-4" aria-label="Requested units">
+            <h3 className="text-sm font-semibold">Requested units</h3>
+            <p className="text-brand-maroon mt-2 text-xl font-bold">
+              {request.requestedUnits} units
+            </p>
+          </section>
+        )}
+        {request.sectionId && (
+          <dl>
+            <dt className="text-brand-muted text-xs">Section ID</dt>
+            <dd className="mt-1 text-sm break-all">{request.sectionId}</dd>
+          </dl>
+        )}
         {request.condition && (
           <dl className="grid grid-cols-1 gap-3 text-sm sm:grid-cols-2">
             <div>
               <dt className="text-brand-muted text-xs">Waiver condition</dt>
-              <dd className="mt-1 font-medium">
-                {request.condition.replaceAll("_", " ").toLowerCase()}
-              </dd>
+              <dd className="mt-1 font-medium">{WAIVER_CONDITION_LABELS[request.condition]}</dd>
             </div>
             <div>
               <dt className="text-brand-muted text-xs">Prerequisite course</dt>
@@ -258,31 +273,31 @@ export function RequestReviewDialog({
         )}
         <section>
           <h3 className="text-sm font-semibold">Student justification</h3>
-          <p className="text-brand-muted mt-2 text-sm leading-relaxed">{request.justification}</p>
+          <p className="text-brand-muted mt-2 text-sm leading-relaxed">
+            {request.justification ?? "No comments provided."}
+          </p>
         </section>
-        {request.history.length > 0 && (
-          <section>
-            <h3 className="mb-3 text-sm font-semibold">Review history</h3>
-            <ol className="space-y-3">
-              {request.history.map((item, index) => (
-                <li
-                  key={`${item.occurredAt}-${index}`}
-                  className="border-brand-border/30 border-l-2 pl-3"
-                >
-                  <p className="text-sm font-semibold">
-                    {REVIEW_ROLES[item.role]} ·{" "}
-                    {item.decision === "APPROVE" ? "Approved this stage" : "Rejected"}
-                  </p>
-                  <p className="text-brand-muted mt-1 text-xs">
-                    <time dateTime={item.occurredAt}>{formatFiledDate(item.occurredAt)}</time>
-                  </p>
-                  {item.remarks && <p className="mt-1 text-sm">{item.remarks}</p>}
-                  {item.vpaaReference && (
-                    <p className="mt-1 text-xs">VPAA reference: {item.vpaaReference}</p>
-                  )}
-                </li>
-              ))}
-            </ol>
+        {request.lastDecision && (
+          <section aria-label="Last decision">
+            <h3 className="mb-3 text-sm font-semibold">Last decision</h3>
+            {request.lastDecision.reviewedBy && (
+              <p className="text-sm break-all">Reviewer ID: {request.lastDecision.reviewedBy}</p>
+            )}
+            {request.lastDecision.reviewedAt && (
+              <p className="text-brand-muted mt-1 text-xs">
+                <time dateTime={request.lastDecision.reviewedAt}>
+                  {formatFiledDate(request.lastDecision.reviewedAt)}
+                </time>
+              </p>
+            )}
+            {request.lastDecision.remarks && (
+              <p className="mt-2 text-sm">{request.lastDecision.remarks}</p>
+            )}
+            {request.lastDecision.vpaaReference && (
+              <p className="mt-2 text-sm break-words">
+                VPAA reference: {request.lastDecision.vpaaReference}
+              </p>
+            )}
           </section>
         )}
         {allowed ? (
@@ -293,8 +308,9 @@ export function RequestReviewDialog({
             <div>
               <h3 className="text-sm font-bold">Your decision</h3>
               <p className="text-brand-muted mt-1 text-xs">
-                Reviewing as {REVIEW_ROLES[role]}. Changes are local to this session and reset when
-                the page is refreshed.
+                Reviewing as {REVIEW_ROLES[role]}.
+                {isMock &&
+                  " Changes are local to this session and reset when the page is refreshed."}
               </p>
             </div>
             <fieldset aria-describedby={invalidField === "decision" ? "review-error" : undefined}>
@@ -337,7 +353,7 @@ export function RequestReviewDialog({
                   id="vpaa-reference"
                   value={reference}
                   onChange={(event) => setReference(event.target.value)}
-                  maxLength={200}
+                  maxLength={128}
                   required
                   className={fieldClass}
                   aria-invalid={invalidField === "reference" || undefined}
@@ -362,7 +378,9 @@ export function RequestReviewDialog({
                 ref={remarksField}
                 id="review-remarks"
                 rows={3}
-                maxLength={1000}
+                maxLength={
+                  request.kind === "waivers" ? 4000 : request.kind === "overload" ? 2000 : undefined
+                }
                 value={remarks}
                 onChange={(event) => setRemarks(event.target.value)}
                 required={decision === "REJECT"}
@@ -371,7 +389,7 @@ export function RequestReviewDialog({
                 aria-describedby={invalidField === "remarks" ? "review-error" : "remarks-help"}
               />
               <p id="remarks-help" className="text-brand-muted mt-1 text-xs">
-                Give a clear reason when rejecting a request. Maximum 1,000 characters.
+                Give a clear reason when rejecting a request.
               </p>
             </div>
             {error && (
@@ -389,7 +407,7 @@ export function RequestReviewDialog({
                 disabled={submitting}
                 type="button"
                 onClick={onClose}
-                className="border-brand-border/40 min-h-11 rounded-lg border px-5 py-3 text-sm font-semibold"
+                className="border-brand-border/40 min-h-11 rounded-lg border px-5 py-3 text-sm font-semibold focus-visible:outline-offset-0!"
               >
                 Cancel
               </button>
@@ -418,7 +436,7 @@ export function RequestReviewDialog({
               disabled={submitting}
               type="button"
               onClick={onClose}
-              className="border-brand-border/40 mt-3 min-h-11 rounded-lg border bg-white px-4 py-2 text-sm font-semibold"
+              className="border-brand-border/40 mt-3 min-h-11 rounded-lg border bg-white px-4 py-2 text-sm font-semibold focus-visible:outline-offset-0!"
             >
               Close details
             </button>

@@ -1,4 +1,10 @@
-import type { EnrollmentRequest, RequestKind, RequestState, ReviewerRole } from "./types";
+import type {
+  EnrollmentRequest,
+  RequestKind,
+  RequestState,
+  ReviewerRole,
+  WaiverCondition,
+} from "./types";
 
 export const REVIEW_ROLES: Record<ReviewerRole, string> = {
   chairperson: "Department Chair",
@@ -19,10 +25,16 @@ export const REQUEST_TABS: { kind: RequestKind; label: string; description: stri
   },
   {
     kind: "waivers",
-    label: "Co-requisite waivers",
+    label: "Waivers",
     description: "Review prerequisite exceptions through the Chair, Dean, and Registrar stages.",
   },
 ];
+
+export const WAIVER_CONDITION_LABELS: Record<WaiverCondition, string> = {
+  REPEATED_PREREQUISITE: "Repeated prerequisite",
+  SUPERIOR_STANDING: "Superior academic standing",
+  GRADUATING: "Graduating student",
+};
 
 export const STATE_LABELS: Record<RequestState, string> = {
   PENDING: "Pending review",

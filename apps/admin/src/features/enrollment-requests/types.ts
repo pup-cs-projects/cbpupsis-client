@@ -1,57 +1,78 @@
-/** UI models returned by the adapter. Normalize backend responses at that boundary. */
+import type {
+  AddDropDecisionRequest,
+  AdminAddDropRequestRead,
+  OverloadDecisionRequest,
+  OverloadRequestRead,
+  WaiverDecision,
+  WaiverPage,
+  WaiverRead,
+} from "@cbpupsis/shared/enrollment";
+
 export type RequestKind = "add-drop" | "overload" | "waivers";
 export type ReviewerRole = "chairperson" | "dean" | "registrar";
 export type RequestState =
   "PENDING" | "PENDING_CHAIR" | "PENDING_DEAN" | "PENDING_VPAA" | "APPROVED" | "REJECTED";
 export type Decision = "APPROVE" | "REJECT";
+export type WaiverCondition = "REPEATED_PREREQUISITE" | "SUPERIOR_STANDING" | "GRADUATING";
 
 export interface CourseChange {
   code: string;
   title: string;
   section: string;
-  units: number;
-  action: "ADD" | "DROP" | "WAIVER";
-  reason?: string;
+  units: string;
+  action: "ADD" | "DROP";
+  reason?: string | null;
 }
 
-export interface ReviewHistory {
-  role: ReviewerRole;
-  decision: Decision;
-  remarks: string;
-  occurredAt: string;
-  vpaaReference?: string;
-}
-
+/** Only fields present in a wire response are mapped into this view model. */
 export interface EnrollmentRequest {
   id: string;
   kind: RequestKind;
-  student: { name: string; number: string; program: string; year: string };
+  student: { id: string; name?: string; number?: string; program?: string };
   filedAt: string;
   state: RequestState;
-  version: number;
+  version?: number;
   summary: string;
-  justification: string;
+  justification: string | null;
   courses: CourseChange[];
-  unitsBefore: number;
-  unitsAfter: number;
-  condition?: "REPEATED_PREREQUISITE" | "SUPERIOR_STANDING" | "GRADUATING";
+  unitsBefore?: string;
+  unitsAfter?: string;
+  requestedUnits?: number;
+  sectionId?: string;
+  condition?: WaiverCondition;
   prerequisite?: string;
-  history: ReviewHistory[];
+  term?: string;
+  lastDecision?: {
+    reviewedBy?: string | null;
+    remarks: string | null;
+    reviewedAt?: string | null;
+    vpaaReference?: string | null;
+  };
 }
 
-export interface ReviewSubmission {
-  requestId: string;
-  decision: Decision;
-  remarks: string;
-  vpaaReference: string;
-  version: number;
+/** Each category sends exactly the decision body accepted by its endpoint. */
+export type ReviewSubmission =
+  | { kind: "add-drop"; requestId: string; body: AddDropDecisionRequest }
+  | { kind: "overload"; requestId: string; body: OverloadDecisionRequest }
+  | { kind: "waivers"; requestId: string; body: WaiverDecision };
+
+export interface EnrollmentRequestList {
+  items: EnrollmentRequest[];
+  total: number;
+}
+
+/** The wire transport is scoped/authenticated by the eventual API implementation. */
+export interface EnrollmentReviewTransport {
+  listAddDrop(signal: AbortSignal): Promise<AdminAddDropRequestRead[]>;
+  listOverload(signal: AbortSignal): Promise<OverloadRequestRead[]>;
+  listWaivers(page: { limit: number; offset: number }, signal: AbortSignal): Promise<WaiverPage>;
+  decideAddDrop(id: string, body: AddDropDecisionRequest): Promise<AdminAddDropRequestRead>;
+  decideOverload(id: string, body: OverloadDecisionRequest): Promise<OverloadRequestRead>;
+  decideWaiver(id: string, body: WaiverDecision): Promise<WaiverRead>;
 }
 
 export interface EnrollmentReviewDataSource {
-  /** Only development adapters set this; backend adapters may omit it. */
   readonly isMock?: boolean;
-  /** Return the backend-scoped list. Abort obsolete loads when signal is aborted. */
-  list(kind: RequestKind, signal: AbortSignal): Promise<EnrollmentRequest[]>;
-  /** Return the updated server record after its decision is committed. */
-  decide(kind: RequestKind, submission: ReviewSubmission): Promise<EnrollmentRequest>;
+  list(kind: RequestKind, signal: AbortSignal): Promise<EnrollmentRequestList>;
+  decide(submission: ReviewSubmission): Promise<EnrollmentRequest>;
 }

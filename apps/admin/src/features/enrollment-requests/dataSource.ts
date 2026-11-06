@@ -1,15 +1,69 @@
-import type { EnrollmentReviewDataSource } from "./types";
+import { ApiError } from "@cbpupsis/shared/api";
 
-/**
- * Backend integration point. Supply an authenticated implementation here when ready.
- * Map the backend response into the view model in types.ts; keep transport-specific
- * field names out of components. Throw ApiError for HTTP failures.
- *
- * list() must return the complete category list already scoped by the backend.
- * decide() must resolve only after a confirmed server decision, returning its updated
- * record (including the server's state, version and review history).
- *
- * Production has no fallback data. In development, the page supplies an in-memory
- * mock adapter only when this backend integration point is unconfigured.
- */
+import { toEnrollmentRequest } from "./reviewMapper";
+import type { EnrollmentReviewDataSource, EnrollmentReviewTransport } from "./types";
+
+/** Both mock and future authenticated transports use this mapper boundary. */
+export function createEnrollmentReviewDataSource(
+  transport: EnrollmentReviewTransport,
+  isMock = false,
+): EnrollmentReviewDataSource {
+  return {
+    isMock,
+    async list(kind, signal) {
+      signal.throwIfAborted();
+      if (kind === "add-drop") {
+        const items = (await transport.listAddDrop(signal)).map((data) =>
+          toEnrollmentRequest({ kind, data }),
+        );
+        return { items, total: items.length };
+      }
+      if (kind === "overload") {
+        const items = (await transport.listOverload(signal)).map((data) =>
+          toEnrollmentRequest({ kind, data }),
+        );
+        return { items, total: items.length };
+      }
+      // The current waiver API accepts only limit/offset. Collect its pages before
+      // applying the queue's client-side search, date filters and sorting.
+      const first = await transport.listWaivers({ limit: 200, offset: 0 }, signal);
+      const rows = [...first.items];
+      let offset = first.offset + first.items.length;
+      if (first.offset !== 0 || first.total < rows.length)
+        throw new ApiError(0, "INVALID_RESPONSE");
+      while (offset < first.total) {
+        signal.throwIfAborted();
+        const page = await transport.listWaivers({ limit: 200, offset }, signal);
+        if (page.offset !== offset || !page.items.length || page.total !== first.total)
+          throw new ApiError(0, "INVALID_RESPONSE");
+        rows.push(...page.items);
+        offset += page.items.length;
+      }
+      if (
+        rows.length !== first.total ||
+        new Set(rows.map((item) => item.waiverRequestId)).size !== rows.length
+      )
+        throw new ApiError(0, "INVALID_RESPONSE");
+      return { items: rows.map((data) => toEnrollmentRequest({ kind, data })), total: first.total };
+    },
+    async decide(submission) {
+      if (submission.kind === "add-drop")
+        return toEnrollmentRequest({
+          kind: submission.kind,
+          data: await transport.decideAddDrop(submission.requestId, submission.body),
+        });
+      if (submission.kind === "overload")
+        return toEnrollmentRequest({
+          kind: submission.kind,
+          data: await transport.decideOverload(submission.requestId, submission.body),
+        });
+      return toEnrollmentRequest({
+        kind: submission.kind,
+        data: await transport.decideWaiver(submission.requestId, submission.body),
+      });
+    },
+  };
+}
+
+/** Supply an authenticated transport through createEnrollmentReviewDataSource when APIs are ready. */
 export const enrollmentReviewDataSource: EnrollmentReviewDataSource | undefined = undefined;
