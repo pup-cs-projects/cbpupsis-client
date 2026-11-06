@@ -9,6 +9,7 @@ import { RequestsTable } from "./RequestsTable";
 import { canReview, isPending, isReviewerRole, manilaDate, REQUEST_TABS } from "./reviewRules";
 import { enrollmentReviewDataSource } from "./dataSource";
 import { createMockReviewDataSource } from "./mockDataSource";
+import { reviewLoadError } from "./reviewErrors";
 import type { EnrollmentReviewDataSource, RequestKind } from "./types";
 import { useEnrollmentRequests } from "./useEnrollmentRequests";
 
@@ -16,7 +17,7 @@ const filterField =
   "border-brand-border/35 focus:border-brand-maroon focus-visible:outline-offset-0! min-h-11 w-full rounded-lg border bg-white px-3 py-2 text-sm";
 
 export function EnrollmentRequestsPage({
-  dataSource = enrollmentReviewDataSource,
+  dataSource,
 }: { dataSource?: EnrollmentReviewDataSource } = {}) {
   const me = useMe();
   const [tab, setTab] = useState<RequestKind>("add-drop");
@@ -31,14 +32,13 @@ export function EnrollmentRequestsPage({
   const actualRole = isReviewerRole(me.data?.position) ? me.data.position : null;
   const role = actualRole;
   const ownerId = me.data?.id;
-  const source = useMemo(
-    () =>
-      dataSource ??
-      (import.meta.env.DEV && actualRole && ownerId
-        ? createMockReviewDataSource(ownerId, actualRole)
-        : undefined),
-    [dataSource, actualRole, ownerId],
-  );
+  const source = useMemo(() => {
+    if (dataSource) return dataSource;
+    // Keep DEV inline: it is what lets the build drop the mock modules from production.
+    if (import.meta.env.DEV && import.meta.env.VITE_ENROLLMENT_REQUESTS_MOCK === "true")
+      return actualRole && ownerId ? createMockReviewDataSource(ownerId, actualRole) : undefined;
+    return enrollmentReviewDataSource;
+  }, [dataSource, actualRole, ownerId]);
   const review = useEnrollmentRequests(tab, me.data?.id, Boolean(actualRole), source);
   const tabInfo = REQUEST_TABS.find((item) => item.kind === tab)!;
   const requests = review.data?.items ?? [];
@@ -390,16 +390,7 @@ export function EnrollmentRequestsPage({
                     </div>
                   </div>
                 </div>
-                {!review.connected ? (
-                  <div className="px-6 py-14 text-center">
-                    <h3 className="text-base font-semibold">
-                      Enrollment review is not available yet
-                    </h3>
-                    <p className="text-brand-muted mx-auto mt-2 max-w-md text-sm leading-relaxed">
-                      Requests and review actions will be available once the service is connected.
-                    </p>
-                  </div>
-                ) : review.loading ? (
+                {review.loading ? (
                   <div className="p-6">
                     <DashboardLoading label="Loading enrollment requests" />
                   </div>
@@ -407,7 +398,7 @@ export function EnrollmentRequestsPage({
                   <div className="p-6">
                     <ErrorAlert
                       title="Requests could not be loaded"
-                      error={review.error}
+                      error={reviewLoadError(review.error)}
                       onRetry={() => void review.refetch()}
                       placement="inline"
                     />

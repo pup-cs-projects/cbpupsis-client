@@ -1,9 +1,11 @@
 import { ApiError } from "@cbpupsis/shared/api";
 
+import { enrollmentApi, session } from "../../lib/auth";
 import { toEnrollmentRequest } from "./reviewMapper";
+import { createEnrollmentReviewTransport } from "./reviewTransport";
 import type { EnrollmentReviewDataSource, EnrollmentReviewTransport } from "./types";
 
-/** Both mock and future authenticated transports use this mapper boundary. */
+/** Both the mock and the authenticated transport use this mapper boundary. */
 export function createEnrollmentReviewDataSource(
   transport: EnrollmentReviewTransport,
   isMock = false,
@@ -65,5 +67,7 @@ export function createEnrollmentReviewDataSource(
   };
 }
 
-/** Supply an authenticated transport through createEnrollmentReviewDataSource when APIs are ready. */
-export const enrollmentReviewDataSource: EnrollmentReviewDataSource | undefined = undefined;
+/** The real API. The page uses it unless a development build opts into mock data. */
+export const enrollmentReviewDataSource = createEnrollmentReviewDataSource(
+  createEnrollmentReviewTransport(enrollmentApi, session),
+);

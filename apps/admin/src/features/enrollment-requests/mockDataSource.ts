@@ -38,8 +38,8 @@ export function createMockReviewDataSource(
         const item = records.addDrop.find((row) => row.requestId === id);
         if (!item) throw new ApiError(404, "RESOURCE_NOT_FOUND");
         if (role === "registrar") throw new ApiError(403, "AUTH_INSUFFICIENT_ROLE");
-        if (item.state !== "PENDING" || body.version !== item.version)
-          throw new ApiError(409, "REQUEST_ALREADY_DECIDED");
+        if (item.state !== "PENDING") throw new ApiError(409, "REQUEST_ALREADY_DECIDED");
+        if (body.version !== item.version) throw new ApiError(409, "REQUEST_CONCURRENCY_CONFLICT");
         remarksRequired(body.decision, body.remarks);
         Object.assign(item, {
           state: body.decision === "APPROVE" ? "APPROVED" : "REJECTED",

@@ -208,6 +208,23 @@ describe("EnrollmentRequestsPage (US-ENRL-004 frontend)", () => {
       await screen.findByRole("heading", { name: "No requests to review" });
   });
 
+  it("AC-ENRL-004.6: a stale version reloads the list and the row can still be decided", async () => {
+    const source = createMockReviewDataSource(me.id, "chairperson");
+    const read = vi.spyOn(source, "list");
+    source.decide = vi.fn(async () => {
+      throw new ApiError(409, "REQUEST_CONCURRENCY_CONFLICT");
+    });
+    openPage("chairperson", source);
+    const user = userEvent.setup();
+    await user.click(await screen.findByRole("button", { name: `Review request ${firstAddDrop}` }));
+    const dialog = within(screen.getByRole("dialog"));
+    await user.click(dialog.getByRole("radio", { name: "Approve request" }));
+    await user.click(dialog.getByRole("button", { name: "Confirm decision" }));
+    expect(await dialog.findByRole("alert")).toHaveTextContent("changed while you were reviewing");
+    await waitFor(() => expect(read).toHaveBeenCalledTimes(2));
+    expect(dialog.getByRole("button", { name: "Confirm decision" })).toBeInTheDocument();
+  });
+
   it("AC-ENRL-004.1: renders loading and empty states", async () => {
     let finish!: (value: { items: []; total: number }) => void;
     const source = createMockReviewDataSource(me.id, "chairperson");

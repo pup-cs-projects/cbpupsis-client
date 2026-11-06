@@ -90,6 +90,9 @@ export function useEnrollmentRequests(
           [`${userId}:${submission.kind}:${submission.requestId}`]: message,
         }));
         setNotice(message);
+      } else if (error.code === "REQUEST_CONCURRENCY_CONFLICT") {
+        // No row notice: the reload brings the new version, and the row can be decided again.
+        setNotice(reviewFailure(error).message);
       } else return;
       if (userId)
         void queryClient.invalidateQueries({ queryKey: enrollmentReviewKeys.user(userId) });
@@ -97,7 +100,6 @@ export function useEnrollmentRequests(
   });
   return {
     ...query,
-    connected: Boolean(source),
     isMock: Boolean(source?.isMock),
     loading: Boolean(source && enabled && userId && query.isPending),
     submitting: mutation.isPending,

@@ -61,7 +61,7 @@ export interface EnrollmentRequestList {
   total: number;
 }
 
-/** The wire transport is scoped/authenticated by the eventual API implementation. */
+/** The wire transport. The real one is authenticated; the API scopes what it returns. */
 export interface EnrollmentReviewTransport {
   listAddDrop(signal: AbortSignal): Promise<AdminAddDropRequestRead[]>;
   listOverload(signal: AbortSignal): Promise<OverloadRequestRead[]>;

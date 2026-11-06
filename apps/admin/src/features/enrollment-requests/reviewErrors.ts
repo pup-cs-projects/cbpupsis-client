@@ -16,6 +16,12 @@ export function reviewFailure(error: unknown): {
             "This request has already been decided. Review its latest status before continuing.",
           requestId,
         };
+      case "REQUEST_CONCURRENCY_CONFLICT":
+        return {
+          message:
+            "This request changed while you were reviewing it. Check the latest details, then decide again.",
+          requestId,
+        };
       case "ENROLL_WAIVER_STEP_MISMATCH":
         return {
           message: "This waiver is not at your step. The request list is being refreshed.",
@@ -40,4 +46,16 @@ export function reviewFailure(error: unknown): {
     message: "The decision could not be saved. Your entries have been kept. Please try again.",
     requestId,
   };
+}
+
+/**
+ * What the load error state shows. The API's 403 sentence names internal permissions, and its
+ * code varies by endpoint (none, PERMISSION_DENIED, AUTH_INSUFFICIENT_ROLE), so branch on status.
+ */
+export function reviewLoadError(error: unknown): unknown {
+  if (!(error instanceof ApiError) || error.status !== 403) return error;
+  return new ApiError(403, error.code, {
+    detail: "Your account does not have access to these requests.",
+    requestId: error.requestId,
+  });
 }
