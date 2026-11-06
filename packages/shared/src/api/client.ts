@@ -6,6 +6,8 @@ export interface RequestOptions {
   body?: unknown;
   /** Sent as `Authorization: Bearer <token>`. */
   accessToken?: string;
+  /** Cancels the call; it then rejects with the signal's reason, not an `ApiError`. */
+  signal?: AbortSignal;
 }
 
 export interface ApiClient {
@@ -32,7 +34,7 @@ export function createApiClient(baseUrl: string): ApiClient {
 
   async function send(
     path: string,
-    { method = "POST", body, accessToken }: RequestOptions,
+    { method = "POST", body, accessToken, signal }: RequestOptions,
     accept: string,
   ): Promise<Response> {
     const isForm = body instanceof FormData;
@@ -50,9 +52,13 @@ export function createApiClient(baseUrl: string): ApiClient {
         // credentials keeps that option open without a client change.
         credentials: "include",
         cache: "no-store",
-        signal: AbortSignal.timeout(TIMEOUT_MS),
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)])
+          : AbortSignal.timeout(TIMEOUT_MS),
       });
     } catch {
+      // A caller's cancellation is not a network failure; only a real one reaches the screen.
+      if (signal?.aborted) throw signal.reason;
       throw new ApiError(0, "NETWORK_ERROR");
     }
   }
