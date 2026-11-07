@@ -119,7 +119,10 @@ const NAV_SECTIONS: NavSection[] = [
     id: "forms",
     label: "Forms & Requests",
     icon: <MailIcon />,
-    children: [{ label: "Forms Portal" }, { label: "Track Requests" }],
+    children: [
+      { label: "Add or Drop Courses", to: "/enrollment/add-drop" },
+      { label: "Track Requests" },
+    ],
   },
   {
     id: "settings",
