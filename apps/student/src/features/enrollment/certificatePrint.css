@@ -1,0 +1,49 @@
+/*
+ * The Certificate of Registration on paper: one A4 sheet, black on white, the portal chrome
+ * gone. Up to ten courses fit on the page; the sidebar and toolbar already carry print:hidden.
+ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  /* The portal header sits outside this page's tree; hide it only while the COR is shown. */
+  body:has([data-cor-page]) header {
+    display: none !important;
+  }
+
+  [data-cor-page] {
+    padding: 0 !important;
+    font-size: 10pt;
+  }
+
+  .cor-sheet {
+    border: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .cor-sheet [role="region"] {
+    overflow: visible !important;
+  }
+
+  .cor-courses-table {
+    min-width: 0 !important;
+  }
+
+  .cor-courses-table th,
+  .cor-courses-table td {
+    padding: 2mm 1.5mm !important;
+    border: 1px solid #000 !important;
+    color: #000 !important;
+    background: #fff !important;
+    font-size: 9pt;
+  }
+
+  .cor-courses-table tbody tr {
+    break-inside: avoid;
+  }
+}

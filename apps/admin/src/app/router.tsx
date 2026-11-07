@@ -1,10 +1,11 @@
 import { createPortalRouter } from "@cbpupsis/account";
 import { MaintenancePage, NotFoundPage, ServerErrorPage } from "@cbpupsis/ui";
-import type { RouterHistory } from "@tanstack/react-router";
+import { createRoute, redirect, type RouterHistory } from "@tanstack/react-router";
 
 import { AdminDashboard } from "../features/dashboard/AdminDashboard";
 import { AdminLoginPage } from "../features/sign-in/AdminLoginPage";
-import { account } from "../lib/auth";
+import { EnrollmentRequestsPage } from "../features/enrollment-requests/EnrollmentRequestsPage";
+import { account, session } from "../lib/auth";
 
 /** Tests pass a memory history; the app uses the browser's. */
 export function createAppRouter(history?: RouterHistory) {
@@ -17,6 +18,16 @@ export function createAppRouter(history?: RouterHistory) {
       serverError: ServerErrorPage,
       maintenance: MaintenancePage,
     },
+    extraRoutes: (rootRoute) => [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/enrollment-requests",
+        beforeLoad: () => {
+          if (!session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: EnrollmentRequestsPage,
+      }),
+    ],
     history,
   });
 }

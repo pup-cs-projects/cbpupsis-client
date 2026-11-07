@@ -68,30 +68,53 @@ settings (`.editorconfig`, `.prettierrc.json`, `eslint.config.js`) are the sourc
 
 ## 3. Daily workflow
 
+Work flows through one branch per functional requirement (FR) and one branch per user story:
+
+```
+dev
+ └── fr003                      (FR-003 Enrollment)
+      ├── web-us-enrl-001       (US-ENRL-001, frontend)
+      └── web-us-enrl-002       (US-ENRL-002, frontend)
+```
+
+Every issue says its branch and where to merge it, in the **In short** box at the top.
+
 1. **Pick an issue** from the **Ready** column of the board. Assign yourself and move it to **In Progress**.
-2. **Branch from an up-to-date `dev`:**
+2. **Branch from an up-to-date FR branch.** The issue tells you which one. For US-ENRL-001 under FR-003:
 
    ```bash
-   git checkout dev
-   git pull origin dev
-   git checkout -b feature/login-screen
+   git fetch origin
+   git checkout fr003
+   git pull origin fr003
+   git checkout -b web-us-enrl-001
    ```
+
+   If the FR branch does not exist yet, the product owner creates it from `dev` first.
+   All `[WEB]` tasks of one story are built on the same story branch.
 
 3. **Build it in small commits.** Keep `npm run test:watch -w apps/<portal>` open while you work.
-4. **Before pushing,** pull `dev` again, fix any conflicts on your branch, and run the checks:
+4. **Before pushing,** pull the FR branch again, fix any conflicts on your branch, and run the checks:
 
    ```bash
-   git pull origin dev
+   git pull origin fr003
    npm run check && npm run build
-   git push -u origin feature/login-screen
+   git push -u origin web-us-enrl-001
    ```
 
-5. **Open a pull request against `dev`.** Fill in every section of the template, including
-   screenshots at mobile and desktop width. Link the issue with `Closes #N`, and move the issue to **In Review**.
+5. **Open a pull request against the FR branch** (`fr003`), not `dev`. Fill in every section of
+   the template, including screenshots at mobile and desktop width. List every task it finishes
+   with `Closes #N`, and move the issues to **In Review**.
 6. **Review.** Request review from the other frontend developer. Reply to every comment, push
    fixes as new commits, and re-request review.
 7. **Merge.** When CI is green and one reviewer has approved, a maintainer **squashes and
-   merges**. The PR title becomes the commit on `dev`. Delete the branch afterwards.
+   merges** into the FR branch. Close the issues by hand (GitHub only closes them automatically on
+   the default branch). Delete the story branch afterwards.
+8. **Finish the FR.** When every story of the FR is merged and tested on its FR branch, the product
+   owner opens a PR from `fr003` to `dev` and merges it with a **merge commit**.
+
+**Fixes after testing.** A problem found while testing an FR branch or `dev` gets a short-lived
+branch named by what it changes: `bugfix/<name>`, `style/<name>`, or `docs/<name>`. Branch from the
+branch you tested (the FR branch or `dev`) and open the PR back into it.
 
 ### Releasing
 
@@ -114,16 +137,31 @@ not serve yet breaks in front of users.
 
 ## 4. Branches and commits
 
-| Branch           | Purpose                                                                      | Example                       |
-| ---------------- | ---------------------------------------------------------------------------- | ----------------------------- |
-| `main`           | Production. A merge deploys it. Never commit to it directly.                 |                               |
-| `staging`        | The release candidate. A merge deploys staging. Never commit to it directly. |                               |
-| `dev`            | Integration branch. Every PR targets it. Never commit to it directly.        |                               |
-| `feature/<name>` | New work                                                                     | `feature/login-screen`        |
-| `bugfix/<name>`  | A fix for something on `dev`                                                 | `bugfix/menu-overflow-mobile` |
-| `hotfix/<name>`  | An urgent fix for `main`                                                     | `hotfix/blank-page-safari`    |
+| Branch                  | Purpose                                                                                                | Example                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------ | ----------------------------- |
+| `main`                  | Production. A merge deploys it. Never commit to it directly.                                           |                               |
+| `staging`               | The release candidate. A merge deploys staging. Never commit to it directly.                           |                               |
+| `dev`                   | Integration branch. Receives finished FR branches and fixes. Never commit to it directly.              |                               |
+| `fr00N`                 | One per functional requirement, from `dev`. Story branches merge into it. Never commit to it directly. | `fr003`                       |
+| `web-us-<module>-<nnn>` | One per user story (all its `[WEB]` tasks), from its FR branch, merged back into it                    | `web-us-enrl-001`             |
+| `web-fr00N-<name>`      | A `[WEB]` task that belongs to an FR but to no story, from that FR branch                              | `web-fr001-sign-in-errors`    |
+| `bugfix/<name>`         | A fix found while testing, into the branch it was found on                                             | `bugfix/menu-overflow-mobile` |
+| `style/<name>`          | A formatting or visual polish fix found while testing                                                  | `style/enrollment-spacing`    |
+| `docs/<name>`           | A documentation change                                                                                 | `docs/branch-workflow`        |
+| `hotfix/<name>`         | An urgent fix for `main`                                                                               | `hotfix/blank-page-safari`    |
 
-Names are lowercase and hyphen-separated. One issue per branch.
+The FR number is the story's parent FR issue: FR-001 is `fr001`, FR-003 is `fr003`. The story
+part is the story id in lowercase: US-ENRL-001 is `us-enrl-001`. The API repository uses the
+same names with `api-` instead of `web-`, so both halves of a story are easy to match.
+
+| Branch                        | Branch from            | PR into                 | Merge                              |
+| ----------------------------- | ---------------------- | ----------------------- | ---------------------------------- |
+| `fr00N`                       | `dev`                  | `dev`                   | merge commit, by the product owner |
+| `web-us-...`, `web-fr00N-...` | its FR branch          | the same FR branch      | squash                             |
+| `bugfix/`, `style/`, `docs/`  | the FR branch or `dev` | the branch it came from | squash                             |
+| `hotfix/`                     | `main`                 | `main`                  | see Releasing                      |
+
+Names are lowercase and hyphen-separated. Do not use `feature/` or `refactor/` branches.
 
 Commit messages and PR titles use **Conventional Commits**:
 
@@ -169,7 +207,7 @@ skipping them locally only moves the failure to your PR.
 | -------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `ci.yml`             | every push to `dev`, every PR, and as the first stage of every deploy    | typecheck, lint, format check, tests with coverage, production build, `npm audit`                                                                                |
 | `deploy.yml`         | every push to `staging` (deploys staging) or `main` (deploys production) | CI; builds the student, faculty, and admin portals against `/api/v1` on their own domain; uploads each to its bucket; refreshes the CDN; smoke-tests each portal |
-| `pr-conventions.yml` | every PR                                                                 | Conventional Commits title; branch name; base branch (`dev` for work, `dev` -> `staging` -> `main` for releases)                                                 |
+| `pr-conventions.yml` | every PR                                                                 | Conventional Commits title; branch name; base branch (story -> FR branch -> `dev`, fixes back into their branch, releases `dev` -> `staging` -> `main`)          |
 
 A deploy that fails shows as a red run on the `staging` or `main` branch. The infrastructure it
 deploys to is defined in `cbpupsis-infra`. The superadmin portal is not deployed yet.
@@ -199,15 +237,19 @@ Do not reshape or guess data in the client to hide the gap.
 
 ## 8. Writing issues
 
-Use the issue forms: **User story**, **Task**, **Bug report**, **Decision**. The full guide is
+Stories live in cbpupsis-api; this repository holds their `[WEB]` tasks. The full guide is
 [Writing issues](https://github.com/pup-cs-projects/cbpupsis-api/blob/dev/docs/tech-book/WRITING-ISSUES.md) in cbpupsis-api. In short:
 
-- Titles: `EP-NN: <module>` for epics, `US-N: <capability>` for stories, `Decide: <question>` for
-  decisions, and a plain imperative sentence for tasks.
-- Labels: one `type:`, one `area:`, one `priority:`.
-- Stories describe what a user can observe and carry Given, When, Then acceptance criteria with
-  ids (`AC-4.1`) registered in the API repo's `US-ACS.md`.
-- Attach every story and task to its epic as a **sub-issue**.
+- Titles: `[WEB] US-<MODULE>-<NNN>: <what the screen does>` for frontend tasks, and
+  `Chore: <verb> <thing>` for setup and cleanup work. There are no decision issues: pick the
+  answer and write it into the task.
+- Every issue starts with an **In short** box: one sentence, who builds it, the sprint, what to
+  finish first, and the branch with where it merges, for example
+  `` **Branch:** `web-us-enrl-001` from `fr003` · **Merge into:** `fr003` ``.
+- Labels: one `type:`, one `module:`, and one MoSCoW label (`must-have`, `should-have`,
+  `could-have`, `wont-have`).
+- Every `[WEB]` task has a **Mockups** section with the Figma screens it builds.
+- Attach every task to its story in cbpupsis-api as a **sub-issue**.
 - Bug reports include a screenshot and the browser. Remove real student data first.
 - Write plainly. Do not use em dashes.
 
@@ -227,21 +269,22 @@ Use the issue forms: **User story**, **Task**, **Bug report**, **Decision**. The
 - [ ] Loading, empty, and error states exist
 - [ ] Keyboard and 360px checks pass, with screenshots in the PR
 - [ ] CI is green
-- [ ] One reviewer approved and the PR is squash-merged into `dev`
-- [ ] The issue is closed by the merge
+- [ ] One reviewer approved and the PR is squash-merged into its FR branch
+- [ ] The issue is closed after the merge
 
 ## 10. Troubleshooting
 
-| Symptom                                                                | Fix                                                                                            |
-| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `Permission denied` on push                                            | Accept the org invitation and confirm you have write access to the repo                        |
-| Commit refused: "Do not commit directly to dev" (or `staging`, `main`) | `git checkout -b feature/<name>`, then commit                                                  |
-| Commit refused by commitlint                                           | Rewrite the message as `type(scope): description`                                              |
-| Hooks do not run at all                                                | `npm run prepare`, then check `git config core.hooksPath` prints `.husky/_`                    |
-| `format:check` fails on every file on Windows                          | Line endings. Run `git add --renormalize .` and commit; `.gitattributes` keeps LF from then on |
-| Port 3000 already in use                                               | Stop the other process. The port is fixed because the API's CORS setting expects it            |
-| API calls fail with a CORS error                                       | The API is not running, or `VITE_API_BASE_URL` in `.env.local` points somewhere else           |
-| CI fails but `npm run check` passes                                    | `npm run build` locally; then `gh run view <id> --log-failed`                                  |
+| Symptom                                                                | Fix                                                                                                                                                         |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Permission denied` on push                                            | Accept the org invitation and confirm you have write access to the repo                                                                                     |
+| Commit refused: "Do not commit directly to dev" (or `staging`, `main`) | You are on `dev`, `staging`, `main`, or an FR branch. `git checkout -b web-us-<module>-<nnn>`, then commit                                                  |
+| PR check "Branch name and base" is red                                 | The branch name or the PR's base is wrong. A story branch targets its FR branch, an FR branch targets `dev`. Rename the branch or change the base in the PR |
+| Commit refused by commitlint                                           | Rewrite the message as `type(scope): description`                                                                                                           |
+| Hooks do not run at all                                                | `npm run prepare`, then check `git config core.hooksPath` prints `.husky/_`                                                                                 |
+| `format:check` fails on every file on Windows                          | Line endings. Run `git add --renormalize .` and commit; `.gitattributes` keeps LF from then on                                                              |
+| Port 3000 already in use                                               | Stop the other process. The port is fixed because the API's CORS setting expects it                                                                         |
+| API calls fail with a CORS error                                       | The API is not running, or `VITE_API_BASE_URL` in `.env.local` points somewhere else                                                                        |
+| CI fails but `npm run check` passes                                    | `npm run build` locally; then `gh run view <id> --log-failed`                                                                                               |
 
 Still stuck? Comment on your issue with the exact command and output, and mention the product
 owner.

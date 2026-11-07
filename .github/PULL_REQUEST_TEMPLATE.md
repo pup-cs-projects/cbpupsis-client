@@ -45,7 +45,7 @@ Closes #
 
 <!-- Tick a box only when it is true. An unchecked box is information for the reviewer. -->
 
-- [ ] PR targets `dev`, and the branch is `feature/`, `bugfix/`, or `hotfix/`
+- [ ] A story branch (`web-us-<module>-<nnn>`) targets its FR branch (`fr00N`); a `bugfix/`, `style/`, or `docs/` branch targets the branch it came from
 - [ ] Title follows Conventional Commits, for example `feat(enrollment): add course picker`
 - [ ] `npm run check` and `npm run build` pass locally
 - [ ] Loading, empty, and error states are handled for every screen that fetches data
