@@ -5,7 +5,9 @@ import { useRequestOverload } from "./useEnrollment";
 
 interface OverloadPanelProps {
   eligible: boolean;
-  /** The API's term selector the request is filed for. */
+  /** Units already requested and waiting for the Dean (eligibility `pendingOverloadUnits`). */
+  pendingUnits: number;
+  /** The term's UUID (`academicTermId`) the request is filed for. */
   term: string;
 }
 
@@ -15,7 +17,7 @@ const card = "border-brand-border/25 rounded-2xl border bg-white p-5 shadow-sm";
  * Lets an eligible student ask for up to 9 extra units. A Dean decides it elsewhere, so once
  * filed there is nothing more to do here but wait (AC-ENRL-001.3, .4, .5).
  */
-export function OverloadPanel({ eligible, term }: OverloadPanelProps) {
+export function OverloadPanel({ eligible, pendingUnits, term }: OverloadPanelProps) {
   const [open, setOpen] = useState(false);
   const [units, setUnits] = useState(3);
   const [justification, setJustification] = useState("");
@@ -23,9 +25,10 @@ export function OverloadPanel({ eligible, term }: OverloadPanelProps) {
   const unitsId = useId();
   const justificationId = useId();
 
-  if (!eligible) return null;
+  if (!eligible && pendingUnits === 0) return null;
 
-  if (mutation.isSuccess) {
+  // A request filed now, or one filed earlier that the Dean has not decided (AC-ENRL-001.3).
+  if (mutation.isSuccess || pendingUnits > 0) {
     return (
       <section aria-labelledby="overload-heading" className={card}>
         <h2 id="overload-heading" className="text-brand-ink text-base font-bold">

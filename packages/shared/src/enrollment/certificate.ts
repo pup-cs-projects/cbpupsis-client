@@ -90,8 +90,9 @@ export interface CertificateVerification {
  * 404 RESOURCE_NOT_FOUND and 429 rate_limited.
  */
 export function createStudentCertificateApi(client: ApiClient) {
+  // The term is named by `academicTermId`, the UUID eligibility returns (API #221).
   function corPath(termId: string, format: "json" | "pdf") {
-    return `/student/schedule/cor?${new URLSearchParams({ term: termId, format })}`;
+    return `/student/schedule/cor?${new URLSearchParams({ academicTermId: termId, format })}`;
   }
 
   return {
@@ -111,7 +112,7 @@ export function createStudentCertificateApi(client: ApiClient) {
       const body = await client.request("/student/schedule/cor", {
         method: "POST",
         accessToken,
-        body: { term: termId },
+        body: { academicTermId: termId },
       });
       return parseMetadata(body);
     },

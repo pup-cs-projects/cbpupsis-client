@@ -12,7 +12,6 @@ const ELIGIBILITY_ROUTE = "GET /student/enrollment/eligibility";
 const COURSES_ROUTE = "GET /student/enrollment/available-courses";
 const SUBMIT_ROUTE = "POST /student/enrollment/submit";
 const OVERLOAD_ROUTE = "POST /student/enrollment/overload";
-const DASHBOARD_ROUTE = "GET /student/me/dashboard";
 const COR_ROUTE = "GET /student/schedule/cor";
 const ISSUE_ROUTE = "POST /student/schedule/cor";
 const TERM_ID = "00000000-0000-0000-0000-000000000001";
@@ -20,6 +19,8 @@ const TERM_ID = "00000000-0000-0000-0000-000000000001";
 function eligibility(overrides: Record<string, unknown> = {}) {
   return {
     isEligible: true,
+    term: "2026-2027-First Semester",
+    academicTermId: TERM_ID,
     termType: "REGULAR",
     prescribedLoad: 26,
     approvedOverloadUnits: 0,
@@ -52,41 +53,10 @@ function section(overrides: Record<string, unknown> = {}) {
   };
 }
 
-function dashboardBody() {
-  return {
-    status: "success",
-    data: {
-      student: {
-        student_number: "sn-001",
-        name: "Juan Dela Cruz",
-        programme: null,
-        year_level: 1,
-        enrollment_status: "ENROLLED",
-        avatar_url: null,
-      },
-      current_term: {
-        id: TERM_ID,
-        academic_year: "2026-2027",
-        semester: "first",
-        is_current: true,
-      },
-      holds: [],
-      standing: { value: "GOOD", unit_reduction: 0 },
-      enrollment: {},
-      periods: [],
-      announcements: [],
-      events: [],
-      recent_activity: [],
-      empty_states: {},
-    },
-  };
-}
-
 function openEnrollment(routes: Parameters<typeof mockApi>[0] = {}) {
   signInDirectly();
   const api = mockApi({
     [ME_ROUTE]: { status: 200, body: me },
-    [DASHBOARD_ROUTE]: { status: 200, body: dashboardBody() },
     [ELIGIBILITY_ROUTE]: { status: 200, body: eligibility() },
     [COURSES_ROUTE]: { status: 200, body: [section()] },
     ...routes,
@@ -164,7 +134,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
 
     await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1));
     expect(api.called(ISSUE_ROUTE)).toHaveLength(1);
-    expect(api.called(ISSUE_ROUTE)[0]?.body).toEqual({ term: TERM_ID });
+    expect(api.called(ISSUE_ROUTE)[0]?.body).toEqual({ academicTermId: TERM_ID });
     expect(api.called(COR_ROUTE)).toHaveLength(2);
   });
 
@@ -217,6 +187,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await reviewAndConfirm(user);
 
     expect(await screen.findByRole("heading", { name: "You're enrolled" })).toBeInTheDocument();
+    expect(screen.getByText("(S.Y. 2026-2027, First Semester)")).toBeInTheDocument();
     expect(screen.getByText("COMP 016")).toBeInTheDocument();
     expect(screen.getByText("Web Development")).toBeInTheDocument();
     expect(
@@ -224,7 +195,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     ).toBeInTheDocument();
     expect(api.called(SUBMIT_ROUTE)).toHaveLength(1);
     expect(api.called(SUBMIT_ROUTE)[0]?.body).toEqual({
-      term: "2026-2027-first",
+      academicTermId: TERM_ID,
       sectionIds: ["sec-1"],
       confirmation: true,
     });
@@ -693,6 +664,18 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await user.click(screen.getByRole("button", { name: "Submit request" }));
 
     expect(await screen.findByText("Waiting for the Dean")).toBeInTheDocument();
+  });
+
+  it("AC-ENRL-001.3: an overload already waiting for the Dean shows 'Waiting for the Dean' on load", async () => {
+    openEnrollment({
+      [ELIGIBILITY_ROUTE]: {
+        status: 200,
+        body: eligibility({ overloadEligible: true, pendingOverloadUnits: "3" }),
+      },
+    });
+
+    expect(await screen.findByText("Waiting for the Dean")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Request an overload" })).not.toBeInTheDocument();
   });
 
   it("AC-ENRL-001.5: does not offer an overload request to a student who does not qualify", async () => {

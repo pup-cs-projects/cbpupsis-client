@@ -36,9 +36,12 @@ describe("periodDayCount", () => {
 describe("enrollmentStatusLabel", () => {
   const eligible = {
     isEligible: true,
+    term: "2026-2027-First Semester",
+    academicTermId: "00000000-0000-0000-0000-000000000001",
     termType: "REGULAR" as const,
     prescribedLoad: 26,
     approvedOverloadUnits: 0,
+    pendingOverloadUnits: 0,
     standingReduction: 0,
     effectiveCeiling: 26,
     academicStanding: "Good Standing",

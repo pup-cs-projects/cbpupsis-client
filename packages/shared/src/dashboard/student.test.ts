@@ -85,7 +85,7 @@ describe("student dashboard api", () => {
       enrollmentStatus: "ENROLLED",
       avatarUrl: null,
     });
-    expect(result.currentTerm).toEqual({ id: "t1", academicYear: "2026-2027", semester: "first" });
+    expect(result.currentTerm).toEqual({ academicYear: "2026-2027", semester: "first" });
     expect(result.announcements[0]).toMatchObject({ id: "a1", isPinned: true });
     expect(result.events[0]).toMatchObject({ id: "e1", isMultiDay: false, description: null });
     expect(result.recentActivity[0]).toMatchObject({ type: "LOGIN_FAILED", severity: "warning" });
