@@ -106,7 +106,6 @@ export function SchedulePage() {
               <ScheduleActions
                 summary={data.summary}
                 pending={actions.pending}
-                onDownloadCor={actions.downloadCor}
                 onExportIcs={actions.exportIcs}
                 onConnectGoogle={actions.connectGoogleCalendar}
               />

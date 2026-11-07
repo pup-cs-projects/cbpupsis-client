@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import type { ScheduleSummary } from "./scheduleTypes";
@@ -85,7 +86,6 @@ const buttonBase =
 interface ScheduleActionsProps {
   summary: ScheduleSummary;
   pending: ScheduleAction | null;
-  onDownloadCor: () => void;
   onExportIcs: () => void;
   onConnectGoogle: () => void;
 }
@@ -94,7 +94,6 @@ interface ScheduleActionsProps {
 export function ScheduleActions({
   summary,
   pending,
-  onDownloadCor,
   onExportIcs,
   onConnectGoogle,
 }: ScheduleActionsProps) {
@@ -115,17 +114,14 @@ export function ScheduleActions({
       </dl>
 
       <div className="mt-5 space-y-3 print:hidden">
-        <button
-          type="button"
+        <Link
+          to="/enrollment/certificate"
           className={`${buttonBase} bg-brand-maroon hover:bg-brand-maroon-dark text-white`}
-          aria-label="Download Certificate of Registration (COR) as a PDF"
-          aria-busy={pending === "pdf"}
-          disabled={busy}
-          onClick={onDownloadCor}
+          aria-label="View and print your Certificate of Registration (COR)"
         >
-          {pending === "pdf" ? <Spinner /> : <DocumentIcon />}
+          <DocumentIcon />
           Download COR (PDF)
-        </button>
+        </Link>
 
         <button
           type="button"

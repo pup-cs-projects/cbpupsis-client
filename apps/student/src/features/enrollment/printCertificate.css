@@ -1,0 +1,67 @@
+/*
+ * The Certificate of Registration on paper or PDF: one A4 sheet, black on white, the toolbar and
+ * portal chrome gone. The sidebar and header already carry `print:hidden`/the rule below; this
+ * file handles what the Tailwind utilities on the sheet itself can't reach.
+ */
+@media print {
+  @page {
+    size: A4 portrait;
+    margin: 12mm;
+  }
+
+  /* The portal header sits outside this page's tree; hide it only while the COR is shown. */
+  body:has([data-cor-page]) header {
+    display: none !important;
+  }
+
+  [data-cor-page] {
+    padding: 0 !important;
+    max-width: none !important;
+  }
+
+  .cor-sheet {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    padding: 0 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .cor-header,
+  .cor-details-table,
+  .cor-courses-table {
+    break-inside: avoid;
+  }
+
+  .cor-title-box {
+    border: 2px solid #000 !important;
+  }
+
+  .cor-details-table,
+  .cor-courses-table {
+    border-collapse: collapse !important;
+    width: 100% !important;
+  }
+
+  .cor-details-table td,
+  .cor-courses-table th,
+  .cor-courses-table td {
+    border: 1px solid #000 !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+
+  .cor-courses-table thead {
+    display: table-header-group; /* repeat the header if the table spans a page */
+  }
+
+  .cor-courses-table tbody tr {
+    break-inside: avoid;
+  }
+
+  .cor-footer-warning {
+    color: #000 !important;
+    font-weight: 700;
+  }
+}

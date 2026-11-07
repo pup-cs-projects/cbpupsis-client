@@ -46,6 +46,8 @@ describe("enrollmentStatusLabel", () => {
     summerSubjectCap: null,
     holds: [],
     academicPeriod: period,
+    term: "2026-2027-first",
+    termId: "00000000-0000-0000-0000-000000000001",
   };
 
   it("reads Open when the period is open and the student is eligible", () => {
@@ -60,6 +62,18 @@ describe("enrollmentStatusLabel", () => {
 
   it("reads Not Eligible when the period is open but the student is not", () => {
     expect(enrollmentStatusLabel({ ...eligible, isEligible: false })).toBe("Not Eligible");
+  });
+
+  it("reads Enrolled before closed or ineligible states", () => {
+    expect(
+      enrollmentStatusLabel({
+        ...eligible,
+        isEligible: false,
+        isEnrolled: true,
+        enrollmentStatus: "ENROLLED",
+        academicPeriod: { ...period, isOpen: false },
+      }),
+    ).toBe("Enrolled");
   });
 });
 
