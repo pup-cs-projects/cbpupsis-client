@@ -131,6 +131,7 @@ export function buildCorPrintHtml(data: CorPrintData): string {
   .text-right { text-align: right; }
   .bold { font-weight: 700; }
   .cor-terminator { text-align: center; font-weight: 700; letter-spacing: .45px; padding: 8px 0 10px !important; }
+  .cor-spacer td { height: 42mm; padding: 0 !important; }
   .cor-summary-area { border-top: 1px solid #000; padding: 0 !important; }
   .cor-summary-grid { display:grid; grid-template-columns: 1.1fr 1fr 1fr; }
   .cor-summary-grid > div { min-height: 25px; display:flex; align-items:center; gap:6px; padding:5px 7px; border-right:1px solid #000; font-weight:700; }
@@ -216,6 +217,7 @@ export function buildCorPrintHtml(data: CorPrintData): string {
     <tbody>
       ${rows}
       <tr><td colspan="8" class="cor-terminator">x - x - x - x - x - Nothing Follows - x - x - x - x - x</td></tr>
+      <tr class="cor-spacer"><td colspan="8"></td></tr>
     </tbody>
     <tfoot>
       <tr>

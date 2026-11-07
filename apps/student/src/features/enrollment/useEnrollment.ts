@@ -1,5 +1,7 @@
 import { ApiError } from "@cbpupsis/shared/api";
 import type {
+  AddDropRequest,
+  AddDropRequestInput,
   EnrollmentEligibility,
   EnrollmentResult,
   EnrollmentSection,
@@ -13,6 +15,8 @@ export const enrollmentKeys = {
   all: ["enrollment"] as const,
   eligibility: () => [...enrollmentKeys.all, "eligibility"] as const,
   availableCourses: () => [...enrollmentKeys.all, "available-courses"] as const,
+  addDropRequests: () => [...enrollmentKeys.all, "add-drop"] as const,
+  addDropRequest: (requestId: string) => [...enrollmentKeys.addDropRequests(), requestId] as const,
 };
 
 // Each call goes through enrollmentApi's property at call time, so a test can stand in for it.
@@ -43,6 +47,18 @@ export const enrollmentApi = {
     justification: string,
   ): Promise<OverloadRequestResult> {
     return session.authorized((token) => api.requestOverload(token, requestedUnits, justification));
+  },
+
+  async createAddDropRequest(request: AddDropRequestInput): Promise<AddDropRequest> {
+    return session.authorized((token) => api.createAddDropRequest(token, request));
+  },
+
+  async listAddDropRequests(): Promise<AddDropRequest[]> {
+    return session.authorized((token) => api.listAddDropRequests(token));
+  },
+
+  async getAddDropRequest(requestId: string): Promise<AddDropRequest> {
+    return session.authorized((token) => api.getAddDropRequest(token, requestId));
   },
 };
 
@@ -90,5 +106,31 @@ export function useRequestOverload() {
       requestedUnits: number;
       justification: string;
     }) => enrollmentApi.requestOverload(requestedUnits, justification),
+  });
+}
+
+export function useAddDropRequests() {
+  return useQuery({
+    queryKey: enrollmentKeys.addDropRequests(),
+    queryFn: enrollmentApi.listAddDropRequests,
+  });
+}
+
+export function useAddDropRequest(requestId: string | undefined) {
+  return useQuery({
+    queryKey: enrollmentKeys.addDropRequest(requestId ?? ""),
+    queryFn: () => enrollmentApi.getAddDropRequest(requestId as string),
+    enabled: Boolean(requestId),
+  });
+}
+
+export function useSubmitAddDropRequest() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: enrollmentApi.createAddDropRequest,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: enrollmentKeys.addDropRequests() });
+      void queryClient.invalidateQueries({ queryKey: enrollmentKeys.eligibility() });
+    },
   });
 }

@@ -134,7 +134,7 @@ afterEach(() => {
 });
 
 describe("EnrollmentPage (US-ENRL-001)", () => {
-  it("enables COR download and prints in place after registrar finalization", async () => {
+  it("enables COR download and exports the PDF in place after registrar finalization", async () => {
     const user = userEvent.setup();
     corMocks.getCertificate.mockResolvedValue({
       verificationUrl: "https://example.test/cor/verify",
