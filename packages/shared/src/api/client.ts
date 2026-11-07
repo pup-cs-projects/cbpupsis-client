@@ -112,7 +112,13 @@ function toApiError(response: Response, data: unknown): ApiError {
     Number.isFinite(retrySeconds) && retrySeconds >= 0
       ? Date.now() + retrySeconds * 1000
       : undefined;
-  return new ApiError(response.status, code, { detail: detailOf(envelope), requestId, retryAt });
+  const details = isRecord(envelope.details) ? envelope.details : undefined;
+  return new ApiError(response.status, code, {
+    detail: detailOf(envelope),
+    requestId,
+    retryAt,
+    details,
+  });
 }
 
 /**

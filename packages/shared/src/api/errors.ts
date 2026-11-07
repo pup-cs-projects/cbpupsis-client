@@ -15,11 +15,18 @@ export class ApiError extends Error {
   readonly requestId: string | undefined;
   /** Epoch milliseconds after which a 423 or 429 may be retried, when the API said. */
   readonly retryAt: number | undefined;
+  /** The envelope's structured `details` (the numbers or names a refusal is about), if any. */
+  readonly details: Record<string, unknown> | undefined;
 
   constructor(
     status: number,
     code: ApiErrorCode | undefined,
-    options: { detail?: string; requestId?: string; retryAt?: number } = {},
+    options: {
+      detail?: string;
+      requestId?: string;
+      retryAt?: number;
+      details?: Record<string, unknown>;
+    } = {},
   ) {
     super(options.detail ?? code ?? `HTTP ${status}`);
     this.name = "ApiError";
@@ -28,6 +35,7 @@ export class ApiError extends Error {
     this.detail = options.detail;
     this.requestId = options.requestId;
     this.retryAt = options.retryAt;
+    this.details = options.details;
   }
 }
 
