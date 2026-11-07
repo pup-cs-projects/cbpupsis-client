@@ -6,6 +6,7 @@ import type {
   EnrollmentResult,
 } from "@cbpupsis/shared/enrollment";
 import { ErrorAlert } from "@cbpupsis/ui";
+import { Link } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 
 import "@cbpupsis/account/styles.css";
@@ -323,6 +324,13 @@ function EnrolledCompletionPanel({
       </dl>
 
       {result.sections.length > 0 && <EnrolledSectionsTable result={result} />}
+
+      <Link
+        to="/enrollment/certificate"
+        className="text-brand-crimson mt-6 inline-flex min-h-11 items-center text-sm font-semibold underline"
+      >
+        View your Certificate of Registration
+      </Link>
     </section>
   );
 }
