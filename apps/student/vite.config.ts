@@ -2,14 +2,11 @@ import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-const devHost = process.env.VITE_DEV_HOST ?? "localhost";
-
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   server: {
     // One port per portal (student 3000, faculty 3001, admin 3002, superadmin 3003), so all
     // four run side by side; the API's dev stack allows exactly these origins.
-    host: devHost,
     port: 3000,
     strictPort: true,
     // File events do not cross a Docker bind mount on Windows or macOS; the API repo's

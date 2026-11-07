@@ -153,8 +153,6 @@ export function useScheduleActions() {
   }
 
   return {
-    // Superseded by the printable /enrollment/certificate view (issue #43); kept for the
-    // server-rendered PDF export, which nothing currently calls.
     downloadCor: () => run("pdf"),
     exportIcs: () => run("ics"),
     connectGoogleCalendar: () => run("google"),

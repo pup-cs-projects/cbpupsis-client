@@ -13,6 +13,8 @@ export interface DashboardStudent {
 }
 
 export interface DashboardTerm {
+  /** The term's UUID, the selector the certificate endpoints take. */
+  id: string;
   /** "2026-2027" */
   academicYear: string;
   /** As stored: "first" or "First Semester". */
@@ -112,7 +114,7 @@ function parseTerm(value: unknown): DashboardTerm | null {
   const academicYear = blank(t.academic_year);
   const semester = blank(t.semester);
   // With no term set up, the API sends a placeholder with both left empty.
-  return academicYear && semester ? { academicYear, semester } : null;
+  return academicYear && semester ? { id: parse.string(t.id), academicYear, semester } : null;
 }
 
 function parseAnnouncement(value: unknown): DashboardAnnouncement {

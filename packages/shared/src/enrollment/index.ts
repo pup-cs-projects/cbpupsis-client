@@ -12,6 +12,7 @@ export type {
 } from "./admin";
 export {
   createStudentEnrollmentApi,
+  type EligibilityReason,
   type EnrolledSection,
   type EnrollmentEligibility,
   type EnrollmentHold,
@@ -23,3 +24,17 @@ export {
   type OverloadRequestResult,
   type StudentEnrollmentApi,
 } from "./student";
+export {
+  createStudentCertificateApi,
+  unmetItems,
+  type Assessment,
+  type AssessmentLine,
+  type Certificate,
+  type CertificateCourse,
+  type CertificateMeeting,
+  type CertificateMetadata,
+  type CertificateStatus,
+  type CertificateTerm,
+  type CertificateVerification,
+  type StudentCertificateApi,
+} from "./certificate";

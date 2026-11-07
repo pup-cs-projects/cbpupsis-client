@@ -10,6 +10,12 @@ export interface EnrollmentHold {
   isBlocking: boolean;
 }
 
+/** Why the student may not enroll, in the API's own words (one per unmet condition). */
+export interface EligibilityReason {
+  code: string;
+  message: string;
+}
+
 export interface EnrollmentPeriod {
   /** ISO date or instant the enrollment period opens. */
   start: string;
@@ -38,6 +44,7 @@ export interface EnrollmentEligibility {
   summerSubjectCap: number | null;
   holds: EnrollmentHold[];
   academicPeriod: EnrollmentPeriod;
+  reasons: EligibilityReason[];
 }
 
 export interface EnrollmentMeeting {
@@ -90,6 +97,9 @@ export interface OverloadRequestResult {
  * submitting a pick (US-ENRL-001). The field names below are the API's own (issues #167-#170
  * write every request and response in camelCase, unlike the snake_case of older domains), so
  * this is the rare binding that reads the body almost as it arrives.
+ *
+ * `term` is the API's string selector, `<academic year>-<semester>` as stored (for example
+ * "2026-2027-first"): the current term's `academic_year` and `semester` from the dashboard.
  */
 export function createStudentEnrollmentApi(client: ApiClient) {
   return {
@@ -102,19 +112,24 @@ export function createStudentEnrollmentApi(client: ApiClient) {
     },
 
     /** The sections open to the student this term. An empty list, never a 404. */
-    async availableCourses(accessToken: string): Promise<EnrollmentSection[]> {
-      const body = await client.request("/student/enrollment/available-courses", {
+    async availableCourses(accessToken: string, term: string): Promise<EnrollmentSection[]> {
+      const query = new URLSearchParams({ term });
+      const body = await client.request(`/student/enrollment/available-courses?${query}`, {
         method: "GET",
         accessToken,
       });
       return parse.array(body).map(parseSection);
     },
 
-    async submit(accessToken: string, sectionIds: string[]): Promise<EnrollmentResult> {
+    async submit(
+      accessToken: string,
+      term: string,
+      sectionIds: string[],
+    ): Promise<EnrollmentResult> {
       const body = await client.request("/student/enrollment/submit", {
         method: "POST",
         accessToken,
-        body: { sectionIds, confirmation: true },
+        body: { term, sectionIds, confirmation: true },
       });
       return parseResult(body);
     },
@@ -122,13 +137,14 @@ export function createStudentEnrollmentApi(client: ApiClient) {
     /** Files an overload request for up to 9 extra units (issue #170). Answers 202. */
     async requestOverload(
       accessToken: string,
+      term: string,
       requestedUnits: number,
       justification: string,
     ): Promise<OverloadRequestResult> {
       const body = await client.request("/student/enrollment/overload", {
         method: "POST",
         accessToken,
-        body: { requestedUnits, justification },
+        body: { term, requestedUnits, justification },
       });
       const r = parse.record(body);
       return {
@@ -142,7 +158,7 @@ export function createStudentEnrollmentApi(client: ApiClient) {
 export type StudentEnrollmentApi = ReturnType<typeof createStudentEnrollmentApi>;
 
 /** Pydantic sends decimals as strings ("3.0"); a number is accepted too. */
-function decimal(value: unknown): number {
+export function decimal(value: unknown): number {
   const n = typeof value === "string" ? Number(value) : value;
   return typeof n === "number" && Number.isFinite(n) && n >= 0 ? n : parse.invalid();
 }
@@ -181,18 +197,25 @@ function parseEligibility(value: unknown): EnrollmentEligibility {
       e.summerSubjectCap === null || e.summerSubjectCap === undefined
         ? null
         : parse.nonNegativeInteger(e.summerSubjectCap),
-    holds: parse.array(e.holds).map(parseHold),
+    holds: Array.isArray(e.holds) ? e.holds.map(parseHold) : [],
     academicPeriod: parsePeriod(e.academicPeriod),
+    reasons: Array.isArray(e.reasons) ? e.reasons.map(parseReason) : [],
   };
 }
 
+function parseReason(value: unknown): EligibilityReason {
+  const r = parse.record(value);
+  return { code: parse.string(r.code), message: parse.string(r.message) };
+}
+
+/** One meeting of AvailableCourseRead.schedule, sent as `day`, `start`, `end`, `room`. */
 function parseMeeting(value: unknown): EnrollmentMeeting {
   const m = parse.record(value);
-  const day = parse.nonNegativeInteger(m.dayOfWeek);
+  const day = parse.nonNegativeInteger(m.day);
   return {
     dayOfWeek: day <= 6 ? day : parse.invalid(),
-    startTime: parse.string(m.startTime),
-    endTime: parse.string(m.endTime),
+    startTime: parse.string(m.start),
+    endTime: parse.string(m.end),
     room: parse.optionalString(m.room),
   };
 }
@@ -204,11 +227,12 @@ function parseSection(value: unknown): EnrollmentSection {
     courseCode: parse.string(s.courseCode),
     title: parse.string(s.title),
     units: decimal(s.units),
-    schedule: parse.array(s.schedule).map(parseMeeting),
-    facultyName: parse.optionalString(s.facultyName),
+    schedule: Array.isArray(s.schedule) ? s.schedule.map(parseMeeting) : [],
+    facultyName: parse.optionalString(s.faculty),
     capacity: parse.nonNegativeInteger(s.capacity),
     availableSlots: parse.nonNegativeInteger(s.availableSlots),
-    prerequisitesSatisfied: parse.boolean(s.prerequisitesSatisfied),
+    prerequisitesSatisfied:
+      s.prerequisitesSatisfied === undefined ? true : parse.boolean(s.prerequisitesSatisfied),
     blockReason: parse.optionalString(s.blockReason),
     conflictsWith: Array.isArray(s.conflictsWith) ? s.conflictsWith.map(parse.string) : [],
   };

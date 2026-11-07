@@ -13,7 +13,7 @@ function dashboard(overrides: Partial<StudentDashboard> = {}): StudentDashboard 
       enrollmentStatus: "ENROLLED",
       avatarUrl: null,
     },
-    currentTerm: { academicYear: "2026-2027", semester: "first" },
+    currentTerm: { id: "t1", academicYear: "2026-2027", semester: "first" },
     announcements: [],
     events: [],
     recentActivity: [],
@@ -38,7 +38,7 @@ describe("shaping the API's dashboard for the screen", () => {
       termName: "First Semester",
     });
     const stored = dashboard({
-      currentTerm: { academicYear: "2026-2027", semester: "Summer Term" },
+      currentTerm: { id: "t1", academicYear: "2026-2027", semester: "Summer Term" },
     });
     expect(toDashboard(stored).term?.termName).toBe("Summer Term");
   });
