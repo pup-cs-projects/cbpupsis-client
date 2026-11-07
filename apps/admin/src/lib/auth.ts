@@ -6,6 +6,7 @@ import {
   createProfileApi,
   createSession,
 } from "@cbpupsis/shared/auth";
+import { createAdminEnrollmentApi } from "@cbpupsis/shared/enrollment";
 
 const apiClient = createApiClient(
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1",
@@ -16,6 +17,7 @@ export const authApi = createAdminAuthApi(apiClient);
 /** Password reset and change: the same /auth endpoints for every role. */
 export const passwordApi = createPasswordApi(apiClient);
 export const profileApi = createProfileApi(apiClient);
+export const enrollmentApi = createAdminEnrollmentApi(apiClient);
 
 /** This app's one session. Tokens stay in memory; a reload restores it from the refresh cookie. */
 export const session = createSession(authApi);
