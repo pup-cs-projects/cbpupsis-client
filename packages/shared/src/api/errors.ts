@@ -15,7 +15,7 @@ export class ApiError extends Error {
   readonly requestId: string | undefined;
   /** Epoch milliseconds after which a 423 or 429 may be retried, when the API said. */
   readonly retryAt: number | undefined;
-  /** The envelope's `details` object, for refusals that carry values (dates, unit limits). */
+  /** The envelope's structured `details` (the numbers or names a refusal is about), if any. */
   readonly details: Record<string, unknown> | undefined;
 
   constructor(
