@@ -58,7 +58,7 @@ export interface AddDropPeriod {
  * optional so the page still works against an API without them.
  */
 export interface AddDropWindow {
-  /** The current term's id, sent as `term` to available-courses. */
+  /** The current term's id, sent as `academicTermId` to available-courses. */
   academicTermId?: string;
   /** The current term's name, for display only. */
   term?: string;
@@ -180,12 +180,12 @@ export function createStudentAddDropApi(client: ApiClient) {
       return parseWindow(data);
     },
 
-    /** `academicTermId` is the eligibility read's term id, sent as the `term` parameter. */
+    /** `academicTermId` is the eligibility read's term id. */
     async availableCourses(
       accessToken: string,
       academicTermId: string,
     ): Promise<AddDropAvailableCourse[]> {
-      const path = `/student/enrollment/available-courses?term=${encodeURIComponent(academicTermId)}`;
+      const path = `/student/enrollment/available-courses?academicTermId=${encodeURIComponent(academicTermId)}`;
       const data = await client.request(path, { method: "GET", accessToken });
       return parse.array(data).map((item) => parseAvailableCourse(item));
     },

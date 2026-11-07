@@ -375,7 +375,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     const url = fetchMock.mock.calls
       .map(([input]) => String(input))
       .find((input) => input.includes("available-courses"));
-    expect(new URL(url ?? "http://x").searchParams.get("term")).toBe(TERM_ID);
+    expect(new URL(url ?? "http://x").searchParams.get("academicTermId")).toBe(TERM_ID);
     expect(api.called(AVAILABLE_ROUTE)).toHaveLength(1);
   });
 
