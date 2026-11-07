@@ -17,7 +17,6 @@ import {
   closedWindow,
   isRequestUnavailable,
   refusalMessage,
-  termSelector,
   useAddDropRequest,
   useAddDropRequests,
   useAddDropWindow,
@@ -299,11 +298,9 @@ function Meetings({ course }: { course: ScheduleCourse }) {
 export function AddDropPage() {
   const enrolled = useEnrolledCourses();
   const addDropWindow = useAddDropWindow();
-  // The eligibility read names the term; an API without that field falls back to the schedule's.
-  const term =
-    addDropWindow.data?.term ??
-    (addDropWindow.isPending || !enrolled.data ? null : termSelector(enrolled.data));
-  const available = useAvailableCourses(term);
+  // Sections to add are asked for by the eligibility read's term id (API #221).
+  const termId = addDropWindow.data?.academicTermId;
+  const available = useAvailableCourses(termId);
   const requests = useAddDropRequests();
   const send = useSendAddDrop();
 
@@ -405,12 +402,22 @@ export function AddDropPage() {
           <p className="text-brand-muted mt-2 max-w-3xl text-sm leading-relaxed">
             Modify your course selection during the add/drop period.
           </p>
-          {deadline && (
-            <dl className="mt-4">
-              <dt className="text-brand-muted text-sm">Add/Drop Deadline</dt>
-              <dd className="text-brand-ink text-xl font-bold">
-                {formatEventDates(calendarDateInManila(deadline))}
-              </dd>
+          {(addDropWindow.data?.term || deadline) && (
+            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2">
+              {addDropWindow.data?.term && (
+                <div>
+                  <dt className="text-brand-muted text-sm">Term</dt>
+                  <dd className="text-brand-ink text-xl font-bold">{addDropWindow.data.term}</dd>
+                </div>
+              )}
+              {deadline && (
+                <div>
+                  <dt className="text-brand-muted text-sm">Add/Drop Deadline</dt>
+                  <dd className="text-brand-ink text-xl font-bold">
+                    {formatEventDates(calendarDateInManila(deadline))}
+                  </dd>
+                </div>
+              )}
             </dl>
           )}
         </div>
@@ -519,7 +526,9 @@ export function AddDropPage() {
                   className="border-brand-input-border mt-1 min-h-11 w-full rounded-lg border px-3 text-sm"
                 />
               </div>
-              {available.isPending && term !== null && <Loading what="courses you can add" />}
+              {available.isPending && termId !== undefined && (
+                <Loading what="courses you can add" />
+              )}
               {available.isError && (
                 <LoadFailure
                   what="courses you can add"

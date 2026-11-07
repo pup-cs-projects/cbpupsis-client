@@ -58,7 +58,9 @@ export interface AddDropPeriod {
  * optional so the page still works against an API without them.
  */
 export interface AddDropWindow {
-  /** The term selector available-courses and add-drop take. */
+  /** The current term's id, sent as `term` to available-courses. */
+  academicTermId?: string;
+  /** The current term's name, for display only. */
   term?: string;
   /** Null when the term has no add and drop dates configured. */
   addDropPeriod?: AddDropPeriod | null;
@@ -108,6 +110,7 @@ function parsePeriod(value: unknown): AddDropPeriod {
 function parseWindow(value: unknown): AddDropWindow {
   const raw = parse.record(value);
   return {
+    academicTermId: raw.academicTermId === undefined ? undefined : parse.string(raw.academicTermId),
     term: raw.term === undefined ? undefined : parse.string(raw.term),
     addDropPeriod:
       raw.addDropPeriod === undefined
@@ -177,9 +180,12 @@ export function createStudentAddDropApi(client: ApiClient) {
       return parseWindow(data);
     },
 
-    /** `term` is the stored academic year and semester joined by a hyphen. */
-    async availableCourses(accessToken: string, term: string): Promise<AddDropAvailableCourse[]> {
-      const path = `/student/enrollment/available-courses?term=${encodeURIComponent(term)}`;
+    /** `academicTermId` is the eligibility read's term id, sent as the `term` parameter. */
+    async availableCourses(
+      accessToken: string,
+      academicTermId: string,
+    ): Promise<AddDropAvailableCourse[]> {
+      const path = `/student/enrollment/available-courses?term=${encodeURIComponent(academicTermId)}`;
       const data = await client.request(path, { method: "GET", accessToken });
       return parse.array(data).map((item) => parseAvailableCourse(item));
     },

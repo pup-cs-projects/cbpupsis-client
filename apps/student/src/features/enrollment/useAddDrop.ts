@@ -22,8 +22,8 @@ export const addDropApi = {
     return session.authorized((token) => api.window(token));
   },
 
-  async available(term: string): Promise<AddDropAvailableCourse[]> {
-    return session.authorized((token) => api.availableCourses(token, term));
+  async available(academicTermId: string): Promise<AddDropAvailableCourse[]> {
+    return session.authorized((token) => api.availableCourses(token, academicTermId));
   },
 
   async requests(): Promise<AddDropRequestRead[]> {
@@ -43,15 +43,10 @@ export const addDropKeys = {
   all: ["addDrop"] as const,
   enrolled: () => [...addDropKeys.all, "enrolled"] as const,
   window: () => [...addDropKeys.all, "window"] as const,
-  available: (term: string) => [...addDropKeys.all, "available", term] as const,
+  available: (academicTermId: string) => [...addDropKeys.all, "available", academicTermId] as const,
   requests: () => [...addDropKeys.all, "requests"] as const,
   request: (requestId: string) => [...addDropKeys.all, "request", requestId] as const,
 };
-
-/** The stored academic year and semester joined by a hyphen, as available-courses takes it. */
-export function termSelector(schedule: StudentSchedule): string | null {
-  return schedule.term ? `${schedule.term.year}-${schedule.term.semester}` : null;
-}
 
 // Each call goes through addDropApi's property at call time, so a test can stand in for it.
 
@@ -63,11 +58,11 @@ export function useAddDropWindow() {
   return useQuery({ queryKey: addDropKeys.window(), queryFn: () => addDropApi.window() });
 }
 
-export function useAvailableCourses(term: string | null) {
+export function useAvailableCourses(academicTermId: string | undefined) {
   return useQuery({
-    queryKey: addDropKeys.available(term ?? ""),
-    queryFn: () => addDropApi.available(term ?? ""),
-    enabled: term !== null,
+    queryKey: addDropKeys.available(academicTermId ?? ""),
+    queryFn: () => addDropApi.available(academicTermId ?? ""),
+    enabled: academicTermId !== undefined,
   });
 }
 
