@@ -132,7 +132,7 @@ function parseOverload(value: unknown): OverloadRequestRead {
   };
 }
 
-function parseAddDropCourse(value: unknown): AddDropCourseRead {
+export function parseAddDropCourse(value: unknown): AddDropCourseRead {
   const raw = parse.record(value);
   return {
     sectionId: parse.string(raw.sectionId),
