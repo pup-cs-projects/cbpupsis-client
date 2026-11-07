@@ -3,6 +3,25 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+const corMocks = vi.hoisted(() => ({
+  print: vi.fn(),
+  getCertificate: vi.fn(),
+  issueCertificate: vi.fn(),
+  buildHtml: vi.fn(() => "<html></html>"),
+  qrDataUrl: vi.fn(async () => "data:image/png;base64,qr"),
+}));
+
+vi.mock("../../lib/downloadCertificatePdf", () => ({
+  downloadCertificatePdf: corMocks.print,
+}));
+vi.mock("./useCertificate", () => ({
+  certificateApi: { get: corMocks.getCertificate, issue: corMocks.issueCertificate },
+}));
+vi.mock("./CorPrintTemplate", () => ({
+  buildCorPrintHtml: corMocks.buildHtml,
+  getVerificationQrDataUrl: corMocks.qrDataUrl,
+}));
+
 import { session } from "../../lib/auth";
 import { expectNoA11yViolations } from "../../test/axe";
 import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
@@ -17,7 +36,11 @@ const DASHBOARD_ROUTE = "GET /student/me/dashboard";
 function eligibility(overrides: Record<string, unknown> = {}) {
   return {
     isEligible: true,
+    term: "2026-2027-first",
+    termId: "00000000-0000-0000-0000-000000000001",
     termType: "REGULAR",
+    isCorFinal: true,
+    corStatus: "FINAL",
     prescribedLoad: 26,
     approvedOverloadUnits: 0,
     standingReduction: 0,
@@ -38,7 +61,7 @@ function section(overrides: Record<string, unknown> = {}) {
     title: "Web Development",
     units: 3,
     schedule: [{ dayOfWeek: 0, startTime: "13:30", endTime: "16:30", room: "S508" }],
-    facultyName: "AJ San Luis",
+    faculty: "AJ San Luis",
     capacity: 40,
     availableSlots: 10,
     prerequisitesSatisfied: true,
@@ -103,9 +126,37 @@ async function reviewAndConfirm(user: ReturnType<typeof userEvent.setup>) {
 afterEach(() => {
   session.signOut();
   vi.unstubAllGlobals();
+  corMocks.print.mockReset();
+  corMocks.getCertificate.mockReset();
+  corMocks.issueCertificate.mockReset();
+  corMocks.buildHtml.mockClear();
+  corMocks.qrDataUrl.mockClear();
 });
 
 describe("EnrollmentPage (US-ENRL-001)", () => {
+  it("enables COR download and prints in place after registrar finalization", async () => {
+    const user = userEvent.setup();
+    corMocks.getCertificate.mockResolvedValue({
+      verificationUrl: "https://example.test/cor/verify",
+    });
+    corMocks.print.mockResolvedValue(undefined);
+    openEnrollment({
+      [ELIGIBILITY_ROUTE]: {
+        status: 200,
+        body: eligibility({ isEnrolled: true, isCorFinal: true }),
+      },
+    });
+
+    const button = await screen.findByRole("button", {
+      name: "Download Certificate of Registration (COR)",
+    });
+    expect(button).toBeEnabled();
+    expect(screen.queryByText("Certificate enrollment is not final.")).not.toBeInTheDocument();
+
+    await user.click(button);
+    await waitFor(() => expect(corMocks.print).toHaveBeenCalledTimes(1));
+  });
+
   it("AC-ENRL-001.1: enrolls within the real, curriculum-sourced ceiling and shows the enrolled list", async () => {
     const user = userEvent.setup();
     const api = openEnrollment({
@@ -134,11 +185,12 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await reviewAndConfirm(user);
 
     expect(await screen.findByRole("heading", { name: "You're enrolled" })).toBeInTheDocument();
-    expect(screen.getByText("COMP 016: Web Development")).toBeInTheDocument();
-    expect(screen.getByRole("link", { name: /Certificate of Registration/ })).toHaveAttribute(
-      "href",
-      "/enrollment/certificate",
-    );
+    expect(screen.getByText("COMP 016")).toBeInTheDocument();
+    expect(screen.getByText("Web Development")).toBeInTheDocument();
+    // The COR now prints in place on click (a button, not a navigation link).
+    expect(
+      screen.getByRole("button", { name: "Download Certificate of Registration (COR)" }),
+    ).toBeInTheDocument();
     expect(api.called(SUBMIT_ROUTE)).toHaveLength(1);
     expect(api.called(SUBMIT_ROUTE)[0]?.body).toEqual({
       sectionIds: ["sec-1"],
@@ -465,6 +517,63 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     ).toBeInTheDocument();
     expect(screen.getByText(/June 1 - June 30, 2026/)).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
+  });
+
+  it("shows the official completion card for an already enrolled student instead of the closed state", async () => {
+    const api = openEnrollment({
+      [ELIGIBILITY_ROUTE]: {
+        status: 200,
+        body: eligibility({
+          isEligible: false,
+          isEnrolled: true,
+          enrollmentStatus: "ENROLLED",
+          enrollmentSection: "BSCS 4-5",
+          effectiveCeiling: 26,
+          qualifiedForFreeHigherEducation: true,
+          academicPeriod: {
+            start: "2026-06-01T00:00:00Z",
+            end: "2026-06-30T00:00:00Z",
+            isOpen: false,
+          },
+          nextEnrollmentPeriod: {
+            start: "2026-10-01T00:00:00Z",
+            end: "2026-10-31T00:00:00Z",
+            isOpen: false,
+          },
+          currentEnrollment: {
+            enrollmentId: "enr-closed-1",
+            status: "ENROLLED",
+            totalUnits: 26,
+            sections: [
+              { sectionId: "sec-1", courseCode: "COMP 016", title: "Web Development", units: 3 },
+            ],
+          },
+        }),
+      },
+    });
+
+    expect(
+      await screen.findByRole("heading", { name: "You are officially enrolled." }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Next Enrollment Date")).toBeInTheDocument();
+    expect(screen.getByText("October 1 - October 31, 2026")).toBeInTheDocument();
+    // "Status" and "Enrolled" also appear in the enlisted-subjects table below, so this reads
+    // the header metric specifically rather than a page-wide text match.
+    expect(screen.getByTestId("enrollment-status-value")).toHaveTextContent("Enrolled");
+    expect(screen.getByText("BSCS 4-5")).toBeInTheDocument();
+    expect(screen.getByText("26 units")).toBeInTheDocument();
+    expect(
+      screen.getByText("You are qualified for Free Higher Education Act (RA 10931)"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Download Certificate of Registration (COR)" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Enrollment is closed" })).not.toBeInTheDocument();
+    // The enlisted-subjects summary is a table now; the course picker (with its checkboxes) is
+    // the thing that must stay gone.
+    expect(screen.getByText("COMP 016")).toBeInTheDocument();
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(api.called(COURSES_ROUTE)).toHaveLength(0);
   });
 
   it("AC-ENRL-001.15: shows no subject limit for a summer student outside the capped groups", async () => {

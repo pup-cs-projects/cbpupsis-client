@@ -37,6 +37,9 @@ export function periodDayCount(period: EnrollmentPeriod): number {
 
 /** The header's Status cell: what the student can do right now. */
 export function enrollmentStatusLabel(eligibility: EnrollmentEligibility): string {
+  if (eligibility.isEnrolled || eligibility.enrollmentStatus?.toUpperCase() === "ENROLLED") {
+    return "Enrolled";
+  }
   if (!eligibility.academicPeriod.isOpen) return "Closed";
   if (!eligibility.isEligible) return "Not Eligible";
   return "Open";

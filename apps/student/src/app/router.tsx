@@ -2,7 +2,7 @@ import { createPortalRouter } from "@cbpupsis/account";
 import { createRoute, redirect, type RouterHistory } from "@tanstack/react-router";
 
 import { HomePage } from "../features/dashboard/HomePage";
-import { CertificatePendingPage } from "../features/enrollment/CertificatePendingPage";
+import { CertificateOfRegistration } from "../features/enrollment/CertificateOfRegistration";
 import { EnrollmentPage } from "../features/enrollment/EnrollmentPage";
 import { GradesPage } from "../features/grades/GradesPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
@@ -56,7 +56,7 @@ export function createAppRouter(history?: RouterHistory) {
         beforeLoad: () => {
           if (!account.session.isSignedIn()) throw redirect({ to: "/" });
         },
-        component: CertificatePendingPage,
+        component: CertificateOfRegistration,
       }),
     ],
   });

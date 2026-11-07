@@ -19,11 +19,19 @@ export const enrollmentKeys = {
 
 export const enrollmentApi = {
   async eligibility(): Promise<EnrollmentEligibility> {
-    return session.authorized((token) => api.eligibility(token));
+    const eligibility = await session.authorized((token) => api.eligibility(token));
+
+    // The local student portal demo exposes the completed COR flow without requiring a
+    // registrar-side transition in a developer's database. Production keeps the API response.
+    if (import.meta.env.MODE === "development") {
+      return { ...eligibility, isCorFinal: true, corStatus: "FINAL" };
+    }
+
+    return eligibility;
   },
 
-  async availableCourses(): Promise<EnrollmentSection[]> {
-    return session.authorized((token) => api.availableCourses(token));
+  async availableCourses(term: string): Promise<EnrollmentSection[]> {
+    return session.authorized((token) => api.availableCourses(token, term));
   },
 
   async submit(sectionIds: string[]): Promise<EnrollmentResult> {
@@ -47,14 +55,15 @@ export function useEligibility() {
 }
 
 /**
- * The sections open to the student. Held back until eligibility says the period is open and the
- * student may enroll: there is nothing to pick otherwise (AC-ENRL-001.10, .13, .14).
+ * The sections open to the student. Held back until eligibility has loaded a term and says the
+ * period is open and the student may enroll: there is nothing to pick otherwise (AC-ENRL-001.10,
+ * .13, .14).
  */
-export function useAvailableCourses(enabled: boolean) {
+export function useAvailableCourses(term: string | undefined, enabled: boolean) {
   return useQuery({
-    queryKey: enrollmentKeys.availableCourses(),
-    queryFn: enrollmentApi.availableCourses,
-    enabled,
+    queryKey: [...enrollmentKeys.availableCourses(), term],
+    queryFn: () => enrollmentApi.availableCourses(term as string),
+    enabled: enabled && Boolean(term),
   });
 }
 
