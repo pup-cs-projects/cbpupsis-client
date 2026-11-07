@@ -106,7 +106,7 @@ const NAV_SECTIONS: NavSection[] = [
     children: [
       { label: "My Schedule", to: "/schedule" },
       { label: "My Grades", to: "/grades" },
-      { label: "Enrollment" },
+      { label: "Enrollment", to: "/enrollment" },
     ],
   },
   {

@@ -2,6 +2,7 @@ import type { AccountConfig } from "@cbpupsis/account";
 import { createApiClient } from "@cbpupsis/shared/api";
 import { createPasswordApi, createSession, createStudentAuthApi } from "@cbpupsis/shared/auth";
 import { createStudentDashboardApi } from "@cbpupsis/shared/dashboard";
+import { createStudentEnrollmentApi } from "@cbpupsis/shared/enrollment";
 import { createStudentGradesApi } from "@cbpupsis/shared/grades";
 import { createStudentProfileApi } from "@cbpupsis/shared/profile";
 import { createStudentScheduleApi } from "@cbpupsis/shared/schedule";
@@ -20,6 +21,9 @@ export const studentDashboardApi = createStudentDashboardApi(apiClient);
 
 /** The student's grades and transcript (US-STU-004). */
 export const gradesApi = createStudentGradesApi(apiClient);
+
+/** The student's enrollment eligibility, available sections, and submission (US-ENRL-001). */
+export const enrollmentApi = createStudentEnrollmentApi(apiClient);
 
 /** The student's own profile, picture, and emergency contacts (US-STU-002). */
 export const profileApi = createStudentProfileApi(apiClient);

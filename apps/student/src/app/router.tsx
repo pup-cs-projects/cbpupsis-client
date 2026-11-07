@@ -2,6 +2,8 @@ import { createPortalRouter } from "@cbpupsis/account";
 import { createRoute, redirect, type RouterHistory } from "@tanstack/react-router";
 
 import { HomePage } from "../features/dashboard/HomePage";
+import { CertificatePendingPage } from "../features/enrollment/CertificatePendingPage";
+import { EnrollmentPage } from "../features/enrollment/EnrollmentPage";
 import { GradesPage } from "../features/grades/GradesPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
 import { SchedulePage } from "../features/schedule/SchedulePage";
@@ -39,6 +41,22 @@ export function createAppRouter(history?: RouterHistory) {
           if (!account.session.isSignedIn()) throw redirect({ to: "/" });
         },
         component: GradesPage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/enrollment",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: EnrollmentPage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/enrollment/certificate",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: CertificatePendingPage,
       }),
     ],
   });
