@@ -2,6 +2,7 @@ import type { AccountConfig } from "@cbpupsis/account";
 import { createApiClient } from "@cbpupsis/shared/api";
 import { createPasswordApi, createSession, createStudentAuthApi } from "@cbpupsis/shared/auth";
 import { createStudentDashboardApi } from "@cbpupsis/shared/dashboard";
+import { createStudentAddDropApi } from "@cbpupsis/shared/enrollment";
 import { createStudentGradesApi } from "@cbpupsis/shared/grades";
 import { createStudentProfileApi } from "@cbpupsis/shared/profile";
 import { createStudentScheduleApi } from "@cbpupsis/shared/schedule";
@@ -26,6 +27,9 @@ export const profileApi = createStudentProfileApi(apiClient);
 
 /** The student's course schedule and its PDF and .ics exports (US-STU-003). */
 export const scheduleApi = createStudentScheduleApi(apiClient);
+
+/** The student's add and drop requests and the sections they may add (US-ENRL-004). */
+export const addDropApi = createStudentAddDropApi(apiClient);
 
 /** This app's one session. Tokens stay in memory; a reload restores it from the refresh cookie. */
 export const session = createSession(authApi);

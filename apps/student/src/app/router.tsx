@@ -2,6 +2,7 @@ import { createPortalRouter } from "@cbpupsis/account";
 import { createRoute, redirect, type RouterHistory } from "@tanstack/react-router";
 
 import { HomePage } from "../features/dashboard/HomePage";
+import { AddDropPage } from "../features/enrollment/AddDropPage";
 import { GradesPage } from "../features/grades/GradesPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
 import { SchedulePage } from "../features/schedule/SchedulePage";
@@ -39,6 +40,14 @@ export function createAppRouter(history?: RouterHistory) {
           if (!account.session.isSignedIn()) throw redirect({ to: "/" });
         },
         component: GradesPage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/enrollment/add-drop",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: AddDropPage,
       }),
     ],
   });
