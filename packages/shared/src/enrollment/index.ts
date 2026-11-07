@@ -13,6 +13,7 @@ export type {
 export * from "./addDrop";
 export {
   createStudentEnrollmentApi,
+  type CurrentEnrollment,
   type EligibilityReason,
   type EnrolledSection,
   type EnrollmentEligibility,

@@ -22,6 +22,7 @@ import {
   periodDateRange,
   periodDayCount,
   periodStartDate,
+  currentEnrollmentLabel,
   refusalSectionIds,
   termTypeLabel,
 } from "./enrollmentDisplay";
@@ -276,15 +277,21 @@ function DownloadCorButton({ termId }: { termId: string | undefined }) {
   );
 }
 
+/**
+ * The enrolled state, in place of the picker: right after a submit (with the sections it
+ * returned), or on any later visit from eligibility's `currentEnrollment`.
+ */
 function EnrolledCompletionPanel({
   data,
   result,
   term,
 }: {
   data: EnrollmentEligibility;
-  result: EnrollmentResult;
+  result: EnrollmentResult | null;
   term: CurrentTerm | null;
 }) {
+  const status = result?.status ?? data.currentEnrollment?.status;
+  const totalUnits = result?.totalUnits ?? data.currentEnrollment?.totalUnits;
   return (
     <section
       aria-labelledby="officially-enrolled-title"
@@ -307,6 +314,26 @@ function EnrolledCompletionPanel({
       </div>
 
       <dl className="mt-6 grid gap-3 sm:grid-cols-2">
+        {status && (
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+            <dt className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
+              Enrollment Status
+            </dt>
+            <dd className="mt-1 text-lg font-bold text-neutral-900">
+              {currentEnrollmentLabel(status)}
+            </dd>
+          </div>
+        )}
+        {totalUnits !== undefined && (
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+            <dt className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
+              Enrolled Units
+            </dt>
+            <dd className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">
+              {totalUnits} units
+            </dd>
+          </div>
+        )}
         <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <dt className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Allowed Units
@@ -317,7 +344,7 @@ function EnrolledCompletionPanel({
         </div>
       </dl>
 
-      {result.sections.length > 0 && <EnrolledSectionsTable result={result} />}
+      {result && result.sections.length > 0 && <EnrolledSectionsTable result={result} />}
 
       <Link
         to="/enrollment/certificate"
@@ -335,7 +362,9 @@ export function EnrollmentPage() {
   const data = eligibility.data;
   const currentTerm = currentTermOf(data);
   const term = currentTerm?.id;
-  const coursesEnabled = Boolean(data?.isEligible && data.academicPeriod.isOpen);
+  const coursesEnabled = Boolean(
+    data?.isEligible && data.academicPeriod.isOpen && !data.currentEnrollment,
+  );
   const courses = useAvailableCourses(term, coursesEnabled);
   const submit = useSubmitEnrollment(term);
   const queryClient = useQueryClient();
@@ -365,10 +394,14 @@ export function EnrollmentPage() {
   // Mutually exclusive and exhaustive once `data` loads, in the order the picker gives way:
   // a closed period first, then a blocking hold, then any other ineligibility, else the picker.
   const blockingHold = data?.holds.find((hold) => hold.isBlocking);
-  const showPeriodClosed = Boolean(data && !data.academicPeriod.isOpen);
+  // An enrollment already submitted this term comes first: it replaces everything below.
+  const showEnrolled = Boolean(data && (submit.isSuccess || data.currentEnrollment));
+  const showPeriodClosed = Boolean(data && !showEnrolled && !data.academicPeriod.isOpen);
   const showHolds = Boolean(data && !showPeriodClosed && !data.isEligible && blockingHold);
   const showIneligible = Boolean(data && !showPeriodClosed && !showHolds && !data.isEligible);
-  const showPicker = Boolean(data && data.isEligible && data.academicPeriod.isOpen);
+  const showPicker = Boolean(
+    data && !showEnrolled && data.isEligible && data.academicPeriod.isOpen,
+  );
   // A refusal that names sections (a conflict, a full section) is repeated beside them.
   const refusedIds = submit.isError ? refusalSectionIds(submit.error) : [];
   const refusedSection = courses.data?.find((section) => refusedIds.includes(section.sectionId));
@@ -478,11 +511,15 @@ export function EnrollmentPage() {
               </div>
             )}
 
-            {showPicker && submit.isSuccess && (
-              <EnrolledCompletionPanel data={data} result={submit.data} term={currentTerm} />
+            {showEnrolled && (
+              <EnrolledCompletionPanel
+                data={data}
+                result={submit.data ?? null}
+                term={currentTerm}
+              />
             )}
 
-            {showPicker && !submit.isSuccess && (
+            {showPicker && (
               <>
                 <LimitPanel
                   eligibility={data}

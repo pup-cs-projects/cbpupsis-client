@@ -50,6 +50,7 @@ describe("enrollmentStatusLabel", () => {
     holds: [],
     academicPeriod: period,
     reasons: [],
+    currentEnrollment: null,
   };
 
   it("reads Open when the period is open and the student is eligible", () => {
@@ -60,6 +61,17 @@ describe("enrollmentStatusLabel", () => {
     expect(
       enrollmentStatusLabel({ ...eligible, academicPeriod: { ...period, isOpen: false } }),
     ).toBe("Closed");
+  });
+
+  it("AC-ENRL-001.12: reads Enrolled once an enrollment is submitted, before closed or ineligible", () => {
+    expect(
+      enrollmentStatusLabel({
+        ...eligible,
+        isEligible: false,
+        academicPeriod: { ...period, isOpen: false },
+        currentEnrollment: { enrollmentId: "enr-1", status: "ENROLLED_PENDING", totalUnits: 18 },
+      }),
+    ).toBe("Enrolled");
   });
 
   it("reads Not Eligible when the period is open but the student is not", () => {
