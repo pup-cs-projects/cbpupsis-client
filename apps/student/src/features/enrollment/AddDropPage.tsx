@@ -111,7 +111,7 @@ function ClosedNotice({ period }: { period: ClosedPeriod }) {
       <h2 id="add-drop-closed" className={sectionHeading}>
         Add and drop is closed
       </h2>
-      <p className="text-brand-muted mt-2 text-sm">The add and drop period is {range}.</p>
+      <p className="text-brand-muted mt-2 text-sm">The active add/drop period was {range}.</p>
     </section>
   );
 }
@@ -308,9 +308,16 @@ export function AddDropPage() {
   const [adds, setAdds] = useState<string[]>([]);
   const [query, setQuery] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
+  const [currentTime] = useState(() => new Date().toISOString());
 
   const closed = closedPeriod(send.error) ?? closedWindow(addDropWindow.data);
   const deadline = addDropWindow.data?.addDropPeriod?.end;
+  const daysRemaining = deadline
+    ? Math.max(
+        0,
+        Math.ceil((new Date(deadline).getTime() - new Date(currentTime).getTime()) / 86_400_000),
+      )
+    : null;
   const courses = enrolled.data?.courses ?? [];
   // The request just sent counts at once; the list catches up when it refetches.
   const pending = [...(send.data ? [send.data] : []), ...(requests.data ?? [])].filter(
@@ -395,6 +402,15 @@ export function AddDropPage() {
   return (
     <DashboardLayout>
       <div className="space-y-8 px-4 py-8 sm:px-8">
+        <nav aria-label="Breadcrumb">
+          <ol className="text-brand-muted flex flex-wrap items-center gap-1.5 text-sm">
+            <li>Forms &amp; Requests</li>
+            <li aria-hidden="true">&gt;</li>
+            <li aria-current="page" className="text-brand-ink font-semibold">
+              Add or Drop Courses
+            </li>
+          </ol>
+        </nav>
         <div>
           <h1 className="text-brand-maroon text-3xl font-bold tracking-tight sm:text-4xl">
             Add / Drop Courses
@@ -402,24 +418,38 @@ export function AddDropPage() {
           <p className="text-brand-muted mt-2 max-w-3xl text-sm leading-relaxed">
             Modify your course selection during the add/drop period.
           </p>
-          {(addDropWindow.data?.term || deadline) && (
-            <dl className="mt-4 flex flex-wrap gap-x-8 gap-y-2">
-              {addDropWindow.data?.term && (
-                <div>
-                  <dt className="text-brand-muted text-sm">Term</dt>
-                  <dd className="text-brand-ink text-xl font-bold">{addDropWindow.data.term}</dd>
-                </div>
-              )}
-              {deadline && (
-                <div>
-                  <dt className="text-brand-muted text-sm">Add/Drop Deadline</dt>
-                  <dd className="text-brand-ink text-xl font-bold">
-                    {formatEventDates(calendarDateInManila(deadline))}
-                  </dd>
-                </div>
-              )}
-            </dl>
-          )}
+          <dl className="mt-6 grid grid-cols-2 gap-4 rounded-xl border border-neutral-200 bg-white p-5 shadow-sm sm:grid-cols-4">
+            <div>
+              <dt className="text-brand-muted text-xs font-semibold tracking-wide uppercase">
+                Current Date
+              </dt>
+              <dd className="text-brand-ink mt-1 font-bold">
+                {formatEventDates(calendarDateInManila(currentTime))}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-brand-muted text-xs font-semibold tracking-wide uppercase">
+                Add/Drop Deadline
+              </dt>
+              <dd className="text-brand-ink mt-1 font-bold">
+                {deadline ? formatEventDates(calendarDateInManila(deadline)) : "TBA"}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-brand-muted text-xs font-semibold tracking-wide uppercase">
+                Remaining Period
+              </dt>
+              <dd className="text-brand-ink mt-1 font-bold">
+                {daysRemaining === null ? "TBA" : `${daysRemaining} days`}
+              </dd>
+            </div>
+            <div>
+              <dt className="text-brand-muted text-xs font-semibold tracking-wide uppercase">
+                Current Status
+              </dt>
+              <dd className="text-brand-ink mt-1 font-bold">Fully Enrolled</dd>
+            </div>
+          </dl>
         </div>
 
         {enrolled.isPending && <Loading what="your enrolled courses" />}
@@ -430,10 +460,18 @@ export function AddDropPage() {
             onRetry={() => void enrolled.refetch()}
           />
         )}
+        {addDropWindow.isPending && <Loading what="the add/drop period" />}
+        {addDropWindow.isError && (
+          <LoadFailure
+            what="the add/drop period"
+            error={addDropWindow.error}
+            onRetry={() => void addDropWindow.refetch()}
+          />
+        )}
 
         {closed && <ClosedNotice period={closed} />}
 
-        {enrolled.isSuccess && !closed && (
+        {enrolled.isSuccess && addDropWindow.isSuccess && !closed && (
           <form onSubmit={submit} noValidate className="space-y-8">
             <section aria-labelledby="add-drop-enrolled" className="space-y-4">
               <h2 id="add-drop-enrolled" className={sectionHeading}>
