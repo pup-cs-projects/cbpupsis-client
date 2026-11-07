@@ -12,6 +12,7 @@ const SCHEDULE_ROUTE = "GET /students/me/schedule";
 const AVAILABLE_ROUTE = "GET /student/enrollment/available-courses";
 const LIST_ROUTE = "GET /student/enrollment/add-drop";
 const CREATE_ROUTE = "POST /student/enrollment/add-drop";
+const WINDOW_ROUTE = "GET /student/enrollment/eligibility";
 
 const WEBDEV = "10000000-0000-4000-8000-000000000001";
 const SOFTENG = "10000000-0000-4000-8000-000000000002";
@@ -67,6 +68,18 @@ const available = [
   },
 ];
 
+/** The eligibility fields the page reads (API PR #221); the rest are left out. */
+function eligibility(isOpen = true) {
+  return {
+    term: "2026-2027-First Semester",
+    addDropPeriod: {
+      start: "2026-08-01T00:00:00Z",
+      end: "2026-08-22T15:59:59Z",
+      isOpen,
+    },
+  };
+}
+
 function request(overrides: Record<string, unknown> = {}) {
   return {
     requestId: PENDING_ID,
@@ -115,6 +128,7 @@ function openPage(routes: Parameters<typeof mockApi>[0] = {}) {
   signInDirectly();
   const api = mockApi({
     [ME_ROUTE]: { status: 200, body: me },
+    [WINDOW_ROUTE]: { status: 200, body: eligibility() },
     [SCHEDULE_ROUTE]: { status: 200, body: schedule },
     [AVAILABLE_ROUTE]: { status: 200, body: available },
     [LIST_ROUTE]: { status: 200, body: [] },
@@ -335,6 +349,43 @@ describe("AddDropPage (US-ENRL-004)", () => {
     expect(await screen.findByText("You have no add and drop requests yet.")).toBeInTheDocument();
     await user.click(await screen.findByRole("button", { name: "Try again" }));
     expect(await screen.findByText("Web Development")).toBeInTheDocument();
+  });
+
+  it("AC-ENRL-004.7: shows the closed notice with the dates on load when the period is not open", async () => {
+    const api = openPage({ [WINDOW_ROUTE]: { status: 200, body: eligibility(false) } });
+
+    expect(
+      await screen.findByRole("heading", { name: "Add and drop is closed" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/August 1 - August 22, 2026/)).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Send request" })).not.toBeInTheDocument();
+    expect(api.called(CREATE_ROUTE)).toHaveLength(0);
+  });
+
+  it("shows the add and drop deadline and asks for courses in the eligibility read's term", async () => {
+    const api = openPage();
+
+    expect(await screen.findByText("Add/Drop Deadline")).toBeInTheDocument();
+    expect(screen.getByText("August 22, 2026")).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Add COSC 304" });
+    const fetchMock = vi.mocked(fetch);
+    const url = fetchMock.mock.calls
+      .map(([input]) => String(input))
+      .find((input) => input.includes("available-courses"));
+    expect(new URL(url ?? "http://x").searchParams.get("term")).toBe("2026-2027-First Semester");
+    expect(api.called(AVAILABLE_ROUTE)).toHaveLength(1);
+  });
+
+  it("falls back to the schedule's term when the eligibility read has no add and drop fields", async () => {
+    openPage({ [WINDOW_ROUTE]: { status: 200, body: {} } });
+
+    expect(await screen.findByRole("button", { name: "Add COSC 304" })).toBeInTheDocument();
+    expect(screen.queryByText("Add/Drop Deadline")).not.toBeInTheDocument();
+    const url = vi
+      .mocked(fetch)
+      .mock.calls.map(([input]) => String(input))
+      .find((input) => input.includes("available-courses"));
+    expect(new URL(url ?? "http://x").searchParams.get("term")).toBe("2026-2027-first");
   });
 
   it("works at 320px wide and passes the axe check", async () => {

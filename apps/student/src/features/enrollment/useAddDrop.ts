@@ -5,6 +5,7 @@ import type {
   AddDropAvailableCourse,
   AddDropRequestCreate,
   AddDropRequestRead,
+  AddDropWindow,
 } from "@cbpupsis/shared/enrollment";
 import type { StudentSchedule } from "@cbpupsis/shared/schedule";
 
@@ -15,6 +16,10 @@ export const addDropApi = {
   /** The enrolled courses and the term they belong to. */
   async enrolled(): Promise<StudentSchedule> {
     return session.authorized((token) => scheduleClient.current(token));
+  },
+
+  async window(): Promise<AddDropWindow> {
+    return session.authorized((token) => api.window(token));
   },
 
   async available(term: string): Promise<AddDropAvailableCourse[]> {
@@ -37,6 +42,7 @@ export const addDropApi = {
 export const addDropKeys = {
   all: ["addDrop"] as const,
   enrolled: () => [...addDropKeys.all, "enrolled"] as const,
+  window: () => [...addDropKeys.all, "window"] as const,
   available: (term: string) => [...addDropKeys.all, "available", term] as const,
   requests: () => [...addDropKeys.all, "requests"] as const,
   request: (requestId: string) => [...addDropKeys.all, "request", requestId] as const,
@@ -51,6 +57,10 @@ export function termSelector(schedule: StudentSchedule): string | null {
 
 export function useEnrolledCourses() {
   return useQuery({ queryKey: addDropKeys.enrolled(), queryFn: () => addDropApi.enrolled() });
+}
+
+export function useAddDropWindow() {
+  return useQuery({ queryKey: addDropKeys.window(), queryFn: () => addDropApi.window() });
 }
 
 export function useAvailableCourses(term: string | null) {
@@ -85,6 +95,12 @@ export function useSendAddDrop() {
 export interface ClosedPeriod {
   start: string;
   end: string;
+}
+
+/** The window, when the eligibility read says it is not open (AC-ENRL-004.7, on page load). */
+export function closedWindow(window: AddDropWindow | undefined): ClosedPeriod | null {
+  const period = window?.addDropPeriod;
+  return period && !period.isOpen ? { start: period.start, end: period.end } : null;
 }
 
 export function closedPeriod(error: unknown): ClosedPeriod | null {

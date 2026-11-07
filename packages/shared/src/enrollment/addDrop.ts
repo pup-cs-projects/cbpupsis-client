@@ -47,6 +47,23 @@ export interface AddDropAvailableCourse {
   availableSlots: number;
 }
 
+export interface AddDropPeriod {
+  start: string;
+  end: string;
+  isOpen: boolean;
+}
+
+/**
+ * The fields of EnrollmentEligibilityRead the add and drop page reads (API PR #221). Both are
+ * optional so the page still works against an API without them.
+ */
+export interface AddDropWindow {
+  /** The term selector available-courses and add-drop take. */
+  term?: string;
+  /** Null when the term has no add and drop dates configured. */
+  addDropPeriod?: AddDropPeriod | null;
+}
+
 // Free text may legitimately be empty, which parse.string refuses.
 function text(value: unknown): string {
   return typeof value === "string" ? value : parse.invalid();
@@ -76,6 +93,28 @@ export function parseAddDropRequest(value: unknown): AddDropRequestRead {
     createdAt: parse.string(raw.createdAt),
     reviewedAt: optionalText(raw.reviewedAt),
     reviewedBy: optionalText(raw.reviewedBy),
+  };
+}
+
+function parsePeriod(value: unknown): AddDropPeriod {
+  const raw = parse.record(value);
+  return {
+    start: parse.string(raw.start),
+    end: parse.string(raw.end),
+    isOpen: parse.boolean(raw.isOpen),
+  };
+}
+
+function parseWindow(value: unknown): AddDropWindow {
+  const raw = parse.record(value);
+  return {
+    term: raw.term === undefined ? undefined : parse.string(raw.term),
+    addDropPeriod:
+      raw.addDropPeriod === undefined
+        ? undefined
+        : raw.addDropPeriod === null
+          ? null
+          : parsePeriod(raw.addDropPeriod),
   };
 }
 
@@ -127,6 +166,15 @@ export function createStudentAddDropApi(client: ApiClient) {
         body,
       });
       return parseAddDropRequest(data);
+    },
+
+    /** The current term and its add and drop window, from the eligibility read. */
+    async window(accessToken: string): Promise<AddDropWindow> {
+      const data = await client.request("/student/enrollment/eligibility", {
+        method: "GET",
+        accessToken,
+      });
+      return parseWindow(data);
     },
 
     /** `term` is the stored academic year and semester joined by a hyphen. */

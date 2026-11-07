@@ -14,11 +14,13 @@ import {
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import {
   closedPeriod,
+  closedWindow,
   isRequestUnavailable,
   refusalMessage,
   termSelector,
   useAddDropRequest,
   useAddDropRequests,
+  useAddDropWindow,
   useAvailableCourses,
   useEnrolledCourses,
   useSendAddDrop,
@@ -296,7 +298,11 @@ function Meetings({ course }: { course: ScheduleCourse }) {
 /** US-ENRL-004: add and drop courses, and follow each request to its decision. */
 export function AddDropPage() {
   const enrolled = useEnrolledCourses();
-  const term = enrolled.data ? termSelector(enrolled.data) : null;
+  const addDropWindow = useAddDropWindow();
+  // The eligibility read names the term; an API without that field falls back to the schedule's.
+  const term =
+    addDropWindow.data?.term ??
+    (addDropWindow.isPending || !enrolled.data ? null : termSelector(enrolled.data));
   const available = useAvailableCourses(term);
   const requests = useAddDropRequests();
   const send = useSendAddDrop();
@@ -306,7 +312,8 @@ export function AddDropPage() {
   const [query, setQuery] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
 
-  const closed = closedPeriod(send.error);
+  const closed = closedPeriod(send.error) ?? closedWindow(addDropWindow.data);
+  const deadline = addDropWindow.data?.addDropPeriod?.end;
   const courses = enrolled.data?.courses ?? [];
   // The request just sent counts at once; the list catches up when it refetches.
   const pending = [...(send.data ? [send.data] : []), ...(requests.data ?? [])].filter(
@@ -398,6 +405,14 @@ export function AddDropPage() {
           <p className="text-brand-muted mt-2 max-w-3xl text-sm leading-relaxed">
             Modify your course selection during the add/drop period.
           </p>
+          {deadline && (
+            <dl className="mt-4">
+              <dt className="text-brand-muted text-sm">Add/Drop Deadline</dt>
+              <dd className="text-brand-ink text-xl font-bold">
+                {formatEventDates(calendarDateInManila(deadline))}
+              </dd>
+            </dl>
+          )}
         </div>
 
         {enrolled.isPending && <Loading what="your enrolled courses" />}
