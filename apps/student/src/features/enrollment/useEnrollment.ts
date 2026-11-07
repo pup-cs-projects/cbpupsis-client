@@ -1,4 +1,5 @@
 import { ApiError } from "@cbpupsis/shared/api";
+import type { DashboardTerm } from "@cbpupsis/shared/dashboard";
 import type {
   EnrollmentEligibility,
   EnrollmentResult,
@@ -7,10 +8,11 @@ import type {
 } from "@cbpupsis/shared/enrollment";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { enrollmentApi as api, session } from "../../lib/auth";
+import { enrollmentApi as api, session, studentDashboardApi } from "../../lib/auth";
 
 export const enrollmentKeys = {
   all: ["enrollment"] as const,
+  currentTerm: () => [...enrollmentKeys.all, "current-term"] as const,
   eligibility: () => [...enrollmentKeys.all, "eligibility"] as const,
   availableCourses: () => [...enrollmentKeys.all, "available-courses"] as const,
 };
@@ -18,33 +20,47 @@ export const enrollmentKeys = {
 // Each call goes through enrollmentApi's property at call time, so a test can stand in for it.
 
 export const enrollmentApi = {
+  /** The eligibility response names no term, so the current one comes from the dashboard. */
+  async currentTerm(): Promise<DashboardTerm | null> {
+    const dashboard = await session.authorized((token) => studentDashboardApi.me(token));
+    return dashboard.currentTerm;
+  },
+
   async eligibility(): Promise<EnrollmentEligibility> {
-    const eligibility = await session.authorized((token) => api.eligibility(token));
-
-    // The local student portal demo exposes the completed COR flow without requiring a
-    // registrar-side transition in a developer's database. Production keeps the API response.
-    if (import.meta.env.MODE === "development") {
-      return { ...eligibility, isCorFinal: true, corStatus: "FINAL" };
-    }
-
-    return eligibility;
+    return session.authorized((token) => api.eligibility(token));
   },
 
   async availableCourses(term: string): Promise<EnrollmentSection[]> {
     return session.authorized((token) => api.availableCourses(token, term));
   },
 
-  async submit(sectionIds: string[]): Promise<EnrollmentResult> {
-    return session.authorized((token) => api.submit(token, sectionIds));
+  async submit(term: string, sectionIds: string[]): Promise<EnrollmentResult> {
+    return session.authorized((token) => api.submit(token, term, sectionIds));
   },
 
   async requestOverload(
+    term: string,
     requestedUnits: number,
     justification: string,
   ): Promise<OverloadRequestResult> {
-    return session.authorized((token) => api.requestOverload(token, requestedUnits, justification));
+    return session.authorized((token) =>
+      api.requestOverload(token, term, requestedUnits, justification),
+    );
   },
 };
+
+/** The API's term selector, `<academic year>-<semester>` exactly as stored. */
+export function termSelector(term: DashboardTerm): string {
+  return `${term.academicYear}-${term.semester}`;
+}
+
+/** The current term: its UUID (certificate calls) and its selector (enrollment calls). */
+export function useCurrentTerm() {
+  return useQuery({
+    queryKey: enrollmentKeys.currentTerm(),
+    queryFn: enrollmentApi.currentTerm,
+  });
+}
 
 /** Whether the student may enroll, and their unit ceiling (AC-ENRL-001.1, .6, .7). */
 export function useEligibility() {
@@ -68,10 +84,10 @@ export function useAvailableCourses(term: string | undefined, enabled: boolean) 
 }
 
 /** Submits the picked sections once. A section that just filled reloads the course list. */
-export function useSubmitEnrollment() {
+export function useSubmitEnrollment(term: string | undefined) {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (sectionIds: string[]) => enrollmentApi.submit(sectionIds),
+    mutationFn: (sectionIds: string[]) => enrollmentApi.submit(term as string, sectionIds),
     onError: (error) => {
       if (error instanceof ApiError && error.code === "ENROLL_SECTION_FULL") {
         void queryClient.invalidateQueries({ queryKey: enrollmentKeys.availableCourses() });
@@ -81,7 +97,7 @@ export function useSubmitEnrollment() {
 }
 
 /** Files a request for up to 9 extra units. A Dean decides it (US-ENRL-001, issue #170). */
-export function useRequestOverload() {
+export function useRequestOverload(term: string | undefined) {
   return useMutation({
     mutationFn: ({
       requestedUnits,
@@ -89,6 +105,6 @@ export function useRequestOverload() {
     }: {
       requestedUnits: number;
       justification: string;
-    }) => enrollmentApi.requestOverload(requestedUnits, justification),
+    }) => enrollmentApi.requestOverload(term as string, requestedUnits, justification),
   });
 }

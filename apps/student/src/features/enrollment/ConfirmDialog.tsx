@@ -60,7 +60,7 @@ export function ConfirmDialog({
               <ul className="text-brand-muted mt-0.5 text-xs">
                 {section.schedule.map((meeting) => (
                   <li key={`${meeting.dayOfWeek}-${meeting.startTime}`}>
-                    {WEEKDAYS[meeting.dayOfWeek] ?? "—"}{" "}
+                    {WEEKDAYS[meeting.dayOfWeek] ?? ""}{" "}
                     {formatTimeRange(meeting.startTime, meeting.endTime)}
                   </li>
                 ))}

@@ -5,6 +5,8 @@ import { useRequestOverload } from "./useEnrollment";
 
 interface OverloadPanelProps {
   eligible: boolean;
+  /** The API's term selector the request is filed for. */
+  term: string;
 }
 
 const card = "border-brand-border/25 rounded-2xl border bg-white p-5 shadow-sm";
@@ -13,11 +15,11 @@ const card = "border-brand-border/25 rounded-2xl border bg-white p-5 shadow-sm";
  * Lets an eligible student ask for up to 9 extra units. A Dean decides it elsewhere, so once
  * filed there is nothing more to do here but wait (AC-ENRL-001.3, .4, .5).
  */
-export function OverloadPanel({ eligible }: OverloadPanelProps) {
+export function OverloadPanel({ eligible, term }: OverloadPanelProps) {
   const [open, setOpen] = useState(false);
   const [units, setUnits] = useState(3);
   const [justification, setJustification] = useState("");
-  const mutation = useRequestOverload();
+  const mutation = useRequestOverload(term);
   const unitsId = useId();
   const justificationId = useId();
 

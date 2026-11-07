@@ -10,10 +10,12 @@ interface CourseTableProps {
   sections: EnrollmentSection[];
   selectedIds: ReadonlySet<string>;
   onToggle: (sectionId: string) => void;
+  /** The last submit refusal, shown in the row of each section it names. */
+  refusal?: { sectionIds: string[]; message: string } | null;
 }
 
 /** The sections open to the student this term, with a checkbox to enlist each (AC-ENRL-001.9). */
-export function CourseTable({ sections, selectedIds, onToggle }: CourseTableProps) {
+export function CourseTable({ sections, selectedIds, onToggle, refusal }: CourseTableProps) {
   return (
     <div className="border-brand-border/25 overflow-hidden rounded-2xl border bg-white shadow-sm">
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region (WCAG 2.1.1) */}
@@ -74,7 +76,7 @@ export function CourseTable({ sections, selectedIds, onToggle }: CourseTableProp
                           className="whitespace-nowrap"
                         >
                           <span className="inline-block w-9 font-semibold">
-                            {WEEKDAYS[meeting.dayOfWeek] ?? "—"}
+                            {WEEKDAYS[meeting.dayOfWeek] ?? ""}
                           </span>
                           <span className="tabular-nums">
                             {formatTimeRange(meeting.startTime, meeting.endTime)}
@@ -103,6 +105,9 @@ export function CourseTable({ sections, selectedIds, onToggle }: CourseTableProp
                     </span>
                     {section.blockReason && (
                       <p className="text-brand-muted mt-1 text-xs">{section.blockReason}</p>
+                    )}
+                    {refusal?.sectionIds.includes(section.sectionId) && (
+                      <p className="mt-1 text-xs font-semibold text-red-800">{refusal.message}</p>
                     )}
                   </td>
                   <td className={`${td} text-center`}>

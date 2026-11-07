@@ -3,25 +3,6 @@ import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-const corMocks = vi.hoisted(() => ({
-  print: vi.fn(),
-  getCertificate: vi.fn(),
-  issueCertificate: vi.fn(),
-  buildHtml: vi.fn(() => "<html></html>"),
-  qrDataUrl: vi.fn(async () => "data:image/png;base64,qr"),
-}));
-
-vi.mock("../../lib/downloadCertificatePdf", () => ({
-  downloadCertificatePdf: corMocks.print,
-}));
-vi.mock("./useCertificate", () => ({
-  certificateApi: { get: corMocks.getCertificate, issue: corMocks.issueCertificate },
-}));
-vi.mock("./CorPrintTemplate", () => ({
-  buildCorPrintHtml: corMocks.buildHtml,
-  getVerificationQrDataUrl: corMocks.qrDataUrl,
-}));
-
 import { session } from "../../lib/auth";
 import { expectNoA11yViolations } from "../../test/axe";
 import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
@@ -32,15 +13,14 @@ const COURSES_ROUTE = "GET /student/enrollment/available-courses";
 const SUBMIT_ROUTE = "POST /student/enrollment/submit";
 const OVERLOAD_ROUTE = "POST /student/enrollment/overload";
 const DASHBOARD_ROUTE = "GET /student/me/dashboard";
+const COR_ROUTE = "GET /student/schedule/cor";
+const ISSUE_ROUTE = "POST /student/schedule/cor";
+const TERM_ID = "00000000-0000-0000-0000-000000000001";
 
 function eligibility(overrides: Record<string, unknown> = {}) {
   return {
     isEligible: true,
-    term: "2026-2027-first",
-    termId: "00000000-0000-0000-0000-000000000001",
     termType: "REGULAR",
-    isCorFinal: true,
-    corStatus: "FINAL",
     prescribedLoad: 26,
     approvedOverloadUnits: 0,
     standingReduction: 0,
@@ -50,6 +30,7 @@ function eligibility(overrides: Record<string, unknown> = {}) {
     summerSubjectCap: null,
     holds: [],
     academicPeriod: { start: "2026-06-01T00:00:00Z", end: "2026-06-30T00:00:00Z", isOpen: true },
+    reasons: [],
     ...overrides,
   };
 }
@@ -60,7 +41,7 @@ function section(overrides: Record<string, unknown> = {}) {
     courseCode: "COMP 016",
     title: "Web Development",
     units: 3,
-    schedule: [{ dayOfWeek: 0, startTime: "13:30", endTime: "16:30", room: "S508" }],
+    schedule: [{ day: 0, start: "13:30:00", end: "16:30:00", room: "S508" }],
     faculty: "AJ San Luis",
     capacity: 40,
     availableSlots: 10,
@@ -83,7 +64,12 @@ function dashboardBody() {
         enrollment_status: "ENROLLED",
         avatar_url: null,
       },
-      current_term: null,
+      current_term: {
+        id: TERM_ID,
+        academic_year: "2026-2027",
+        semester: "first",
+        is_current: true,
+      },
       holds: [],
       standing: { value: "GOOD", unit_reduction: 0 },
       enrollment: {},
@@ -109,6 +95,12 @@ function openEnrollment(routes: Parameters<typeof mockApi>[0] = {}) {
   return api;
 }
 
+/** A paragraph whose whole text, across its inline children, is exactly `text`. */
+function paragraph(text: string) {
+  return (_: string, element: Element | null) =>
+    element?.tagName === "P" && element.textContent === text;
+}
+
 /** The dd beside a dt with this label, for a stat that may repeat its sibling's value. */
 function statValue(label: string) {
   return screen.getByText(label).nextElementSibling;
@@ -126,35 +118,75 @@ async function reviewAndConfirm(user: ReturnType<typeof userEvent.setup>) {
 afterEach(() => {
   session.signOut();
   vi.unstubAllGlobals();
-  corMocks.print.mockReset();
-  corMocks.getCertificate.mockReset();
-  corMocks.issueCertificate.mockReset();
-  corMocks.buildHtml.mockClear();
-  corMocks.qrDataUrl.mockClear();
 });
 
+const ENROLLED = {
+  status: 201,
+  body: {
+    enrollmentId: "enr-9",
+    status: "ENROLLED_PENDING",
+    totalUnits: "3",
+    sections: [
+      { sectionId: "sec-1", courseCode: "COMP 016", title: "Web Development", units: "3" },
+    ],
+  },
+};
+
 describe("EnrollmentPage (US-ENRL-001)", () => {
-  it("enables COR download and prints in place after registrar finalization", async () => {
+  it("AC-ENRL-001.12: after enrolling, downloads the official COR PDF from the API, issuing it once first", async () => {
     const user = userEvent.setup();
-    corMocks.getCertificate.mockResolvedValue({
-      verificationUrl: "https://example.test/cor/verify",
-    });
-    corMocks.print.mockResolvedValue(undefined);
-    openEnrollment({
-      [ELIGIBILITY_ROUTE]: {
-        status: 200,
-        body: eligibility({ isEnrolled: true, isCorFinal: true }),
+    const createObjectURL = vi.fn(() => "blob:cor");
+    vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL: vi.fn() }));
+    const api = openEnrollment({
+      [SUBMIT_ROUTE]: ENROLLED,
+      [COR_ROUTE]: [
+        {
+          status: 409,
+          body: {
+            code: "COR_ENROLLMENT_NOT_FINAL",
+            message: "Certificate enrollment is not final.",
+            details: { unmet: [] },
+          },
+        },
+        { status: 200, body: "%PDF-1.4", headers: { "Content-Type": "application/pdf" } },
+      ],
+      [ISSUE_ROUTE]: {
+        status: 201,
+        body: { certificateId: "c-1", issuedAt: "2026-06-02T00:00:00Z", status: "CURRENT" },
       },
     });
 
-    const button = await screen.findByRole("button", {
-      name: "Download Certificate of Registration (COR)",
-    });
-    expect(button).toBeEnabled();
-    expect(screen.queryByText("Certificate enrollment is not final.")).not.toBeInTheDocument();
+    await pickFirstCourse(user);
+    await reviewAndConfirm(user);
+    await user.click(
+      await screen.findByRole("button", { name: "Download Certificate of Registration (COR)" }),
+    );
 
-    await user.click(button);
-    await waitFor(() => expect(corMocks.print).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(createObjectURL).toHaveBeenCalledTimes(1));
+    expect(api.called(ISSUE_ROUTE)).toHaveLength(1);
+    expect(api.called(ISSUE_ROUTE)[0]?.body).toEqual({ term: TERM_ID });
+    expect(api.called(COR_ROUTE)).toHaveLength(2);
+  });
+
+  it("AC-ENRL-001.12: a COR the API cannot make yet says why, in words", async () => {
+    const user = userEvent.setup();
+    openEnrollment({
+      [SUBMIT_ROUTE]: ENROLLED,
+      [COR_ROUTE]: {
+        status: 409,
+        body: { code: "COR_ENROLLMENT_NOT_FINAL", details: { unmet: ["NO_ASSESSMENT"] } },
+      },
+    });
+
+    await pickFirstCourse(user);
+    await reviewAndConfirm(user);
+    await user.click(
+      await screen.findByRole("button", { name: "Download Certificate of Registration (COR)" }),
+    );
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Your fees have not been assessed yet.",
+    );
   });
 
   it("AC-ENRL-001.1: enrolls within the real, curriculum-sourced ceiling and shows the enrolled list", async () => {
@@ -187,18 +219,19 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(await screen.findByRole("heading", { name: "You're enrolled" })).toBeInTheDocument();
     expect(screen.getByText("COMP 016")).toBeInTheDocument();
     expect(screen.getByText("Web Development")).toBeInTheDocument();
-    // The COR now prints in place on click (a button, not a navigation link).
     expect(
       screen.getByRole("button", { name: "Download Certificate of Registration (COR)" }),
     ).toBeInTheDocument();
     expect(api.called(SUBMIT_ROUTE)).toHaveLength(1);
     expect(api.called(SUBMIT_ROUTE)[0]?.body).toEqual({
+      term: "2026-2027-first",
       sectionIds: ["sec-1"],
       confirmation: true,
     });
+    expect(api.called(COURSES_ROUTE)).toHaveLength(1);
   });
 
-  it("AC-ENRL-001.2: a submit over the ceiling names the limit and the units left, in the API's own words", async () => {
+  it("AC-ENRL-001.2: a submit over the ceiling names the limit and the units left", async () => {
     const user = userEvent.setup();
     openEnrollment({
       [ELIGIBILITY_ROUTE]: {
@@ -209,9 +242,10 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
       [SUBMIT_ROUTE]: {
         status: 409,
         body: {
-          detail: "This goes over your limit of 26 units. You have 3 units left.",
+          message: "The selected load exceeds your enrollment unit ceiling.",
           code: "ENROLL_UNIT_CEILING_EXCEEDED",
           request_id: "req-ceiling",
+          details: { effectiveCeiling: "26", attemptedUnits: "29", unitsRemaining: "0" },
         },
       },
     });
@@ -220,7 +254,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await reviewAndConfirm(user);
 
     expect(
-      await screen.findByText("This goes over your limit of 26 units. You have 3 units left."),
+      await screen.findByText("This goes over your limit of 26 units. You have 0 units left."),
     ).toBeInTheDocument();
   });
 
@@ -351,10 +385,13 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
         status: 200,
         body: eligibility({ termType: "SUMMER", summerSubjectCap: 2 }),
       },
-      // No `detail`: this exercises the client's own fallback text, built from summerSubjectCap.
       [SUBMIT_ROUTE]: {
         status: 409,
-        body: { code: "ENROLL_SUMMER_SUBJECT_LIMIT", request_id: "req-summer" },
+        body: {
+          code: "ENROLL_SUMMER_SUBJECT_LIMIT",
+          request_id: "req-summer",
+          details: { summerSubjectCap: 2 },
+        },
       },
     });
 
@@ -376,16 +413,21 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
           section({
             sectionId: "sec-2",
             courseCode: "COSC 304",
-            schedule: [{ dayOfWeek: 0, startTime: "10:30", endTime: "13:00", room: null }],
+            schedule: [{ day: 0, start: "10:30:00", end: "13:00:00", room: null }],
           }),
         ],
       },
       [SUBMIT_ROUTE]: {
         status: 409,
         body: {
-          detail: "COMP 016 and COSC 304 both meet Monday 10:30 to 13:00.",
+          message: "COMP 016 and COSC 304 overlap on day 0 from 13:30:00 to 13:00:00.",
           code: "ENROLL_SCHEDULE_CONFLICT",
           request_id: "req-conflict",
+          details: {
+            courseCodes: ["COMP 016", "COSC 304"],
+            sectionIds: ["sec-1", "sec-2"],
+            overlap: { day: 0, start: "10:30:00", end: "13:00:00" },
+          },
         },
       },
     });
@@ -395,9 +437,11 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await user.click(checkboxes[1]);
     await reviewAndConfirm(user);
 
-    expect(
-      await screen.findByText("COMP 016 and COSC 304 both meet Monday 10:30 to 13:00."),
-    ).toBeInTheDocument();
+    // Once in the alert, and once in each named course's row.
+    const messages = await screen.findAllByText(/^COMP 016 and COSC 304 overlap on Monday/);
+    expect(messages).toHaveLength(3);
+    const row = screen.getByRole("rowheader", { name: "COSC 304" }).closest("tr");
+    expect(within(row as HTMLElement).getByText(/overlap on Monday/)).toBeInTheDocument();
   });
 
   it("AC-ENRL-001.10: an unresolved financial hold replaces the picker with the office and amount owed", async () => {
@@ -431,9 +475,10 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
       [SUBMIT_ROUTE]: {
         status: 409,
         body: {
-          detail: "This section just filled up. Pick another section.",
+          message: "A selected section has no seat available.",
           code: "ENROLL_SECTION_FULL",
           request_id: "req-full",
+          details: { sectionId: "sec-1" },
         },
       },
     });
@@ -442,8 +487,8 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await reviewAndConfirm(user);
 
     expect(
-      await screen.findByText("This section just filled up. Pick another section."),
-    ).toBeInTheDocument();
+      (await screen.findAllByText("This section just filled up. Pick another section.")).length,
+    ).toBeGreaterThan(0);
     await waitFor(() => expect(api.called(COURSES_ROUTE)).toHaveLength(2));
     expect(await screen.findByText("Full")).toBeInTheDocument();
   });
@@ -468,7 +513,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await reviewAndConfirm(user);
 
     expect(await screen.findByRole("heading", { name: "You're enrolled" })).toBeInTheDocument();
-    expect(screen.getByText("Total: 3 units")).toBeInTheDocument();
+    expect(screen.getByText(paragraph("Total: 3 units"))).toBeInTheDocument();
     expect(api.called(SUBMIT_ROUTE)).toHaveLength(1);
   });
 
@@ -519,61 +564,88 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
-  it("shows the official completion card for an already enrolled student instead of the closed state", async () => {
-    const api = openEnrollment({
+  it("AC-ENRL-001.10: a financial hold refused at submit names the office, the amount, and what to do", async () => {
+    const user = userEvent.setup();
+    openEnrollment({
+      [SUBMIT_ROUTE]: {
+        status: 409,
+        body: {
+          code: "ENROLL_FINANCIAL_HOLD",
+          message:
+            "Resolve the PHP 3500.00 financial hold with the Accounting Office before enrolling.",
+          details: { office: "Accounting Office", outstandingAmount: "3500.00" },
+        },
+      },
+    });
+
+    await pickFirstCourse(user);
+    await reviewAndConfirm(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      /financial hold of ₱3,500.00 with the Accounting Office. Settle it there/,
+    );
+  });
+
+  it("AC-ENRL-001.13: an active hold refused at submit names the office and what to do", async () => {
+    const user = userEvent.setup();
+    openEnrollment({
+      [SUBMIT_ROUTE]: {
+        status: 409,
+        body: {
+          code: "ENROLL_HOLD_ACTIVE",
+          details: { office: "Office of Student Affairs", holdType: "DISCIPLINARY" },
+        },
+      },
+    });
+
+    await pickFirstCourse(user);
+    await reviewAndConfirm(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "You have a disciplinary hold with the Office of Student Affairs. Clear it there, then submit again.",
+    );
+  });
+
+  it("AC-ENRL-001.14: a period that closed before submit shows its dates", async () => {
+    const user = userEvent.setup();
+    openEnrollment({
+      [SUBMIT_ROUTE]: {
+        status: 409,
+        body: {
+          code: "ENROLL_PERIOD_CLOSED",
+          details: { start: "2026-06-01T00:00:00Z", end: "2026-06-30T00:00:00Z" },
+        },
+      },
+    });
+
+    await pickFirstCourse(user);
+    await reviewAndConfirm(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Enrollment is closed. The period runs June 1 - June 30, 2026.",
+    );
+  });
+
+  it("AC-ENRL-001.10: an ineligible student with no hold sees the API's reasons", async () => {
+    openEnrollment({
       [ELIGIBILITY_ROUTE]: {
         status: 200,
         body: eligibility({
           isEligible: false,
-          isEnrolled: true,
-          enrollmentStatus: "ENROLLED",
-          enrollmentSection: "BSCS 4-5",
-          effectiveCeiling: 26,
-          qualifiedForFreeHigherEducation: true,
-          academicPeriod: {
-            start: "2026-06-01T00:00:00Z",
-            end: "2026-06-30T00:00:00Z",
-            isOpen: false,
-          },
-          nextEnrollmentPeriod: {
-            start: "2026-10-01T00:00:00Z",
-            end: "2026-10-31T00:00:00Z",
-            isOpen: false,
-          },
-          currentEnrollment: {
-            enrollmentId: "enr-closed-1",
-            status: "ENROLLED",
-            totalUnits: 26,
-            sections: [
-              { sectionId: "sec-1", courseCode: "COMP 016", title: "Web Development", units: 3 },
-            ],
-          },
+          reasons: [
+            {
+              code: "NO_PRESCRIBED_LOAD",
+              message: "No prescribed curriculum load is configured for this term.",
+            },
+          ],
         }),
       },
     });
 
     expect(
-      await screen.findByRole("heading", { name: "You are officially enrolled." }),
+      await screen.findByText("No prescribed curriculum load is configured for this term."),
     ).toBeInTheDocument();
-    expect(screen.getByText("Next Enrollment Date")).toBeInTheDocument();
-    expect(screen.getByText("October 1 - October 31, 2026")).toBeInTheDocument();
-    // "Status" and "Enrolled" also appear in the enlisted-subjects table below, so this reads
-    // the header metric specifically rather than a page-wide text match.
-    expect(screen.getByTestId("enrollment-status-value")).toHaveTextContent("Enrolled");
-    expect(screen.getByText("BSCS 4-5")).toBeInTheDocument();
-    expect(screen.getByText("26 units")).toBeInTheDocument();
-    expect(
-      screen.getByText("You are qualified for Free Higher Education Act (RA 10931)"),
-    ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Download Certificate of Registration (COR)" }),
-    ).toBeInTheDocument();
-    expect(screen.queryByRole("heading", { name: "Enrollment is closed" })).not.toBeInTheDocument();
-    // The enlisted-subjects summary is a table now; the course picker (with its checkboxes) is
-    // the thing that must stay gone.
-    expect(screen.getByText("COMP 016")).toBeInTheDocument();
-    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
-    expect(api.called(COURSES_ROUTE)).toHaveLength(0);
+    expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
   it("AC-ENRL-001.15: shows no subject limit for a summer student outside the capped groups", async () => {
@@ -603,7 +675,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(await screen.findByRole("heading", { name: "You're enrolled" })).toBeInTheDocument();
   });
 
-  it("shows 'Waiting for the Dean' once an overload request is filed", async () => {
+  it("AC-ENRL-001.3: shows 'Waiting for the Dean' once an overload request is filed", async () => {
     const user = userEvent.setup();
     openEnrollment({
       [ELIGIBILITY_ROUTE]: { status: 200, body: eligibility({ overloadEligible: true }) },
@@ -623,7 +695,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(await screen.findByText("Waiting for the Dean")).toBeInTheDocument();
   });
 
-  it("does not offer an overload request to a student who does not qualify", async () => {
+  it("AC-ENRL-001.5: does not offer an overload request to a student who does not qualify", async () => {
     openEnrollment({
       [ELIGIBILITY_ROUTE]: { status: 200, body: eligibility({ overloadEligible: false }) },
     });
@@ -632,7 +704,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(screen.queryByRole("button", { name: "Request an overload" })).not.toBeInTheDocument();
   });
 
-  it("registers /enrollment and highlights Enrollment as the active Academics item", async () => {
+  it("AC-ENRL-001.1: registers /enrollment and highlights Enrollment as the active Academics item", async () => {
     const user = userEvent.setup();
     openEnrollment();
     await screen.findByRole("heading", { name: "Course Enrollment" });
@@ -642,7 +714,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(link).toHaveAttribute("aria-current", "page");
   });
 
-  it("updates the running total live as checkboxes toggle, and warns without disabling submit when over the limit", async () => {
+  it("AC-ENRL-001.2: updates the running total live as checkboxes toggle, and warns without disabling submit when over the limit", async () => {
     const user = userEvent.setup();
     openEnrollment({
       [ELIGIBILITY_ROUTE]: {
@@ -657,7 +729,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
             sectionId: "sec-2",
             courseCode: "COSC 304",
             units: 3,
-            schedule: [{ dayOfWeek: 1, startTime: "10:30", endTime: "13:00", room: null }],
+            schedule: [{ day: 1, start: "10:30:00", end: "13:00:00", room: null }],
           }),
         ],
       },
@@ -677,7 +749,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(screen.getByRole("button", { name: "Review and Submit" })).not.toBeDisabled();
   });
 
-  it("clears every pick with Clear All, back to the 'No Selected Course' empty state", async () => {
+  it("AC-ENRL-001.1: clears every pick with Clear All, back to the 'No Selected Course' empty state", async () => {
     const user = userEvent.setup();
     openEnrollment({
       [COURSES_ROUTE]: {
@@ -687,7 +759,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
           section({
             sectionId: "sec-2",
             courseCode: "COSC 304",
-            schedule: [{ dayOfWeek: 1, startTime: "10:30", endTime: "13:00", room: null }],
+            schedule: [{ day: 1, start: "10:30:00", end: "13:00:00", room: null }],
           }),
         ],
       },
@@ -699,7 +771,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await user.click(checkboxes[0]);
     await user.click(checkboxes[1]);
     expect(screen.queryByText("No Selected Course")).not.toBeInTheDocument();
-    expect(screen.getByText("Total: 6 units")).toBeInTheDocument();
+    expect(screen.getByText(paragraph("Total: 6 units"))).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Clear All" }));
 
@@ -708,7 +780,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(checkboxes[1]).not.toBeChecked();
   });
 
-  it("names each course and its units in the checkbox's own label", async () => {
+  it("AC-ENRL-001.1: names each course and its units in the checkbox's own label", async () => {
     openEnrollment({
       [COURSES_ROUTE]: {
         status: 200,
@@ -721,7 +793,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     ).toBeInTheDocument();
   });
 
-  it("disables the confirm button while the submit mutation is in flight", async () => {
+  it("AC-ENRL-001.12: disables the confirm button while the submit is in flight", async () => {
     const user = userEvent.setup();
     openEnrollment({ [SUBMIT_ROUTE]: "pending" });
 
@@ -733,7 +805,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(await screen.findByRole("button", { name: "Submitting…" })).toBeDisabled();
   });
 
-  it("summarizes the picked sections and total before submit is ever called", async () => {
+  it("AC-ENRL-001.12: summarizes the picked sections and total before submit is ever called", async () => {
     const user = userEvent.setup();
     const api = openEnrollment({ [SUBMIT_ROUTE]: "pending" });
 
@@ -742,11 +814,11 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
 
     const dialog = await screen.findByRole("dialog", { name: "Confirm Your Enrollment" });
     expect(within(dialog).getByText("COMP 016: Web Development")).toBeInTheDocument();
-    expect(within(dialog).getByText("Total: 3 units")).toBeInTheDocument();
+    expect(within(dialog).getByText(paragraph("Total: 3 units"))).toBeInTheDocument();
     expect(api.called(SUBMIT_ROUTE)).toHaveLength(0);
   });
 
-  it("offers a working retry when the enrollment information cannot be loaded", async () => {
+  it("AC-ENRL-001.1: offers a working retry when the enrollment information cannot be loaded", async () => {
     const user = userEvent.setup();
     openEnrollment({
       [ELIGIBILITY_ROUTE]: ["offline", { status: 200, body: eligibility() }],
@@ -758,13 +830,19 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await screen.findByText("Effective Ceiling");
   });
 
-  it("shows an empty state when no courses are open this term", async () => {
+  it("AC-ENRL-001.1: shows a loading message while the enrollment information loads", async () => {
+    openEnrollment({ [ELIGIBILITY_ROUTE]: "pending" });
+
+    expect(await screen.findByText("Loading your enrollment information")).toBeInTheDocument();
+  });
+
+  it("AC-ENRL-001.1: shows an empty state when no courses are open this term", async () => {
     openEnrollment({ [COURSES_ROUTE]: { status: 200, body: [] } });
 
     expect(await screen.findByText("No courses are open to you this term.")).toBeInTheDocument();
   });
 
-  it("passes an automated accessibility check with no violations", async () => {
+  it("AC-ENRL-001.1: passes an automated accessibility check with no violations", async () => {
     openEnrollment({
       [ELIGIBILITY_ROUTE]: { status: 200, body: eligibility({ overloadEligible: true }) },
     });
@@ -775,7 +853,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await expectNoA11yViolations(checkbox.closest("main") ?? document.body);
   });
 
-  it("lets a keyboard user tab to a course checkbox and toggle it with the keyboard alone", async () => {
+  it("AC-ENRL-001.1: lets a keyboard user tab to a course checkbox and toggle it with the keyboard alone", async () => {
     const user = userEvent.setup();
     openEnrollment();
 
@@ -785,6 +863,6 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
 
     await user.keyboard(" ");
     expect(checkbox).toBeChecked();
-    expect(screen.getByText("Total: 3 units")).toBeInTheDocument();
+    expect(screen.getByText(paragraph("Total: 3 units"))).toBeInTheDocument();
   });
 });

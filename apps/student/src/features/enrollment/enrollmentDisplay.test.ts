@@ -46,8 +46,7 @@ describe("enrollmentStatusLabel", () => {
     summerSubjectCap: null,
     holds: [],
     academicPeriod: period,
-    term: "2026-2027-first",
-    termId: "00000000-0000-0000-0000-000000000001",
+    reasons: [],
   };
 
   it("reads Open when the period is open and the student is eligible", () => {
@@ -63,44 +62,59 @@ describe("enrollmentStatusLabel", () => {
   it("reads Not Eligible when the period is open but the student is not", () => {
     expect(enrollmentStatusLabel({ ...eligible, isEligible: false })).toBe("Not Eligible");
   });
-
-  it("reads Enrolled before closed or ineligible states", () => {
-    expect(
-      enrollmentStatusLabel({
-        ...eligible,
-        isEligible: false,
-        isEnrolled: true,
-        enrollmentStatus: "ENROLLED",
-        academicPeriod: { ...period, isOpen: false },
-      }),
-    ).toBe("Enrolled");
-  });
 });
 
 describe("refusalMessage", () => {
-  it("shows the API's own sentence when it sent one, over any fixed wording", () => {
+  it("AC-ENRL-001.2: names the limit and the units left from the refusal's details", () => {
     const error = new ApiError(409, "ENROLL_UNIT_CEILING_EXCEEDED", {
-      detail: "This goes over your limit of 26 units. You have 3 units left.",
+      detail: "The selected load exceeds your enrollment unit ceiling.",
+      details: { effectiveCeiling: "23", unitsRemaining: "2" },
     });
     expect(refusalMessage(error)).toBe(
-      "This goes over your limit of 26 units. You have 3 units left.",
+      "This goes over your limit of 23 units. You have 2 units left.",
     );
   });
 
-  it("falls back to the fixed overload-cap sentence when the API sent no words", () => {
-    const error = new ApiError(409, "ENROLL_OVERLOAD_CAP_EXCEEDED", {});
-    expect(refusalMessage(error)).toBe("An overload can add at most 9 units.");
+  it("shows the API's own sentence when a refusal comes without its details", () => {
+    const error = new ApiError(409, "ENROLL_UNIT_CEILING_EXCEEDED", {
+      detail: "The selected load exceeds your enrollment unit ceiling.",
+    });
+    expect(refusalMessage(error)).toBe("The selected load exceeds your enrollment unit ceiling.");
   });
 
-  it("falls back to the fixed section-full sentence when the API sent no words", () => {
-    const error = new ApiError(409, "ENROLL_SECTION_FULL", {});
+  it("AC-ENRL-001.4: states the overload cap", () => {
+    const error = new ApiError(409, "ENROLL_OVERLOAD_CAP_EXCEEDED", {
+      details: { maximumOverloadUnits: "9" },
+    });
+    expect(refusalMessage(error)).toBe("An overload can add at most 9 units.");
+    expect(refusalMessage(new ApiError(409, "ENROLL_OVERLOAD_CAP_EXCEEDED"))).toBe(
+      "An overload can add at most 9 units.",
+    );
+  });
+
+  it("AC-ENRL-001.11: falls back to the fixed section-full sentence", () => {
+    const error = new ApiError(409, "ENROLL_SECTION_FULL", { details: { sectionId: "sec-1" } });
     expect(refusalMessage(error)).toBe("This section just filled up. Pick another section.");
   });
 
-  it("builds the summer-subject sentence from the student's own cap, never a fixed number", () => {
-    const error = new ApiError(409, "ENROLL_SUMMER_SUBJECT_LIMIT", {});
-    expect(refusalMessage(error, 2)).toBe("Summer allows at most 2 subjects for you.");
-    expect(refusalMessage(error, 4)).toBe("Summer allows at most 4 subjects for you.");
+  it("AC-ENRL-001.8: builds the summer-subject sentence from the student's own cap", () => {
+    const of = (cap: number) =>
+      refusalMessage(
+        new ApiError(409, "ENROLL_SUMMER_SUBJECT_LIMIT", { details: { summerSubjectCap: cap } }),
+      );
+    expect(of(2)).toBe("Summer allows at most 2 subjects for you.");
+    expect(of(4)).toBe("Summer allows at most 4 subjects for you.");
+  });
+
+  it("AC-ENRL-001.9: names both courses and the overlap", () => {
+    const error = new ApiError(409, "ENROLL_SCHEDULE_CONFLICT", {
+      details: {
+        courseCodes: ["COMP 016", "COMP 017"],
+        sectionIds: ["sec-1", "sec-2"],
+        overlap: { day: 0, start: "13:30:00", end: "15:00:00" },
+      },
+    });
+    expect(refusalMessage(error)).toMatch(/^COMP 016 and COMP 017 overlap on Monday, 1:30/);
   });
 
   it("falls back to a generic sentence for an error the client does not specially know", () => {

@@ -1,5 +1,5 @@
+import type { DashboardTerm } from "@cbpupsis/shared/dashboard";
 import type {
-  Certificate,
   EnrollmentEligibility,
   EnrollmentHold,
   EnrollmentPeriod,
@@ -10,13 +10,11 @@ import { useMemo, useState } from "react";
 
 import "@cbpupsis/account/styles.css";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
-import { useStudentProfile } from "../profile/useStudentProfile";
 import type { CourseItem } from "../schedule/scheduleTypes";
 import { useCourseSchedule } from "../schedule/useCourseSchedule";
 import { ConfirmDialog } from "./ConfirmDialog";
-import { buildCorPrintHtml, getVerificationQrDataUrl } from "./CorPrintTemplate";
 import { CourseTable } from "./CourseTable";
-import { FALLBACK_ADDRESS, FALLBACK_CONTACT } from "./corDisplay";
+import { certificateErrorMessage } from "./certificateDisplay";
 import { EnlistedCourses } from "./EnlistedCourses";
 import {
   enrollmentStatusLabel,
@@ -24,14 +22,20 @@ import {
   periodDayCount,
   periodStartDate,
   refusalMessage,
+  refusalSectionIds,
   termTypeLabel,
 } from "./enrollmentDisplay";
 import { LimitPanel } from "./LimitPanel";
 import { OverloadPanel } from "./OverloadPanel";
-import { certificateApi } from "./useCertificate";
-import { useAvailableCourses, useEligibility, useSubmitEnrollment } from "./useEnrollment";
+import { downloadCertificate } from "./useCertificate";
+import {
+  termSelector,
+  useAvailableCourses,
+  useCurrentTerm,
+  useEligibility,
+  useSubmitEnrollment,
+} from "./useEnrollment";
 import { formatTimeRange } from "../../lib/datetime";
-import { downloadCertificatePdf } from "../../lib/downloadCertificatePdf";
 import { formatPeso } from "../../lib/money";
 
 function Loading() {
@@ -86,31 +90,18 @@ function PeriodClosedPanel({ period }: { period: EnrollmentPeriod }) {
   );
 }
 
-function isAlreadyEnrolled(data: EnrollmentEligibility | undefined): boolean {
-  return Boolean(
-    data &&
-    (data.isEnrolled ||
-      data.enrollmentStatus?.toUpperCase() === "ENROLLED" ||
-      data.currentEnrollment),
-  );
-}
+// Terms are stored either as an identifier ("first") or already as words ("First Semester").
+const SEMESTER_NAMES: Record<string, string> = {
+  first: "First Semester",
+  second: "Second Semester",
+  summer: "Summer Term",
+};
 
-function activeTermLabel(data: EnrollmentEligibility): string {
-  const [startYear, rest] = data.term.split("-");
-  const endYear = rest?.slice(0, 4);
-  const semester = data.term.toLowerCase().includes("second")
-    ? "Second Semester"
-    : data.term.toLowerCase().includes("summer") || data.termType === "SUMMER"
-      ? "Summer Term"
-      : "First Semester";
-  return startYear && endYear
-    ? `(S.Y. ${startYear}–${endYear} - ${semester})`
-    : termTypeLabel(data.termType);
-}
-
-function nextEnrollmentDate(data: EnrollmentEligibility): string {
-  if (!isAlreadyEnrolled(data)) return periodStartDate(data.academicPeriod);
-  return data.nextEnrollmentPeriod ? periodDateRange(data.nextEnrollmentPeriod) : "TBA";
+/** "(S.Y. 2026-2027, First Semester)", from the current term the dashboard names. */
+function activeTermLabel(term: DashboardTerm | null | undefined): string | null {
+  if (!term) return null;
+  const semester = SEMESTER_NAMES[term.semester.toLowerCase()] ?? term.semester;
+  return `(S.Y. ${term.academicYear}, ${semester})`;
 }
 
 function StatusBadge({ data }: { data: EnrollmentEligibility }) {
@@ -141,18 +132,8 @@ function CheckCircleIcon() {
   );
 }
 
-function InfoIcon() {
-  return (
-    <svg aria-hidden="true" viewBox="0 0 24 24" className="size-4 shrink-0">
-      <circle cx="12" cy="12" r="10" fill="none" stroke="currentColor" strokeWidth="2" />
-      <path d="M12 16v-4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M12 8h.01" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 /** This course's real weekly meetings, read from the same `/schedule` data the Course Schedule
- * page shows — a committed section (`EnrolledSection`) carries no meeting times of its own, so
+ * page shows: a committed section (`EnrolledSection`) carries no meeting times of its own, so
  * there is nothing to format without it. Undefined while that query hasn't resolved yet, or for
  * a course it doesn't (yet) list. */
 function scheduleFor(
@@ -164,7 +145,7 @@ function scheduleFor(
 
 function ScheduleCell({ meetings }: { meetings: CourseItem["schedule"] | undefined }) {
   if (!meetings || meetings.length === 0) {
-    return <td className="px-3 py-2.5 text-neutral-500">—</td>;
+    return <td className="px-3 py-2.5 text-neutral-500">Not scheduled yet</td>;
   }
   return (
     <td className="px-3 py-2.5 text-neutral-900">
@@ -258,149 +239,41 @@ function Spinner() {
   );
 }
 
-const DAY_INDEX: Record<string, number> = {
-  Mon: 0,
-  Tue: 1,
-  Wed: 2,
-  Thu: 3,
-  Fri: 4,
-  Sat: 5,
-  Sun: 6,
-};
-
-/** A complete local COR preview keeps the localhost demo useful before the registrar fixture has
- * finalized a matching record. It is development-only; production always prints the API-issued
- * certificate and its verification URL. */
-function developmentCertificate(
-  data: EnrollmentEligibility,
-  result: EnrollmentResult,
-  profile: ReturnType<typeof useStudentProfile>["data"],
-  scheduleCourses: CourseItem[] | undefined,
-): Certificate {
-  const [startYear, endYear, semester = "first"] = data.term.split("-");
-  return {
-    certificateId: `local-cor-${data.termId}`,
-    issuedAt: new Date().toISOString(),
-    status: "CURRENT",
-    name: profile?.personalInfo.fullLegalName || "Local Student",
-    studentNumber: profile?.credentials.studentId || "LOCAL-STUDENT",
-    program: profile?.personalInfo.program || "Bachelor of Science in Computer Science",
-    term: { id: data.termId, year: endYear ? `${startYear}-${endYear}` : data.term, semester },
-    courses: result.sections.map((section) => {
-      const scheduledCourse = scheduleCourses?.find(
-        (course) => course.courseCode === section.courseCode,
-      );
-      return {
-        sectionId: section.sectionId,
-        code: section.courseCode,
-        title: section.title,
-        section: data.enrollmentSection ?? "TBA",
-        schedule: (scheduledCourse?.schedule ?? []).map((meeting) => ({
-          dayOfWeek: DAY_INDEX[meeting.day] ?? 0,
-          startTime: meeting.timeStart,
-          endTime: meeting.timeEnd,
-          room: scheduledCourse?.location ?? null,
-          type: "Lecture",
-        })),
-        room: scheduledCourse?.location ?? null,
-        faculty: scheduledCourse?.faculty ?? null,
-        units: section.units,
-      };
-    }),
-    totalUnits: result.totalUnits,
-    assessment: {
-      lines: [],
-      amountAssessed: 0,
-      subsidyApplied: 0,
-      netPayable: 0,
-      fheQualified: Boolean(data.qualifiedForFreeHigherEducation),
-      fheForfeited: false,
-      fheForfeitureReason: null,
-    },
-    verificationUrl: `${window.location.origin}/verify/local-cor/${data.termId}`,
-  };
-}
-
-/** Builds the COR and downloads it as an A4-landscape PDF without leaving /enrollment. */
-function DownloadCorButton({
-  data,
-  result,
-}: {
-  data: EnrollmentEligibility;
-  result: EnrollmentResult | null | undefined;
-}) {
-  const profile = useStudentProfile();
-  const schedule = useCourseSchedule();
-  const isCorFinal = data.isCorFinal ?? data.corStatus?.toUpperCase() === "FINAL";
-  const [printing, setPrinting] = useState(false);
+/** Downloads the official Certificate of Registration PDF the API renders, issuing it first
+ * if it has not been issued yet (US-ENRL-003). */
+function DownloadCorButton({ termId }: { termId: string | undefined }) {
+  const [downloading, setDownloading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   async function handleClick() {
+    if (!termId) return;
     setError(null);
-    setPrinting(true);
+    setDownloading(true);
     try {
-      let certificate =
-        import.meta.env.MODE === "development" && result
-          ? developmentCertificate(data, result, profile.data, schedule.data?.courses)
-          : await certificateApi.get(data.termId);
-      if (!certificate) {
-        // Issuing is idempotent (retries preserve the same certificate and token), so asking
-        // for it here rather than requiring a prior visit to a separate page is safe.
-        await certificateApi.issue(data.termId);
-        certificate = await certificateApi.get(data.termId);
-      }
-      if (!certificate) {
-        throw new Error(
-          "Your certificate isn't ready yet. It becomes available once your enrollment is officially final.",
-        );
-      }
-      const qrDataUrl = await getVerificationQrDataUrl(certificate.verificationUrl);
-      const html = buildCorPrintHtml({
-        certificate,
-        maxUnitsAllowed: data.effectiveCeiling,
-        address: profile.data?.personalInfo.homeAddress?.trim() || FALLBACK_ADDRESS,
-        contactNo: profile.data?.personalInfo.phoneNumber?.trim() || FALLBACK_CONTACT,
-        qrDataUrl,
-      });
-      await downloadCertificatePdf(
-        html,
-        `COR_${certificate.studentNumber.replace(/[^A-Za-z0-9-]/g, "_")}.pdf`,
-      );
+      await downloadCertificate(termId);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "We couldn't prepare your certificate. Try again.",
-      );
+      setError(certificateErrorMessage(err));
     } finally {
-      // The print dialog has already been shown (or the attempt has already failed) by the time
-      // the call above settles, so the button's busy state ends here either way.
-      setPrinting(false);
+      setDownloading(false);
     }
   }
 
   return (
-    <div className="flex flex-col items-end gap-2">
+    <div className="flex w-full flex-col items-stretch gap-2 sm:w-auto sm:items-end">
       <button
         type="button"
         onClick={() => {
-          if (!printing) void handleClick();
+          if (!downloading) void handleClick();
         }}
-        aria-label="Download Certificate of Registration (COR)"
-        aria-busy={printing}
-        className="inline-flex h-10 min-w-[280px] shrink-0 cursor-pointer items-center justify-center rounded-lg bg-[#7B1113] px-4 text-sm font-medium text-white transition-colors hover:bg-[#630e10] focus-visible:ring-2 focus-visible:ring-[#7B1113] focus-visible:ring-offset-2 focus-visible:outline-none"
+        disabled={!termId}
+        aria-busy={downloading}
+        className="inline-flex min-h-11 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-[#7B1113] px-4 text-sm font-medium text-white transition-colors hover:bg-[#630e10] focus-visible:ring-2 focus-visible:ring-[#7B1113] focus-visible:ring-offset-2 focus-visible:outline-none disabled:opacity-60"
       >
-        {printing ? <Spinner /> : <DownloadIcon />}
-        {printing ? "Preparing COR..." : "Download Certificate of Registration (COR)"}
+        {downloading ? <Spinner /> : <DownloadIcon />}
+        {downloading ? "Preparing COR..." : "Download Certificate of Registration (COR)"}
       </button>
-      {!isCorFinal && (
-        <p
-          id="cor-not-final-caption"
-          className="mt-1.5 block text-right text-xs font-medium text-red-600"
-        >
-          Certificate enrollment is not final.
-        </p>
-      )}
       {error && (
-        <p role="alert" className="max-w-xs text-right text-xs text-red-700">
+        <p role="alert" className="text-xs text-red-700 sm:max-w-xs sm:text-right">
           {error}
         </p>
       )}
@@ -411,11 +284,11 @@ function DownloadCorButton({
 function EnrolledCompletionPanel({
   data,
   result,
-  title = "You are officially enrolled.",
+  term,
 }: {
   data: EnrollmentEligibility;
-  result: EnrollmentResult | null | undefined;
-  title?: string;
+  result: EnrollmentResult;
+  term: DashboardTerm | null | undefined;
 }) {
   return (
     <section
@@ -427,31 +300,18 @@ function EnrolledCompletionPanel({
           <CheckCircleIcon />
           <div>
             <h2 id="officially-enrolled-title" className="text-xl font-bold text-neutral-900">
-              {title}
+              You&apos;re enrolled
             </h2>
-            <p className="mt-0.5 text-sm text-neutral-500">{activeTermLabel(data)}</p>
+            {activeTermLabel(term) && (
+              <p className="mt-0.5 text-sm text-neutral-500">{activeTermLabel(term)}</p>
+            )}
           </div>
         </div>
 
-        <DownloadCorButton data={data} result={result} />
+        <DownloadCorButton termId={term?.id} />
       </div>
 
-      {data.qualifiedForFreeHigherEducation && (
-        <div className="mt-6 flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-900">
-          <InfoIcon />
-          You are qualified for Free Higher Education Act (RA 10931)
-        </div>
-      )}
-
       <dl className="mt-6 grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
-          <dt className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
-            Section
-          </dt>
-          <dd className="mt-1 text-lg font-bold text-neutral-900">
-            {data.enrollmentSection ?? "TBA"}
-          </dd>
-        </div>
         <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <dt className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Allowed Units
@@ -462,7 +322,7 @@ function EnrolledCompletionPanel({
         </div>
       </dl>
 
-      {result && result.sections.length > 0 && <EnrolledSectionsTable result={result} />}
+      {result.sections.length > 0 && <EnrolledSectionsTable result={result} />}
     </section>
   );
 }
@@ -470,13 +330,12 @@ function EnrolledCompletionPanel({
 /** US-ENRL-001: pick sections, watch the running total against the real limit, then submit. */
 export function EnrollmentPage() {
   const eligibility = useEligibility();
+  const currentTerm = useCurrentTerm();
   const data = eligibility.data;
-  const alreadyEnrolled = isAlreadyEnrolled(data);
-  const coursesEnabled = Boolean(
-    data?.isEligible && data.academicPeriod.isOpen && !alreadyEnrolled,
-  );
-  const courses = useAvailableCourses(data?.term, coursesEnabled);
-  const submit = useSubmitEnrollment();
+  const term = currentTerm.data ? termSelector(currentTerm.data) : undefined;
+  const coursesEnabled = Boolean(data?.isEligible && data.academicPeriod.isOpen);
+  const courses = useAvailableCourses(term, coursesEnabled);
+  const submit = useSubmitEnrollment(term);
 
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -501,20 +360,16 @@ export function EnrollmentPage() {
   }
 
   // Mutually exclusive and exhaustive once `data` loads, in the order the picker gives way:
-  // an existing enrollment first, then a closed period, then a blocking hold, then any other
-  // ineligibility, else the picker.
+  // a closed period first, then a blocking hold, then any other ineligibility, else the picker.
   const blockingHold = data?.holds.find((hold) => hold.isBlocking);
-  const showEnrolled = Boolean(data && alreadyEnrolled);
-  const showPeriodClosed = Boolean(data && !showEnrolled && !data.academicPeriod.isOpen);
-  const showHolds = Boolean(
-    data && !showEnrolled && !showPeriodClosed && !data.isEligible && blockingHold,
-  );
-  const showIneligible = Boolean(
-    data && !showEnrolled && !showPeriodClosed && !showHolds && !data.isEligible,
-  );
-  const showPicker = Boolean(
-    data && !showEnrolled && data.isEligible && data.academicPeriod.isOpen,
-  );
+  const showPeriodClosed = Boolean(data && !data.academicPeriod.isOpen);
+  const showHolds = Boolean(data && !showPeriodClosed && !data.isEligible && blockingHold);
+  const showIneligible = Boolean(data && !showPeriodClosed && !showHolds && !data.isEligible);
+  const showPicker = Boolean(data && data.isEligible && data.academicPeriod.isOpen);
+  // A refusal that names sections (a conflict, a full section) is repeated beside them.
+  const refusal = submit.isError
+    ? { sectionIds: refusalSectionIds(submit.error), message: refusalMessage(submit.error) }
+    : null;
 
   return (
     <DashboardLayout>
@@ -523,6 +378,9 @@ export function EnrollmentPage() {
       {eligibility.isError && <ErrorAlert error={eligibility.error} />}
       {courses.isError && (
         <ErrorAlert error={courses.error} onRetry={() => void courses.refetch()} />
+      )}
+      {currentTerm.isError && (
+        <ErrorAlert error={currentTerm.error} onRetry={() => void currentTerm.refetch()} />
       )}
 
       <div className="space-y-6 px-4 py-8 sm:px-8">
@@ -575,7 +433,9 @@ export function EnrollmentPage() {
                 <dt className="text-brand-muted text-xs font-semibold tracking-wide uppercase">
                   Next Enrollment Date
                 </dt>
-                <dd className="text-brand-ink mt-1 font-bold">{nextEnrollmentDate(data)}</dd>
+                <dd className="text-brand-ink mt-1 font-bold">
+                  {periodStartDate(data.academicPeriod)}
+                </dd>
               </div>
               <div>
                 <dt className="text-brand-muted text-xs font-semibold tracking-wide uppercase">
@@ -595,9 +455,6 @@ export function EnrollmentPage() {
               </div>
             </dl>
 
-            {showEnrolled && (
-              <EnrolledCompletionPanel data={data} result={data.currentEnrollment} />
-            )}
             {showPeriodClosed && <PeriodClosedPanel period={data.academicPeriod} />}
             {showHolds && <HoldsPanel holds={data.holds} />}
             {showIneligible && (
@@ -605,14 +462,22 @@ export function EnrollmentPage() {
                 <h2 className="text-brand-ink text-lg font-bold">
                   You are not eligible to enroll right now
                 </h2>
-                <p className="text-brand-muted mt-2 text-sm">
-                  Contact the registrar to find out why, then come back.
-                </p>
+                {data.reasons.length > 0 ? (
+                  <ul className="text-brand-muted mt-2 space-y-1 text-sm">
+                    {data.reasons.map((reason) => (
+                      <li key={reason.code}>{reason.message}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-brand-muted mt-2 text-sm">
+                    Contact the registrar to find out why, then come back.
+                  </p>
+                )}
               </div>
             )}
 
             {showPicker && submit.isSuccess && (
-              <EnrolledCompletionPanel data={data} result={submit.data} title="You're enrolled" />
+              <EnrolledCompletionPanel data={data} result={submit.data} term={currentTerm.data} />
             )}
 
             {showPicker && !submit.isSuccess && (
@@ -632,6 +497,7 @@ export function EnrollmentPage() {
                         sections={courses.data}
                         selectedIds={selectedIds}
                         onToggle={toggle}
+                        refusal={refusal}
                       />
                     </div>
                     <aside
@@ -651,22 +517,20 @@ export function EnrollmentPage() {
                           className="rounded-2xl border border-red-700/30 bg-red-50 p-4 text-sm text-red-900"
                         >
                           <p className="font-bold">We could not submit your enrollment.</p>
-                          <p className="mt-1">
-                            {refusalMessage(submit.error, data.summerSubjectCap)}
-                          </p>
+                          <p className="mt-1">{refusal?.message}</p>
                         </div>
                       )}
 
                       <button
                         type="button"
-                        disabled={selectedSections.length === 0 || submit.isPending}
+                        disabled={selectedSections.length === 0 || submit.isPending || !term}
                         onClick={() => setConfirmOpen(true)}
                         className="bg-brand-crimson hover:bg-brand-crimson-dark min-h-11 w-full rounded-xl px-5 text-sm font-semibold text-white disabled:opacity-60"
                       >
                         Review and Submit
                       </button>
 
-                      <OverloadPanel eligible={data.overloadEligible} />
+                      {term && <OverloadPanel eligible={data.overloadEligible} term={term} />}
                     </aside>
                   </div>
                 )}
