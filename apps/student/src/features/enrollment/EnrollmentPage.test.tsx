@@ -691,6 +691,50 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     );
   });
 
+  it("AC-ENRL-001.12: a student who already submitted this term sees the enrolled state, not the picker", async () => {
+    const api = openEnrollment({
+      [ELIGIBILITY_ROUTE]: {
+        status: 200,
+        body: eligibility({
+          currentEnrollment: {
+            enrollmentId: "enr-5",
+            status: "ENROLLED_PENDING",
+            totalUnits: "18.0",
+          },
+        }),
+      },
+    });
+
+    expect(await screen.findByRole("heading", { name: "You're enrolled" })).toBeInTheDocument();
+    expect(screen.getByText("Submitted, waiting to be made official")).toBeInTheDocument();
+    expect(screen.getByText("18 units")).toBeInTheDocument();
+    expect(screen.getByTestId("enrollment-status-value")).toHaveTextContent("Enrolled");
+    expect(
+      screen.getByRole("link", { name: "View your Certificate of Registration" }),
+    ).toHaveAttribute("href", "/enrollment/certificate");
+    expect(screen.queryByRole("checkbox")).not.toBeInTheDocument();
+    expect(api.called(COURSES_ROUTE)).toHaveLength(0);
+  });
+
+  it("AC-ENRL-001.12: an officially enrolled student (legacy lowercase status too) reads Officially enrolled", async () => {
+    openEnrollment({
+      [ELIGIBILITY_ROUTE]: {
+        status: 200,
+        body: eligibility({
+          academicPeriod: {
+            start: "2026-06-01T00:00:00Z",
+            end: "2026-06-30T00:00:00Z",
+            isOpen: false,
+          },
+          currentEnrollment: { enrollmentId: "enr-6", status: "enrolled", totalUnits: "19" },
+        }),
+      },
+    });
+
+    expect(await screen.findByText("Officially enrolled")).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Enrollment is closed" })).not.toBeInTheDocument();
+  });
+
   it("AC-ENRL-001.15: shows no subject limit for a summer student outside the capped groups", async () => {
     const user = userEvent.setup();
     openEnrollment({
