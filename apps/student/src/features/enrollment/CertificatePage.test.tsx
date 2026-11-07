@@ -8,38 +8,27 @@ import { expectNoA11yViolations } from "../../test/axe";
 import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
 import { renderApp } from "../../test/renderApp";
 
-const DASHBOARD_ROUTE = "GET /student/me/dashboard";
+const ELIGIBILITY_ROUTE = "GET /student/enrollment/eligibility";
 const COR_ROUTE = "GET /student/schedule/cor";
 const ISSUE_ROUTE = "POST /student/schedule/cor";
 const TERM_ID = "00000000-0000-0000-0000-000000000001";
 
-function dashboardBody() {
+function eligibilityBody() {
   return {
-    status: "success",
-    data: {
-      student: {
-        student_number: "2021-00123-MN-0",
-        name: "Juan Dela Cruz",
-        programme: null,
-        year_level: 1,
-        enrollment_status: "ENROLLED",
-        avatar_url: null,
-      },
-      current_term: {
-        id: TERM_ID,
-        academic_year: "2026-2027",
-        semester: "first",
-        is_current: true,
-      },
-      holds: [],
-      standing: { value: "GOOD", unit_reduction: 0 },
-      enrollment: {},
-      periods: [],
-      announcements: [],
-      events: [],
-      recent_activity: [],
-      empty_states: {},
-    },
+    isEligible: true,
+    term: "2026-2027-First Semester",
+    academicTermId: TERM_ID,
+    termType: "REGULAR",
+    prescribedLoad: "18",
+    approvedOverloadUnits: "0",
+    standingReduction: "0",
+    effectiveCeiling: "18",
+    academicStanding: "Good Standing",
+    overloadEligible: false,
+    summerSubjectCap: null,
+    holds: [],
+    academicPeriod: { start: "2026-06-01T00:00:00Z", end: "2026-06-30T00:00:00Z", isOpen: true },
+    reasons: [],
   };
 }
 
@@ -100,7 +89,7 @@ function openCertificate(routes: Parameters<typeof mockApi>[0] = {}) {
   signInDirectly();
   const api = mockApi({
     [ME_ROUTE]: { status: 200, body: me },
-    [DASHBOARD_ROUTE]: { status: 200, body: dashboardBody() },
+    [ELIGIBILITY_ROUTE]: { status: 200, body: eligibilityBody() },
     [COR_ROUTE]: { status: 200, body: certificate() },
     ...routes,
   });
@@ -167,7 +156,7 @@ describe("CertificatePage (US-ENRL-003)", () => {
 
     expect(await screen.findByText("Juan Dela Cruz")).toBeInTheDocument();
     expect(api.called(ISSUE_ROUTE)).toHaveLength(1);
-    expect(api.called(ISSUE_ROUTE)[0]?.body).toEqual({ term: TERM_ID });
+    expect(api.called(ISSUE_ROUTE)[0]?.body).toEqual({ academicTermId: TERM_ID });
   });
 
   it("AC-ENRL-003.9: the 'Get my certificate' button is disabled while sending", async () => {

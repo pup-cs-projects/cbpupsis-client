@@ -21,7 +21,7 @@ import {
   useDownloadCertificate,
   useIssueCertificate,
 } from "./useCertificate";
-import { useCurrentTerm } from "./useEnrollment";
+import { currentTermOf, useEligibility } from "./useEnrollment";
 import "./certificatePrint.css";
 
 const card = "border-brand-border/25 rounded-2xl border bg-white p-6 shadow-sm";
@@ -308,8 +308,9 @@ function CertificatePreview({ certificate }: { certificate: Certificate }) {
 
 /** US-ENRL-003: issue, preview, download, and print the Certificate of Registration. */
 export function CertificatePage() {
-  const currentTerm = useCurrentTerm();
-  const termId = currentTerm.data?.id;
+  // Eligibility names the current term; its academicTermId selects the certificate.
+  const currentTerm = useEligibility();
+  const termId = currentTermOf(currentTerm.data)?.id;
   const certificate = useCertificate(termId);
 
   function body() {
