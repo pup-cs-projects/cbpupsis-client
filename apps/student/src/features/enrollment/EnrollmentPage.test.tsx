@@ -619,6 +619,78 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 
+  it("AC-ENRL-002.1: a blocked section shows why and what unlocks it in its own row, with its waivers", async () => {
+    openEnrollment({
+      [COURSES_ROUTE]: {
+        status: 200,
+        body: [
+          section({
+            sectionId: "sec-9",
+            courseCode: "COMP 009",
+            prerequisitesSatisfied: false,
+            blockReason: "COMP 003: Inc; required range 1.00-3.00.",
+            blocks: [
+              {
+                rule: "ENROLL_PREREQUISITE_NOT_MET",
+                courseCode: "COMP 003",
+                blockingMark: "Inc",
+                requiredRange: "1.00-3.00",
+                details: {},
+              },
+            ],
+            waiverAvailable: true,
+          }),
+        ],
+      },
+      "GET /student/enrollment/waiver": { status: 200, body: [] },
+    });
+
+    const row = (await screen.findByRole("rowheader", { name: "COMP 009" })).closest(
+      "tr",
+    ) as HTMLElement;
+    expect(within(row).getByText("COMP 003: Inc; required range 1.00-3.00.")).toBeInTheDocument();
+    expect(
+      within(row).getByText("Pass COMP 003 with a mark from 1.00 to 3.00. Your mark: Inc."),
+    ).toBeInTheDocument();
+    expect(
+      await within(row).findByText("You have not filed a waiver for this course."),
+    ).toBeInTheDocument();
+  });
+
+  it("AC-ENRL-002.2: a prerequisite refusal at submit names the course and the mark needed", async () => {
+    const user = userEvent.setup();
+    openEnrollment({
+      [COURSES_ROUTE]: {
+        status: 200,
+        body: [
+          section({
+            blocks: [
+              {
+                rule: "ENROLL_PREREQUISITE_NOT_MET",
+                courseCode: "COMP 003",
+                blockingMark: "5.00",
+                requiredRange: "1.00-3.00",
+                details: {},
+              },
+            ],
+          }),
+        ],
+      },
+      "GET /student/enrollment/waiver": { status: 200, body: [] },
+      [SUBMIT_ROUTE]: {
+        status: 409,
+        body: { code: "ENROLL_PREREQUISITE_NOT_MET", details: { sectionId: "sec-1" } },
+      },
+    });
+
+    await pickFirstCourse(user);
+    await reviewAndConfirm(user);
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "You have not passed the prerequisite COMP 003: your mark is 5.00. You need 1.00 to 3.00.",
+    );
+  });
+
   it("AC-ENRL-001.15: shows no subject limit for a summer student outside the capped groups", async () => {
     const user = userEvent.setup();
     openEnrollment({

@@ -1,6 +1,7 @@
 import type { EnrollmentSection } from "@cbpupsis/shared/enrollment";
 
 import { formatTimeRange } from "../../lib/datetime";
+import { BlockedCourse } from "./BlockedCourse";
 import { WEEKDAYS } from "./enrollmentDisplay";
 
 const th = "px-4 py-3 text-left text-xs font-semibold tracking-wide whitespace-nowrap uppercase";
@@ -12,10 +13,18 @@ interface CourseTableProps {
   onToggle: (sectionId: string) => void;
   /** The last submit refusal, shown in the row of each section it names. */
   refusal?: { sectionIds: string[]; message: string } | null;
+  /** Called after a waiver is filed from a blocked row, so the list can reload. */
+  onWaiverFiled?: () => void;
 }
 
 /** The sections open to the student this term, with a checkbox to enlist each (AC-ENRL-001.9). */
-export function CourseTable({ sections, selectedIds, onToggle, refusal }: CourseTableProps) {
+export function CourseTable({
+  sections,
+  selectedIds,
+  onToggle,
+  refusal,
+  onWaiverFiled,
+}: CourseTableProps) {
   return (
     <div className="border-brand-border/25 overflow-hidden rounded-2xl border bg-white shadow-sm">
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region (WCAG 2.1.1) */}
@@ -103,9 +112,14 @@ export function CourseTable({ sections, selectedIds, onToggle, refusal }: Course
                         ? "Full"
                         : `${section.availableSlots} seat${section.availableSlots === 1 ? "" : "s"} left`}
                     </span>
-                    {section.blockReason && (
-                      <p className="text-brand-muted mt-1 text-xs">{section.blockReason}</p>
-                    )}
+                    {section.blockReason &&
+                      section.prerequisitesSatisfied &&
+                      section.blocks.length === 0 && (
+                        <p className="text-brand-muted mt-1 text-xs">{section.blockReason}</p>
+                      )}
+                    <div className="mt-2 min-w-[16rem]">
+                      <BlockedCourse section={section} onWaiverFiled={onWaiverFiled} />
+                    </div>
                     {refusal?.sectionIds.includes(section.sectionId) && (
                       <p className="mt-1 text-xs font-semibold text-red-800">{refusal.message}</p>
                     )}
