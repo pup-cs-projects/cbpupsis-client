@@ -1,5 +1,6 @@
 import { ApiError } from "@cbpupsis/shared/api";
 import { unmetItems } from "@cbpupsis/shared/enrollment";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { certificateApi as api, session } from "../../lib/auth";
 
@@ -60,4 +61,35 @@ export async function downloadCertificate(termId: string): Promise<void> {
   }
   // The API names its file "certificate.pdf" with no identifiers in it; keep that.
   saveBlob(blob, "certificate.pdf");
+}
+
+export const certificateKeys = {
+  all: ["certificate"] as const,
+  byTerm: (termId: string) => [...certificateKeys.all, termId] as const,
+};
+
+/** The issued certificate for `termId`, as data for the preview (AC-ENRL-003.1, .2). */
+export function useCertificate(termId: string | undefined) {
+  return useQuery({
+    queryKey: certificateKeys.byTerm(termId ?? ""),
+    queryFn: () => certificateApi.read(termId as string),
+    enabled: Boolean(termId),
+    // A refusal is the answer, not a blip: retrying it only delays the message.
+    retry: false,
+  });
+}
+
+/** Issues the certificate once, then reads it again so the preview shows it (AC-ENRL-003.9). */
+export function useIssueCertificate(termId: string | undefined) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => certificateApi.issue(termId as string),
+    onSuccess: () =>
+      queryClient.invalidateQueries({ queryKey: certificateKeys.byTerm(termId ?? "") }),
+  });
+}
+
+/** Saves the official PDF, with its busy state for the button (AC-ENRL-003.1). */
+export function useDownloadCertificate(termId: string | undefined) {
+  return useMutation({ mutationFn: () => downloadCertificate(termId as string) });
 }

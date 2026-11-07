@@ -1,6 +1,8 @@
 import { ApiError, errorMessage } from "@cbpupsis/shared/api";
 import { unmetItems } from "@cbpupsis/shared/enrollment";
 
+import { calendarDateInManila, formatEventDates } from "../../lib/datetime";
+
 /** What each COR_ENROLLMENT_NOT_FINAL `details.unmet` item means for the student. */
 const UNMET_LABEL: Record<string, string> = {
   HOLD: "You have a hold on your account. Clear it with the office that placed it.",
@@ -26,4 +28,29 @@ export function certificateErrorMessage(error: unknown): string {
       : "Your enrollment is not final yet.";
   }
   return errorMessage(error);
+}
+
+// Terms are stored either as an identifier ("first") or already as words ("First Semester").
+const SEMESTER_NAMES: Record<string, string> = {
+  first: "First Semester",
+  second: "Second Semester",
+  summer: "Summer Term",
+};
+
+export function semesterName(semester: string): string {
+  return SEMESTER_NAMES[semester.toLowerCase()] ?? semester;
+}
+
+/** "2026-2027, First Semester" */
+export function termName(term: { year: string; semester: string }): string {
+  return `${term.year}, ${semesterName(term.semester)}`;
+}
+
+/** The issue date, in Manila, in words. */
+export function issuedOn(iso: string): string {
+  return formatEventDates(calendarDateInManila(iso));
+}
+
+export function certificateStatusLabel(status: "CURRENT" | "SUPERSEDED"): string {
+  return status === "CURRENT" ? "Current" : "Replaced by a newer certificate";
 }
