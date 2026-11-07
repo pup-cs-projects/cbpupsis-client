@@ -12,6 +12,14 @@ export interface EnrollmentHold {
   isBlocking: boolean;
 }
 
+/** The student's enrollment this term, once submitted (eligibility `currentEnrollment`). */
+export interface CurrentEnrollment {
+  enrollmentId: string;
+  /** "ENROLLED_PENDING", "OFFICIALLY_ENROLLED", or a legacy lowercase "enrolled". */
+  status: string;
+  totalUnits: number;
+}
+
 /** Why the student may not enroll, in the API's own words (one per unmet condition). */
 export interface EligibilityReason {
   code: string;
@@ -56,6 +64,8 @@ export interface EnrollmentEligibility {
   holds: EnrollmentHold[];
   academicPeriod: EnrollmentPeriod;
   reasons: EligibilityReason[];
+  /** Null when nothing is submitted this term, or from an API that does not send it yet. */
+  currentEnrollment: CurrentEnrollment | null;
 }
 
 export interface EnrollmentMeeting {
@@ -221,6 +231,19 @@ function parseEligibility(value: unknown): EnrollmentEligibility {
     holds: Array.isArray(e.holds) ? e.holds.map(parseHold) : [],
     academicPeriod: parsePeriod(e.academicPeriod),
     reasons: Array.isArray(e.reasons) ? e.reasons.map(parseReason) : [],
+    currentEnrollment:
+      e.currentEnrollment === null || e.currentEnrollment === undefined
+        ? null
+        : parseCurrentEnrollment(e.currentEnrollment),
+  };
+}
+
+function parseCurrentEnrollment(value: unknown): CurrentEnrollment {
+  const c = parse.record(value);
+  return {
+    enrollmentId: parse.string(c.enrollmentId),
+    status: parse.string(c.status),
+    totalUnits: decimal(c.totalUnits),
   };
 }
 
