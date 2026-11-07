@@ -10,6 +10,7 @@ export type {
   WaiverPage,
   WaiverRead,
 } from "./admin";
+export * from "./addDrop";
 export {
   createStudentEnrollmentApi,
   type EligibilityReason,
