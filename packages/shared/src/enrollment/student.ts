@@ -1,5 +1,7 @@
 import type { ApiClient } from "../api/client";
+import { isRecord } from "../api/client";
 import * as parse from "../api/parse";
+import type { AcademicBlock } from "./waiver";
 
 export type EnrollmentTermType = "REGULAR" | "SUMMER";
 
@@ -79,6 +81,10 @@ export interface EnrollmentSection {
   blockReason: string | null;
   /** Ids of sections already selected or enrolled that overlap this one's schedule. */
   conflictsWith: string[];
+  /** Each academic rule that blocks this section (prerequisite, third year gate, PE). */
+  blocks: AcademicBlock[];
+  /** Whether the student may request a prerequisite waiver for this section. */
+  waiverAvailable: boolean;
 }
 
 export interface EnrolledSection {
@@ -250,6 +256,20 @@ function parseSection(value: unknown): EnrollmentSection {
       s.prerequisitesSatisfied === undefined ? true : parse.boolean(s.prerequisitesSatisfied),
     blockReason: parse.optionalString(s.blockReason),
     conflictsWith: Array.isArray(s.conflictsWith) ? s.conflictsWith.map(parse.string) : [],
+    blocks: Array.isArray(s.blocks) ? s.blocks.map(parseBlock) : [],
+    waiverAvailable: s.waiverAvailable === undefined ? false : parse.boolean(s.waiverAvailable),
+  };
+}
+
+/** One AcademicBlock of AvailableCourseRead.blocks. */
+function parseBlock(value: unknown): AcademicBlock {
+  const b = parse.record(value);
+  return {
+    rule: parse.string(b.rule),
+    courseCode: parse.string(b.courseCode),
+    blockingMark: parse.optionalString(b.blockingMark),
+    requiredRange: parse.optionalString(b.requiredRange),
+    details: isRecord(b.details) ? b.details : {},
   };
 }
 

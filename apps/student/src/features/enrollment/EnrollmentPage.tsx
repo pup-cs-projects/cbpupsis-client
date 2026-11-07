@@ -6,6 +6,7 @@ import type {
 } from "@cbpupsis/shared/enrollment";
 import { ErrorAlert } from "@cbpupsis/ui";
 import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import "@cbpupsis/account/styles.css";
@@ -21,14 +22,15 @@ import {
   periodDateRange,
   periodDayCount,
   periodStartDate,
-  refusalMessage,
   refusalSectionIds,
   termTypeLabel,
 } from "./enrollmentDisplay";
+import { refusalMessage } from "./blocking";
 import { LimitPanel } from "./LimitPanel";
 import { OverloadPanel } from "./OverloadPanel";
 import { downloadCertificate } from "./useCertificate";
 import {
+  enrollmentKeys,
   useAvailableCourses,
   currentTermOf,
   type CurrentTerm,
@@ -336,6 +338,7 @@ export function EnrollmentPage() {
   const coursesEnabled = Boolean(data?.isEligible && data.academicPeriod.isOpen);
   const courses = useAvailableCourses(term, coursesEnabled);
   const submit = useSubmitEnrollment(term);
+  const queryClient = useQueryClient();
 
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -367,8 +370,10 @@ export function EnrollmentPage() {
   const showIneligible = Boolean(data && !showPeriodClosed && !showHolds && !data.isEligible);
   const showPicker = Boolean(data && data.isEligible && data.academicPeriod.isOpen);
   // A refusal that names sections (a conflict, a full section) is repeated beside them.
+  const refusedIds = submit.isError ? refusalSectionIds(submit.error) : [];
+  const refusedSection = courses.data?.find((section) => refusedIds.includes(section.sectionId));
   const refusal = submit.isError
-    ? { sectionIds: refusalSectionIds(submit.error), message: refusalMessage(submit.error) }
+    ? { sectionIds: refusedIds, message: refusalMessage(submit.error, refusedSection?.blocks) }
     : null;
 
   return (
@@ -495,6 +500,11 @@ export function EnrollmentPage() {
                         selectedIds={selectedIds}
                         onToggle={toggle}
                         refusal={refusal}
+                        onWaiverFiled={() =>
+                          void queryClient.invalidateQueries({
+                            queryKey: enrollmentKeys.availableCourses(),
+                          })
+                        }
                       />
                     </div>
                     <aside

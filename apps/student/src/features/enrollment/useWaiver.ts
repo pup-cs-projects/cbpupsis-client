@@ -1,21 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { createApiClient } from "@cbpupsis/shared/api";
-import {
-  createStudentWaiverApi,
-  type StudentWaiverRead,
-  type WaiverFile,
-  type WaiverFiled,
-} from "@cbpupsis/shared/enrollment";
+import type { StudentWaiverRead, WaiverFile, WaiverFiled } from "@cbpupsis/shared/enrollment";
 
-import { session } from "../../lib/auth";
-
-// Its own client on the same base URL as lib/auth, so this story does not touch that shared
-// file while the enrollment page (#41) and add/drop (#44) also extend it. The client keeps no
-// state; tokens come from the portal's one session.
-const api = createStudentWaiverApi(
-  createApiClient(import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1"),
-);
+import { session, studentWaiverApi as api } from "../../lib/auth";
 
 /** The waiver calls, through the portal's session. */
 export const waiverApi = {

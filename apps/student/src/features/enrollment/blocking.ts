@@ -1,6 +1,8 @@
 import { ApiError, errorMessage } from "@cbpupsis/shared/api";
 import type { AcademicBlock, WaiverState } from "@cbpupsis/shared/enrollment";
 
+import { refusalMessage as enrollmentRefusal } from "./enrollmentDisplay";
+
 /** "1.00-3.00" as the API sends it, read aloud as "1.00 to 3.00". */
 function range(value: string | null | undefined): string {
   return (value ?? "1.00-3.00").replace("-", " to ");
@@ -62,7 +64,8 @@ export function refusalMessage(error: unknown, blocks: AcademicBlock[] = []): st
     case "ENROLL_WAIVER_PENDING":
       return WAIVER_PENDING;
     default:
-      return errorMessage(error);
+      // The unit ceiling, schedule, hold, period and seat refusals (AC-ENRL-001).
+      return enrollmentRefusal(error);
   }
 }
 

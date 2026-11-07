@@ -6,6 +6,7 @@ import {
   createStudentAddDropApi,
   createStudentCertificateApi,
   createStudentEnrollmentApi,
+  createStudentWaiverApi,
 } from "@cbpupsis/shared/enrollment";
 import { createStudentGradesApi } from "@cbpupsis/shared/grades";
 import { createStudentProfileApi } from "@cbpupsis/shared/profile";
@@ -28,6 +29,9 @@ export const gradesApi = createStudentGradesApi(apiClient);
 
 /** The student's enrollment eligibility, available sections, and submission (US-ENRL-001). */
 export const enrollmentApi = createStudentEnrollmentApi(apiClient);
+
+/** The student's prerequisite waiver requests (US-ENRL-002). */
+export const studentWaiverApi = createStudentWaiverApi(apiClient);
 
 /** The student's Certificate of Registration: read the issued one, or issue it (issue #43). */
 export const certificateApi = createStudentCertificateApi(apiClient);
