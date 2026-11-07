@@ -1,5 +1,4 @@
 import { ApiError } from "@cbpupsis/shared/api";
-import type { DashboardTerm } from "@cbpupsis/shared/dashboard";
 import type {
   EnrollmentEligibility,
   EnrollmentResult,
@@ -8,11 +7,10 @@ import type {
 } from "@cbpupsis/shared/enrollment";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { enrollmentApi as api, session, studentDashboardApi } from "../../lib/auth";
+import { enrollmentApi as api, session } from "../../lib/auth";
 
 export const enrollmentKeys = {
   all: ["enrollment"] as const,
-  currentTerm: () => [...enrollmentKeys.all, "current-term"] as const,
   eligibility: () => [...enrollmentKeys.all, "eligibility"] as const,
   availableCourses: () => [...enrollmentKeys.all, "available-courses"] as const,
 };
@@ -20,46 +18,40 @@ export const enrollmentKeys = {
 // Each call goes through enrollmentApi's property at call time, so a test can stand in for it.
 
 export const enrollmentApi = {
-  /** The eligibility response names no term, so the current one comes from the dashboard. */
-  async currentTerm(): Promise<DashboardTerm | null> {
-    const dashboard = await session.authorized((token) => studentDashboardApi.me(token));
-    return dashboard.currentTerm;
-  },
-
   async eligibility(): Promise<EnrollmentEligibility> {
     return session.authorized((token) => api.eligibility(token));
   },
 
-  async availableCourses(term: string): Promise<EnrollmentSection[]> {
-    return session.authorized((token) => api.availableCourses(token, term));
+  async availableCourses(academicTermId: string): Promise<EnrollmentSection[]> {
+    return session.authorized((token) => api.availableCourses(token, academicTermId));
   },
 
-  async submit(term: string, sectionIds: string[]): Promise<EnrollmentResult> {
-    return session.authorized((token) => api.submit(token, term, sectionIds));
+  async submit(academicTermId: string, sectionIds: string[]): Promise<EnrollmentResult> {
+    return session.authorized((token) => api.submit(token, academicTermId, sectionIds));
   },
 
   async requestOverload(
-    term: string,
+    academicTermId: string,
     requestedUnits: number,
     justification: string,
   ): Promise<OverloadRequestResult> {
     return session.authorized((token) =>
-      api.requestOverload(token, term, requestedUnits, justification),
+      api.requestOverload(token, academicTermId, requestedUnits, justification),
     );
   },
 };
 
-/** The API's term selector, `<academic year>-<semester>` exactly as stored. */
-export function termSelector(term: DashboardTerm): string {
-  return `${term.academicYear}-${term.semester}`;
+/** The current term from eligibility: its UUID for every call, its name for display. */
+export interface CurrentTerm {
+  id: string;
+  /** "2026-2027-First Semester", or null when the API sends no name. */
+  name: string | null;
 }
 
-/** The current term: its UUID (certificate calls) and its selector (enrollment calls). */
-export function useCurrentTerm() {
-  return useQuery({
-    queryKey: enrollmentKeys.currentTerm(),
-    queryFn: enrollmentApi.currentTerm,
-  });
+export function currentTermOf(eligibility: EnrollmentEligibility | undefined): CurrentTerm | null {
+  return eligibility?.academicTermId
+    ? { id: eligibility.academicTermId, name: eligibility.term }
+    : null;
 }
 
 /** Whether the student may enroll, and their unit ceiling (AC-ENRL-001.1, .6, .7). */

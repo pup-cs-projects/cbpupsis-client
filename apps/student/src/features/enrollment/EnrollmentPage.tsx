@@ -1,4 +1,3 @@
-import type { DashboardTerm } from "@cbpupsis/shared/dashboard";
 import type {
   EnrollmentEligibility,
   EnrollmentHold,
@@ -29,9 +28,9 @@ import { LimitPanel } from "./LimitPanel";
 import { OverloadPanel } from "./OverloadPanel";
 import { downloadCertificate } from "./useCertificate";
 import {
-  termSelector,
   useAvailableCourses,
-  useCurrentTerm,
+  currentTermOf,
+  type CurrentTerm,
   useEligibility,
   useSubmitEnrollment,
 } from "./useEnrollment";
@@ -90,18 +89,11 @@ function PeriodClosedPanel({ period }: { period: EnrollmentPeriod }) {
   );
 }
 
-// Terms are stored either as an identifier ("first") or already as words ("First Semester").
-const SEMESTER_NAMES: Record<string, string> = {
-  first: "First Semester",
-  second: "Second Semester",
-  summer: "Summer Term",
-};
-
-/** "(S.Y. 2026-2027, First Semester)", from the current term the dashboard names. */
-function activeTermLabel(term: DashboardTerm | null | undefined): string | null {
-  if (!term) return null;
-  const semester = SEMESTER_NAMES[term.semester.toLowerCase()] ?? term.semester;
-  return `(S.Y. ${term.academicYear}, ${semester})`;
+/** "(S.Y. 2026-2027, First Semester)", from the term name eligibility sends. */
+function activeTermLabel(term: CurrentTerm | null): string | null {
+  if (!term?.name) return null;
+  const at = term.name.lastIndexOf("-");
+  return at > 0 ? `(S.Y. ${term.name.slice(0, at)}, ${term.name.slice(at + 1)})` : `(${term.name})`;
 }
 
 function StatusBadge({ data }: { data: EnrollmentEligibility }) {
@@ -288,7 +280,7 @@ function EnrolledCompletionPanel({
 }: {
   data: EnrollmentEligibility;
   result: EnrollmentResult;
-  term: DashboardTerm | null | undefined;
+  term: CurrentTerm | null;
 }) {
   return (
     <section
@@ -330,9 +322,9 @@ function EnrolledCompletionPanel({
 /** US-ENRL-001: pick sections, watch the running total against the real limit, then submit. */
 export function EnrollmentPage() {
   const eligibility = useEligibility();
-  const currentTerm = useCurrentTerm();
   const data = eligibility.data;
-  const term = currentTerm.data ? termSelector(currentTerm.data) : undefined;
+  const currentTerm = currentTermOf(data);
+  const term = currentTerm?.id;
   const coursesEnabled = Boolean(data?.isEligible && data.academicPeriod.isOpen);
   const courses = useAvailableCourses(term, coursesEnabled);
   const submit = useSubmitEnrollment(term);
@@ -378,9 +370,6 @@ export function EnrollmentPage() {
       {eligibility.isError && <ErrorAlert error={eligibility.error} />}
       {courses.isError && (
         <ErrorAlert error={courses.error} onRetry={() => void courses.refetch()} />
-      )}
-      {currentTerm.isError && (
-        <ErrorAlert error={currentTerm.error} onRetry={() => void currentTerm.refetch()} />
       )}
 
       <div className="space-y-6 px-4 py-8 sm:px-8">
@@ -477,7 +466,7 @@ export function EnrollmentPage() {
             )}
 
             {showPicker && submit.isSuccess && (
-              <EnrolledCompletionPanel data={data} result={submit.data} term={currentTerm.data} />
+              <EnrolledCompletionPanel data={data} result={submit.data} term={currentTerm} />
             )}
 
             {showPicker && !submit.isSuccess && (
@@ -530,7 +519,13 @@ export function EnrollmentPage() {
                         Review and Submit
                       </button>
 
-                      {term && <OverloadPanel eligible={data.overloadEligible} term={term} />}
+                      {term && (
+                        <OverloadPanel
+                          eligible={data.overloadEligible}
+                          pendingUnits={data.pendingOverloadUnits}
+                          term={term}
+                        />
+                      )}
                     </aside>
                   </div>
                 )}

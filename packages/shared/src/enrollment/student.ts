@@ -30,10 +30,19 @@ export interface EnrollmentPeriod {
  */
 export interface EnrollmentEligibility {
   isEligible: boolean;
+  /** The current term's name, e.g. "2026-2027-First Semester". For display only. */
+  term: string | null;
+  /**
+   * The current term's UUID, sent as `academicTermId` to every enrollment and certificate call
+   * (API #221). Null from an API that does not send it yet.
+   */
+  academicTermId: string | null;
   termType: EnrollmentTermType;
   /** From the curriculum term template. Never a fixed number client-side. */
   prescribedLoad: number;
   approvedOverloadUnits: number;
+  /** Units in overload requests waiting for the Dean; not in effectiveCeiling until approved. */
+  pendingOverloadUnits: number;
   /** 0 for Good Standing/Warning Level 1, 3 for Warning Level 2, 6 for Probation. */
   standingReduction: number;
   /** prescribedLoad + approvedOverloadUnits - standingReduction. The one ceiling to show. */
@@ -98,8 +107,7 @@ export interface OverloadRequestResult {
  * write every request and response in camelCase, unlike the snake_case of older domains), so
  * this is the rare binding that reads the body almost as it arrives.
  *
- * `term` is the API's string selector, `<academic year>-<semester>` as stored (for example
- * "2026-2027-first"): the current term's `academic_year` and `semester` from the dashboard.
+ * Every call names the term by `academicTermId`, the UUID eligibility returns (API #221).
  */
 export function createStudentEnrollmentApi(client: ApiClient) {
   return {
@@ -112,8 +120,11 @@ export function createStudentEnrollmentApi(client: ApiClient) {
     },
 
     /** The sections open to the student this term. An empty list, never a 404. */
-    async availableCourses(accessToken: string, term: string): Promise<EnrollmentSection[]> {
-      const query = new URLSearchParams({ term });
+    async availableCourses(
+      accessToken: string,
+      academicTermId: string,
+    ): Promise<EnrollmentSection[]> {
+      const query = new URLSearchParams({ academicTermId });
       const body = await client.request(`/student/enrollment/available-courses?${query}`, {
         method: "GET",
         accessToken,
@@ -123,13 +134,13 @@ export function createStudentEnrollmentApi(client: ApiClient) {
 
     async submit(
       accessToken: string,
-      term: string,
+      academicTermId: string,
       sectionIds: string[],
     ): Promise<EnrollmentResult> {
       const body = await client.request("/student/enrollment/submit", {
         method: "POST",
         accessToken,
-        body: { term, sectionIds, confirmation: true },
+        body: { academicTermId, sectionIds, confirmation: true },
       });
       return parseResult(body);
     },
@@ -137,14 +148,14 @@ export function createStudentEnrollmentApi(client: ApiClient) {
     /** Files an overload request for up to 9 extra units (issue #170). Answers 202. */
     async requestOverload(
       accessToken: string,
-      term: string,
+      academicTermId: string,
       requestedUnits: number,
       justification: string,
     ): Promise<OverloadRequestResult> {
       const body = await client.request("/student/enrollment/overload", {
         method: "POST",
         accessToken,
-        body: { term, requestedUnits, justification },
+        body: { academicTermId, requestedUnits, justification },
       });
       const r = parse.record(body);
       return {
@@ -186,9 +197,13 @@ function parseEligibility(value: unknown): EnrollmentEligibility {
   const e = parse.record(value);
   return {
     isEligible: parse.boolean(e.isEligible),
+    term: parse.optionalString(e.term),
+    academicTermId: parse.optionalString(e.academicTermId),
     termType: parse.oneOf(e.termType, ["REGULAR", "SUMMER"] as const),
     prescribedLoad: decimal(e.prescribedLoad),
     approvedOverloadUnits: decimal(e.approvedOverloadUnits),
+    pendingOverloadUnits:
+      e.pendingOverloadUnits === undefined ? 0 : decimal(e.pendingOverloadUnits),
     standingReduction: decimal(e.standingReduction),
     effectiveCeiling: decimal(e.effectiveCeiling),
     academicStanding: parse.optionalString(e.academicStanding),
