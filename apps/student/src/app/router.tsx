@@ -1,11 +1,14 @@
 import { createPortalRouter } from "@cbpupsis/account";
-import { createRoute, redirect, type RouterHistory } from "@tanstack/react-router";
+import { createRoute, redirect, useParams, type RouterHistory } from "@tanstack/react-router";
 
 import { HomePage } from "../features/dashboard/HomePage";
+import { CertificatePage } from "../features/enrollment/CertificatePage";
+import { EnrollmentPage } from "../features/enrollment/EnrollmentPage";
 import { GradesPage } from "../features/grades/GradesPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
 import { SchedulePage } from "../features/schedule/SchedulePage";
 import { SignInPage } from "../features/sign-in/SignInPage";
+import { VerifyCertificatePage } from "../features/verify/VerifyCertificatePage";
 import { account } from "../lib/auth";
 
 /** Tests pass a memory history; the app uses the browser's. */
@@ -39,6 +42,31 @@ export function createAppRouter(history?: RouterHistory) {
           if (!account.session.isSignedIn()) throw redirect({ to: "/" });
         },
         component: GradesPage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/enrollment",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: EnrollmentPage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/enrollment/certificate",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: CertificatePage,
+      }),
+      // Public: anyone checks a printed certificate by its token, signed in or not.
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/verify/$token",
+        component: function VerifyRoute() {
+          const { token } = useParams({ strict: false });
+          return <VerifyCertificatePage token={token ?? ""} />;
+        },
       }),
     ],
   });
