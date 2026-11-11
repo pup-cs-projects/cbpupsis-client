@@ -87,7 +87,7 @@ export function GradesPage() {
 
       <div data-grades-page className="space-y-6 px-4 py-8 sm:px-8">
         <nav aria-label="Breadcrumb" className="print:hidden">
-          <ol className="text-brand-muted flex flex-wrap items-center gap-1.5 text-sm">
+          <ol className="mb-2 flex items-center gap-1.5 text-xs text-neutral-500">
             <li>Academics</li>
             <li aria-hidden="true">&gt;</li>
             <li aria-current="page" className="text-brand-ink font-semibold">
@@ -100,10 +100,10 @@ export function GradesPage() {
           <p className="hidden text-sm font-semibold print:block">
             Polytechnic University of the Philippines: Student Copy of Grades (unofficial)
           </p>
-          <h1 className="text-brand-maroon text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="text-brand-crimson text-3xl font-bold tracking-tight sm:text-4xl">
             Academic Transcript
           </h1>
-          <p className="text-brand-muted mt-2 max-w-3xl text-sm leading-relaxed print:hidden">
+          <p className="mt-1 mb-6 max-w-3xl text-sm leading-relaxed text-neutral-600 print:hidden">
             View your comprehensive academic performance, semester-wise breakdowns, and cumulative
             standing within the University.
           </p>

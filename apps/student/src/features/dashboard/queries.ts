@@ -22,12 +22,16 @@ export function useDashboard() {
   });
 }
 
-/** Just the student's name, from the same cached dashboard (no second request). */
-export function useStudentName() {
+/** The header's account summary — name, student number, and picture — from the same cached dashboard. */
+export function useStudentIdentity() {
   return useQuery({
     queryKey: dashboardKeys.me(),
     queryFn: () => dashboardApi.get(),
     staleTime: FRESH_FOR_MS,
-    select: (dashboard) => dashboard.fullName,
+    select: (dashboard) => ({
+      fullName: dashboard.fullName,
+      studentNumber: dashboard.studentNumber,
+      avatarUrl: dashboard.avatarUrl,
+    }),
   });
 }
