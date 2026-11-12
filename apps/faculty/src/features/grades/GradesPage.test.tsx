@@ -178,6 +178,22 @@ describe("Faculty grade grid (US-FAC-001)", () => {
       expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
     },
   );
+  it("shows the authoritative final marks after GRADES_LOCKED instead of retaining unsaved edits", async () => {
+    const source = createGradingFixtureSource();
+    const { user } = await openPage(source);
+    vi.spyOn(source, "sheet").mockResolvedValueOnce({
+      ...gradingSheet,
+      state: "FINAL",
+      version: 9,
+      rows: gradingSheet.rows.map((row) => ({ ...row, mark: "1.50" })),
+    });
+    vi.spyOn(source, "saveDraft").mockRejectedValueOnce(new ApiError(409, "GRADES_LOCKED"));
+    const field = screen.getByRole("combobox", { name: /Grade for Luis Reyes/ });
+    await user.type(field, "2.00");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await waitFor(() => expect(field).toHaveValue("1.50"));
+    expect(field).toHaveAttribute("readonly");
+  });
   it("asks before leaving unsaved grades and keeps the draft when cancelled", async () => {
     const { user } = await openPage();
     const field = screen.getByRole("combobox", { name: /Grade for Luis Reyes/ });
