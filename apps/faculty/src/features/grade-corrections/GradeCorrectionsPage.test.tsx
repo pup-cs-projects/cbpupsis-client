@@ -209,3 +209,25 @@ it("has no axe violations", async () => {
     (await axe.run(container, { rules: { "color-contrast": { enabled: false } } })).violations,
   ).toEqual([]);
 });
+
+it("retries a failed section catalog without remounting the filing form", async () => {
+  const source = sourceFor();
+  vi.mocked(source.sections).mockRejectedValueOnce(new ApiError(0, "NETWORK_ERROR"));
+  open(source);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "New correction" }));
+  await user.click(await screen.findByRole("button", { name: "Retry eligible records" }));
+  await waitFor(() => expect(source.sections).toHaveBeenCalledTimes(2));
+  await user.selectOptions(screen.getByLabelText(/^Section/), "section-1");
+  await waitFor(() => expect(source.students).toHaveBeenCalledWith("section-1"));
+});
+it("announces an empty section catalog rather than leaving an unusable form unexplained", async () => {
+  const source = sourceFor();
+  vi.mocked(source.sections).mockResolvedValue([]);
+  open(source);
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "New correction" }));
+  expect(
+    await screen.findByText("No assigned sections are available for correction."),
+  ).toBeInTheDocument();
+});

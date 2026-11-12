@@ -490,30 +490,43 @@ function FilingForm({
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [closed, setClosed] = useState(false);
+  const [catalogAttempt, setCatalogAttempt] = useState(0);
+  const [catalogProblem, setCatalogProblem] = useState<"sections" | "students" | null>(null);
   const running = useRef(false);
   const request = useRef(0);
   const alive = useRef(true);
   useEffect(() => {
     const controller = new AbortController();
+    let active = true;
     alive.current = true;
-    void source
-      .sections(controller.signal)
+    void Promise.resolve()
+      .then(() => {
+        if (!active) return;
+        setLoading(true);
+        setCatalogProblem(null);
+        setError(null);
+        return source.sections(controller.signal);
+      })
       .then(
         (rows) => {
-          if (alive.current) setSections(rows);
+          if (active && alive.current && rows) setSections(rows);
         },
         (failure) => {
-          if (alive.current) setError(correctionMessage(failure));
+          if (active && alive.current) {
+            setError(correctionMessage(failure));
+            setCatalogProblem("sections");
+          }
         },
       )
       .finally(() => {
-        if (alive.current) setLoading(false);
+        if (active && alive.current) setLoading(false);
       });
     return () => {
+      active = false;
       alive.current = false;
       controller.abort();
     };
-  }, [source]);
+  }, [source, catalogAttempt]);
   async function chooseSection(value: string) {
     const current = ++request.current;
     setSection(value);
@@ -521,13 +534,24 @@ function FilingForm({
     setStudents([]);
     setClosed(false);
     setError(null);
-    if (!value) return;
+    setCatalogProblem(null);
+    setFields({});
+    setMark("");
+    setReason("");
+    setFile(null);
+    if (!value) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const rows = await source.students(value);
       if (alive.current && request.current === current) setStudents(rows);
     } catch (failure) {
-      if (alive.current && request.current === current) setError(correctionMessage(failure));
+      if (alive.current && request.current === current) {
+        setError(correctionMessage(failure));
+        setCatalogProblem("students");
+      }
     } finally {
       if (alive.current && request.current === current) setLoading(false);
     }
@@ -546,7 +570,12 @@ function FilingForm({
     else if (!["application/pdf", "image/jpeg", "image/png"].includes(file.type))
       errors.file = "Upload a PDF, JPEG, or PNG grading sheet.";
     setFields(errors);
-    if (Object.keys(errors).length || !file || !proposed) return;
+    if (Object.keys(errors).length || !file || !proposed) {
+      event.currentTarget
+        .querySelector<HTMLElement>('[name="' + Object.keys(errors)[0] + '"]')
+        ?.focus();
+      return;
+    }
     running.current = true;
     setBusy(true);
     setError(null);
@@ -593,10 +622,14 @@ function FilingForm({
           commitment.
         </p>
         {loading && <p role="status">Loading eligible records…</p>}
+        {!loading && !catalogProblem && !sections.length && (
+          <p>No assigned sections are available for correction.</p>
+        )}
         <label className="block text-sm font-medium">
           Section
           <select
             data-first
+            name="section"
             className={field}
             value={section}
             disabled={busy || loading}
@@ -617,6 +650,7 @@ function FilingForm({
           Student
           <select
             className={field}
+            name="student"
             value={student}
             disabled={busy || loading || !section}
             onChange={(e) => setStudent(e.target.value)}
@@ -639,6 +673,7 @@ function FilingForm({
           New mark
           <input
             className={field}
+            name="mark"
             value={mark}
             disabled={busy}
             onChange={(e) => setMark(e.target.value)}
@@ -651,6 +686,7 @@ function FilingForm({
           Reason
           <textarea
             className={field + " min-h-24"}
+            name="reason"
             value={reason}
             disabled={busy}
             onChange={(e) => setReason(e.target.value)}
@@ -662,6 +698,8 @@ function FilingForm({
         <label className="block text-sm font-medium">
           Grading sheet
           <input
+            key={section}
+            name="file"
             type="file"
             className={field}
             accept="application/pdf,image/jpeg,image/png"
@@ -682,6 +720,20 @@ function FilingForm({
           <p role="alert" className="text-brand-maroon text-sm">
             {error}
           </p>
+        )}
+        {catalogProblem && (
+          <button
+            type="button"
+            className={button}
+            disabled={loading || busy}
+            onClick={() =>
+              catalogProblem === "sections"
+                ? setCatalogAttempt((value) => value + 1)
+                : void chooseSection(section)
+            }
+          >
+            Retry eligible records
+          </button>
         )}
         <div className="flex flex-wrap justify-end gap-3">
           <button type="button" className={button} disabled={busy} onClick={onClose}>
