@@ -12,9 +12,13 @@ import { createStudentGradesApi } from "@cbpupsis/shared/grades";
 import { createStudentProfileApi } from "@cbpupsis/shared/profile";
 import { createStudentScheduleApi } from "@cbpupsis/shared/schedule";
 
-const apiClient = createApiClient(
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1",
-);
+import { readStudentApiConfig } from "./apiConfig";
+
+const apiConfig = readStudentApiConfig({
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  VITE_STUDENT_SCHEDULE_API_PATH: import.meta.env.VITE_STUDENT_SCHEDULE_API_PATH,
+});
+const apiClient = createApiClient(apiConfig.baseUrl);
 
 export const authApi = createStudentAuthApi(apiClient);
 
@@ -40,7 +44,7 @@ export const certificateApi = createStudentCertificateApi(apiClient);
 export const profileApi = createStudentProfileApi(apiClient);
 
 /** The student's course schedule and its PDF and .ics exports (US-STU-003). */
-export const scheduleApi = createStudentScheduleApi(apiClient);
+export const scheduleApi = createStudentScheduleApi(apiClient, apiConfig.schedulePath);
 
 /** The student's add and drop requests and the sections they may add (US-ENRL-004). */
 export const addDropApi = createStudentAddDropApi(apiClient);

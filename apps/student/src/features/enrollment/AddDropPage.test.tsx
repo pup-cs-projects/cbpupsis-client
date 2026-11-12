@@ -8,7 +8,7 @@ import { expectNoA11yViolations } from "../../test/axe";
 import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
 import { renderApp } from "../../test/renderApp";
 
-const SCHEDULE_ROUTE = "GET /students/me/schedule";
+const SCHEDULE_ROUTE = "GET /student/schedule";
 const AVAILABLE_ROUTE = "GET /student/enrollment/available-courses";
 const LIST_ROUTE = "GET /student/enrollment/add-drop";
 const CREATE_ROUTE = "POST /student/enrollment/add-drop";

@@ -7,6 +7,7 @@ import { CertificatePage } from "../features/enrollment/CertificatePage";
 import { EnrollmentPage } from "../features/enrollment/EnrollmentPage";
 import { GradesPage } from "../features/grades/GradesPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
+import { GoogleCalendarCallbackPage } from "../features/schedule/GoogleCalendarCallbackPage";
 import { SchedulePage } from "../features/schedule/SchedulePage";
 import { SignInPage } from "../features/sign-in/SignInPage";
 import { VerifyCertificatePage } from "../features/verify/VerifyCertificatePage";
@@ -20,6 +21,12 @@ export function createAppRouter(history?: RouterHistory) {
     dashboard: HomePage,
     history,
     extraRoutes: (rootRoute) => [
+      // Public handoff page: it scrubs OAuth parameters and explains an expired SIS session.
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/calendar/google/callback",
+        component: GoogleCalendarCallbackPage,
+      }),
       createRoute({
         getParentRoute: () => rootRoute,
         path: "/profile",

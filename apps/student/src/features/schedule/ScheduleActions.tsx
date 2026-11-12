@@ -88,6 +88,14 @@ interface ScheduleActionsProps {
   onDownloadCor: () => void;
   onExportIcs: () => void;
   onConnectGoogle: () => void;
+  google: {
+    connected: boolean;
+    connecting: boolean;
+    busy: boolean;
+    canConnect: boolean;
+    loading: boolean;
+    disabledReason?: string;
+  };
 }
 
 /** Total units and courses, then the three ways to take the schedule elsewhere. */
@@ -97,6 +105,7 @@ export function ScheduleActions({
   onDownloadCor,
   onExportIcs,
   onConnectGoogle,
+  google,
 }: ScheduleActionsProps) {
   const busy = pending !== null;
 
@@ -139,17 +148,43 @@ export function ScheduleActions({
           Export Calendar (.ics)
         </button>
 
-        <button
-          type="button"
-          className={`${buttonBase} border-brand-input-border text-brand-input-text hover:bg-brand-paper border bg-white`}
-          aria-label="Connect to Google Calendar to sync your class schedule"
-          aria-busy={pending === "google"}
-          disabled={busy}
-          onClick={onConnectGoogle}
-        >
-          {pending === "google" ? <Spinner /> : <GoogleIcon />}
-          Connect to Google Calendar
-        </button>
+        {google.connected ? (
+          <a
+            href="#google-calendar-sync"
+            className={
+              buttonBase +
+              " border-brand-input-border text-brand-input-text hover:bg-brand-paper border bg-white"
+            }
+          >
+            <GoogleIcon />
+            Manage Google Calendar
+          </a>
+        ) : (
+          <>
+            <button
+              type="button"
+              className={
+                buttonBase +
+                " border-brand-input-border text-brand-input-text hover:bg-brand-paper border bg-white"
+              }
+              aria-label="Connect to Google Calendar to sync your class schedule"
+              aria-busy={google.connecting || google.loading}
+              aria-describedby={
+                google.disabledReason ? "google-calendar-disabled-reason" : undefined
+              }
+              disabled={busy || google.busy || !google.canConnect}
+              onClick={onConnectGoogle}
+            >
+              {google.connecting ? <Spinner /> : <GoogleIcon />}
+              {google.connecting ? "Opening Google…" : "Connect to Google Calendar"}
+            </button>
+            {google.disabledReason && (
+              <p id="google-calendar-disabled-reason" className="text-brand-muted text-xs">
+                {google.disabledReason}
+              </p>
+            )}
+          </>
+        )}
       </div>
     </section>
   );
