@@ -55,3 +55,35 @@ Run `npm run check` and `npm run build` from the client root. Feature tests name
 acceptance criteria, including save/finalize, Inc validation, role restrictions and axe.
 Manual verification includes 320px, keyboard entry, Escape, dialog focus return and
 browser contrast checks. End-to-end backend acceptance is pending the final codecs/API.
+
+## Pass/Fail entry (US-FAC-003)
+
+The same `/sections/:sectionId/grades` grid accepts faculty-local sheet metadata:
+`gradingMode: "NUMERIC" | "PASS_FAIL"` and `allowedMarks: string[]`. The final
+backend codec must preserve those fields on reads and draft-save responses. Missing,
+empty, unknown or incompatible metadata disables editing and offers Reload grades.
+The page never guesses a mode from the course name, existing mark or section type.
+
+- Pass/Fail sections use labelled native choices with canonical `PASS` and `FAIL`
+  values; only marks in the returned `allowedMarks` are offered. Numeric entry and
+  the Inc column are absent. The mode is stated in text above the grid, and the
+  distribution shows Pass and Fail counts.
+- Numeric sections retain text entry and suggestions from `allowedMarks`. Input is
+  normalized and checked against the returned choices before saving.
+- A 422 `GRADE_MODE_MISMATCH` names the section mode and reloads the grade sheet.
+  Valid unsaved choices survive; incompatible choices are cleared. Writes, including
+  autosave, stay paused until the faculty member reviews the updated marks. No failed
+  write is replayed. A failed reload keeps writing paused and offers an explicit retry.
+- Both modes use the same draft versions, autosave, final confirmation, deadline recheck
+  and 409 `GRADES_LOCKED` behavior. Final grades remain read-only even when refresh fails.
+- GWA, units earned, standing and mode-change authorization belong to the backend.
+  The frontend does not compute or claim those results (AC-FAC-003.4/5).
+
+The available backend specification still lacks the grading endpoints and response
+schemas. The existing typed grading adapter and documented role-prefixed paths are
+retained; production still requires the final backend codec. Tests inject in-memory
+sources only; no preview page or mock source is imported by the production app.
+
+This branch includes `web-us-fac-001` as its grade-grid prerequisite. Its own Pass/Fail
+commit changes only `apps/faculty`. Merge `web-us-fac-001` into `fr004` first to
+keep the later `web-us-fac-003` PR diff limited to the Pass/Fail work.

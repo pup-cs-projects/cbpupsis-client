@@ -2,8 +2,6 @@ import { ApiError } from "@cbpupsis/shared/api";
 import {
   GradeValidationError,
   gradingErrorMessage,
-  normalizeGrade,
-  type FacultyGradeSheet,
   type GradeDeadline,
   type GradeDraftInput,
   type GradeFinalization,
@@ -15,7 +13,9 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { useMe } from "../sign-in/useFacultyAuth";
 import { facultyGradingDataSource, type FacultyGradingDataSource } from "./dataSource";
-import { gradeButton, gradeCard, gradeDate, gradeField, gradePrimary } from "./gradeStyles";
+import { gradeButton, gradeCard, gradeDate, gradePrimary } from "./gradeStyles";
+import { GradeMarkInput } from "./GradeMarkInput";
+import { gradeDistribution, gradePolicy, type FacultyGradeSheet } from "./gradingMode";
 
 export function GradesPage({
   sectionId,
@@ -101,14 +101,16 @@ function GradeEditor({
   const [busy, setBusy] = useState<"save" | "finalize" | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [blocked, setBlocked] = useState(false);
+  const [modeRefreshed, setModeRefreshed] = useState(false);
   const [locked, setLocked] = useState(false);
   const [passed, setPassed] = useState(deadline.passed);
   const [receipt, setReceipt] = useState<GradeFinalization | null>(null);
   const running = useRef(false);
   const revision = useRef(0);
   const alive = useRef(true);
-  const inputs = useRef(new Map<string, HTMLInputElement>());
+  const inputs = useRef(new Map<string, HTMLInputElement | HTMLSelectElement>());
   const latestSave = useRef<() => void>(() => {});
+  const policy = gradePolicy(sheet);
   const readOnly = sheet.state === "FINAL" || locked;
   const dirty =
     !readOnly && sheet.rows.some((row) => (marks[row.studentId] ?? "") !== (row.mark ?? ""));
@@ -128,9 +130,8 @@ function GradeEditor({
     const errors: Record<string, string> = {};
     const grades = sheet.rows.map((row) => {
       const raw = (marks[row.studentId] ?? "").trim();
-      const mark = raw ? normalizeGrade(raw) : null;
-      if ((raw && !mark) || (requireAll && !mark))
-        errors[row.studentId] = "Enter a mark from 1.00 to 5.00, or INC.";
+      const mark = raw ? policy.normalize(raw) : null;
+      if ((raw && !mark) || (requireAll && !mark)) errors[row.studentId] = policy.validationMessage;
       return { studentId: row.studentId, mark };
     });
     setFields(errors);
@@ -146,7 +147,43 @@ function GradeEditor({
       setFailure(gradingErrorMessage(error));
       if (error instanceof GradeValidationError) setFields(error.fields);
       if (error instanceof ApiError) {
-        if (error.code === "VERSION_CONFLICT") setBlocked(true);
+        if (error.code === "VERSION_CONFLICT") {
+          setBlocked(true);
+          setModeRefreshed(false);
+        }
+        if (error.code === "GRADE_MODE_MISMATCH") {
+          setBlocked(true);
+          setModeRefreshed(false);
+          const modeMessage = (mode: unknown) =>
+            mode === "PASS_FAIL"
+              ? "This section is graded Pass or Fail. Choose an allowed Pass or Fail mark."
+              : mode === "NUMERIC"
+                ? "This section uses numeric grades. Choose an allowed numeric mark."
+                : "The mark does not match this section’s grading mode.";
+          setFailure(modeMessage(error.details?.gradingMode));
+          try {
+            const current = await dataSource.sheet(sheet.section.id);
+            if (!alive.current) return;
+            const updated = gradePolicy(current);
+            setSheet(current);
+            setMarks((previous) =>
+              Object.fromEntries(
+                current.rows.map((row) => [
+                  row.studentId,
+                  updated.normalize(previous[row.studentId] ?? row.mark ?? "") ?? "",
+                ]),
+              ),
+            );
+            setFields({});
+            setModeRefreshed(updated.ready);
+            setFailure(
+              modeMessage(current.gradingMode) +
+                " The latest allowed marks have been loaded. Review them before saving again.",
+            );
+          } catch {
+            // Keep writes paused until an explicit reload succeeds. Never replay the write.
+          }
+        }
         if (error.code === "GRADE_DEADLINE_PASSED") {
           setPassed(true);
           setFailure(null);
@@ -166,12 +203,12 @@ function GradeEditor({
   );
   const save = useCallback(
     async (automatic = false) => {
-      if (running.current || readOnly || blocked || !dirty) return;
+      if (running.current || readOnly || blocked || !policy.ready || !dirty) return;
       const errors: Record<string, string> = {};
       const grades = sheet.rows.map((row) => {
         const raw = (marks[row.studentId] ?? "").trim();
-        const mark = raw ? normalizeGrade(raw) : null;
-        if (raw && !mark) errors[row.studentId] = "Enter a mark from 1.00 to 5.00, or INC.";
+        const mark = raw ? policy.normalize(raw) : null;
+        if (raw && !mark) errors[row.studentId] = policy.validationMessage;
         return { studentId: row.studentId, mark };
       });
       if (Object.keys(errors).length) {
@@ -203,7 +240,7 @@ function GradeEditor({
         if (alive.current) setBusy(null);
       }
     },
-    [blocked, dataSource, dirty, handleFailure, marks, readOnly, sheet],
+    [blocked, dataSource, dirty, handleFailure, marks, policy, readOnly, sheet],
   );
   useEffect(() => {
     latestSave.current = () => {
@@ -216,7 +253,7 @@ function GradeEditor({
   }, []);
 
   async function finalize() {
-    if (running.current || readOnly || blocked || passed) return;
+    if (running.current || readOnly || blocked || !policy.ready || passed) return;
     const grades = entries(true);
     if (!grades) {
       setConfirming(false);
@@ -257,14 +294,8 @@ function GradeEditor({
       if (alive.current) setBusy(null);
     }
   }
-  const counts = ["1", "2", "3", "4", "5", "INC"].map((label) => ({
-    label,
-    count: Object.values(marks).filter((value) => {
-      const mark = normalizeGrade(value);
-      return label === "INC" ? mark === "INC" : mark !== "INC" && mark?.startsWith(label);
-    }).length,
-  }));
-  const marked = Object.values(marks).filter((mark) => normalizeGrade(mark)).length;
+  const counts = gradeDistribution(policy, Object.values(marks));
+  const marked = Object.values(marks).filter((mark) => policy.normalize(mark)).length;
   return (
     <>
       <section className={gradeCard} aria-label="Section and submission status">
@@ -311,16 +342,16 @@ function GradeEditor({
             {marked} of {sheet.rows.length} students marked
           </p>
         </div>
-        <dl className="mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6">
+        <dl
+          className={
+            policy.mode === "PASS_FAIL"
+              ? "mt-4 grid grid-cols-2 gap-3"
+              : "mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6"
+          }
+        >
           {counts.map(({ label, count }) => (
             <div className="bg-brand-paper rounded-lg p-3 text-center" key={label}>
-              <dt className="text-brand-muted text-xs">
-                {label === "INC"
-                  ? "Incomplete"
-                  : label === "5"
-                    ? "5.00"
-                    : `${label}.00–${label}.99`}
-              </dt>
+              <dt className="text-brand-muted text-xs">{label}</dt>
               <dd className="text-brand-maroon mt-1 text-xl font-bold">{count}</dd>
             </div>
           ))}
@@ -331,20 +362,31 @@ function GradeEditor({
           <div>
             <h2 className="font-bold">Student grades</h2>
             <p id="grade-mark-help" className="text-brand-muted mt-1 text-sm">
-              Enter 1.00–5.00 or INC. Drafts save automatically every 60 seconds.
+              {policy.mode === "PASS_FAIL"
+                ? "This section is graded Pass or Fail."
+                : policy.mode === "NUMERIC"
+                  ? "This section uses numeric grades."
+                  : "Grading mode is unavailable."}{" "}
+              {policy.mode === "NUMERIC" &&
+                (policy.allowedMarks.includes("INC")
+                  ? "Enter an allowed numeric mark or INC. "
+                  : "Enter an allowed numeric mark. ")}
+              Drafts save automatically every 60 seconds.
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
             <button
               className={gradeButton}
-              disabled={!dirty || readOnly || blocked || !!busy}
+              disabled={!dirty || readOnly || blocked || !policy.ready || !!busy}
               onClick={() => void save()}
             >
               {busy === "save" ? "Saving draft…" : "Save draft"}
             </button>
             <button
               className={gradePrimary}
-              disabled={!sheet.rows.length || readOnly || blocked || passed || !!busy}
+              disabled={
+                !sheet.rows.length || readOnly || blocked || !policy.ready || passed || !!busy
+              }
               onClick={() => {
                 if (entries(true)) setConfirming(true);
               }}
@@ -363,13 +405,30 @@ function GradeEditor({
                   ? `Draft saved at ${gradeDate(sheet.savedAt)}.`
                   : "No unsaved changes"))}
         </p>
+        {!policy.ready && (
+          <div role="alert" className="text-brand-maroon mb-4 text-sm">
+            <p>
+              The grading mode or allowed marks could not be confirmed. Reload grades before
+              editing.
+            </p>
+            <button className={gradeButton + " mt-3"} onClick={() => void onReload()}>
+              Reload grades
+            </button>
+          </div>
+        )}
         {failure && (
           <div role="alert" className="text-brand-maroon mb-4 text-sm">
             <p>{failure}</p>
-            {blocked && (
+            {blocked && policy.ready && (
               <button
                 className={gradeButton + " mt-3"}
                 onClick={() => {
+                  if (modeRefreshed) {
+                    setBlocked(false);
+                    setModeRefreshed(false);
+                    setFailure(null);
+                    return;
+                  }
                   if (
                     !dirty ||
                     window.confirm("Reload and discard the unsaved changes in this window?")
@@ -377,60 +436,99 @@ function GradeEditor({
                     void onReload();
                 }}
               >
-                Reload grades
+                {modeRefreshed ? "Review updated marks" : "Reload grades"}
               </button>
             )}
           </div>
         )}
         {sheet.rows.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[560px] border-collapse text-left text-sm">
+            <table
+              className={
+                policy.mode === "PASS_FAIL"
+                  ? "w-full table-fixed border-collapse text-left text-sm"
+                  : "w-full min-w-[560px] border-collapse text-left text-sm"
+              }
+            >
               <caption className="sr-only">
                 Grades for {sheet.section.courseCode}, {sheet.section.sectionName}
               </caption>
               <thead className="bg-brand-maroon text-white">
                 <tr>
-                  <th scope="col" className="px-4 py-3">
+                  <th
+                    scope="col"
+                    className={
+                      policy.mode === "PASS_FAIL" ? "w-1/2 px-2 py-3 sm:px-4" : "px-4 py-3"
+                    }
+                  >
                     Student
                   </th>
-                  <th scope="col" className="px-4 py-3">
+                  <th
+                    scope="col"
+                    className={
+                      policy.mode === "PASS_FAIL" ? "hidden px-4 py-3 sm:table-cell" : "px-4 py-3"
+                    }
+                  >
                     Student number
                   </th>
-                  <th scope="col" className="px-4 py-3">
+                  <th
+                    scope="col"
+                    className={policy.mode === "PASS_FAIL" ? "px-2 py-3 sm:px-4" : "px-4 py-3"}
+                  >
                     Mark
                   </th>
-                  <th scope="col" className="px-4 py-3">
-                    Inc completion deadline
-                  </th>
+                  {policy.mode !== "PASS_FAIL" && (
+                    <th scope="col" className="px-4 py-3">
+                      Inc completion deadline
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {sheet.rows.map((row, index) => (
                   <tr className="border-brand-border/25 border-b" key={row.studentId}>
-                    <th scope="row" className="px-4 py-4 font-semibold">
+                    <th
+                      scope="row"
+                      className={
+                        policy.mode === "PASS_FAIL"
+                          ? "px-2 py-4 font-semibold break-words sm:px-4"
+                          : "px-4 py-4 font-semibold"
+                      }
+                    >
                       {row.studentName}
+                      {policy.mode === "PASS_FAIL" && (
+                        <span className="mt-1 block text-xs font-normal sm:hidden">
+                          {row.studentNumber}
+                        </span>
+                      )}
                     </th>
-                    <td className="px-4 py-4">{row.studentNumber}</td>
-                    <td className="w-44 px-4 py-4">
-                      <input
-                        ref={(element) => {
+                    <td
+                      className={
+                        policy.mode === "PASS_FAIL" ? "hidden px-4 py-4 sm:table-cell" : "px-4 py-4"
+                      }
+                    >
+                      {row.studentNumber}
+                    </td>
+                    <td
+                      className={
+                        policy.mode === "PASS_FAIL" ? "px-2 py-4 sm:px-4" : "w-44 px-4 py-4"
+                      }
+                    >
+                      <GradeMarkInput
+                        policy={policy}
+                        studentName={row.studentName}
+                        studentNumber={row.studentNumber}
+                        error={!!fields[row.studentId]}
+                        errorId={`mark-error-${index}`}
+                        value={marks[row.studentId] ?? ""}
+                        readOnly={readOnly || blocked || !policy.ready || busy === "finalize"}
+                        fieldRef={(element) => {
                           if (element) inputs.current.set(row.studentId, element);
                           else inputs.current.delete(row.studentId);
                         }}
-                        aria-label={`Grade for ${row.studentName} (${row.studentNumber})`}
-                        aria-invalid={!!fields[row.studentId]}
-                        aria-describedby={`grade-mark-help${fields[row.studentId] ? ` mark-error-${index}` : ""}`}
-                        value={marks[row.studentId] ?? ""}
-                        readOnly={readOnly || blocked || busy === "finalize"}
-                        autoComplete="off"
-                        list="grade-values"
-                        className={gradeField + (fields[row.studentId] ? " border-red-700!" : "")}
-                        onChange={(event) => {
+                        onChange={(value) => {
                           revision.current++;
-                          setMarks((current) => ({
-                            ...current,
-                            [row.studentId]: event.target.value,
-                          }));
+                          setMarks((current) => ({ ...current, [row.studentId]: value }));
                           setFields((current) => ({ ...current, [row.studentId]: "" }));
                           setMessage(null);
                         }}
@@ -445,13 +543,15 @@ function GradeEditor({
                         </p>
                       )}
                     </td>
-                    <td className="px-4 py-4 text-xs">
-                      {row.completionDeadline
-                        ? gradeDate(row.completionDeadline)
-                        : normalizeGrade(marks[row.studentId] ?? "") === "INC"
-                          ? "Provided when the draft is saved"
-                          : "—"}
-                    </td>
+                    {policy.mode !== "PASS_FAIL" && (
+                      <td className="px-4 py-4 text-xs">
+                        {row.completionDeadline
+                          ? gradeDate(row.completionDeadline)
+                          : policy.normalize(marks[row.studentId] ?? "") === "INC"
+                            ? "Provided when the draft is saved"
+                            : "—"}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -462,24 +562,13 @@ function GradeEditor({
             There are no enrolled students in this section.
           </p>
         )}
-        <datalist id="grade-values">
-          {[
-            "1.00",
-            "1.25",
-            "1.50",
-            "1.75",
-            "2.00",
-            "2.25",
-            "2.50",
-            "2.75",
-            "3.00",
-            "4.00",
-            "5.00",
-            "INC",
-          ].map((value) => (
-            <option value={value} key={value} />
-          ))}
-        </datalist>
+        {policy.mode === "NUMERIC" && (
+          <datalist id="grade-values">
+            {policy.allowedMarks.map((value) => (
+              <option value={value} key={value} />
+            ))}
+          </datalist>
+        )}
       </section>
       <ModalDialog
         open={confirming}

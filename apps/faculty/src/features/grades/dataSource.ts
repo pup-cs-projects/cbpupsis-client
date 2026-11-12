@@ -1,6 +1,7 @@
 import type { FacultyGradesApi } from "@cbpupsis/shared/grades";
 import type { Session } from "@cbpupsis/shared/auth";
 import { facultyGradesApi, session } from "../../lib/auth";
+import type { FacultyGradeSheet } from "./gradingMode";
 
 export function createFacultyGradingDataSource(
   api: FacultyGradesApi,
@@ -22,5 +23,14 @@ export function createFacultyGradingDataSource(
       auth.authorized((token) => api.complete(token, id, input)),
   };
 }
-export type FacultyGradingDataSource = ReturnType<typeof createFacultyGradingDataSource>;
+export type FacultyGradingDataSource = Omit<
+  ReturnType<typeof createFacultyGradingDataSource>,
+  "sheet" | "saveDraft"
+> & {
+  sheet(id: string, signal?: AbortSignal): Promise<FacultyGradeSheet>;
+  saveDraft(
+    id: string,
+    input: Parameters<FacultyGradesApi["saveDraft"]>[2],
+  ): Promise<FacultyGradeSheet>;
+};
 export const facultyGradingDataSource = createFacultyGradingDataSource(facultyGradesApi, session);

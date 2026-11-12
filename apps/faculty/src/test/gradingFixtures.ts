@@ -1,4 +1,5 @@
-import type { FacultyGradeSheet, FacultyIncomplete, GradingSection } from "@cbpupsis/shared/grades";
+import type { FacultyIncomplete, GradingSection } from "@cbpupsis/shared/grades";
+import type { FacultyGradeSheet } from "../features/grades/gradingMode";
 import type { FacultyGradingDataSource } from "../features/grades/dataSource";
 
 export const gradingSection: GradingSection = {
@@ -11,6 +12,21 @@ export const gradingSection: GradingSection = {
 };
 export const gradingSheet: FacultyGradeSheet = {
   section: gradingSection,
+  gradingMode: "NUMERIC",
+  allowedMarks: [
+    "1.00",
+    "1.25",
+    "1.50",
+    "1.75",
+    "2.00",
+    "2.25",
+    "2.50",
+    "2.75",
+    "3.00",
+    "4.00",
+    "5.00",
+    "INC",
+  ],
   state: "DRAFT",
   version: 1,
   savedAt: null,
