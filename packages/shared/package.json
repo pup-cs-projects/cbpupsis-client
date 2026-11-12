@@ -11,7 +11,8 @@
     "./grades": "./src/grades/index.ts",
     "./profile": "./src/profile/index.ts",
     "./schedule": "./src/schedule/index.ts",
-    "./enrollment": "./src/enrollment/index.ts"
+    "./enrollment": "./src/enrollment/index.ts",
+    "./grades/corrections": "./src/grades/corrections.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

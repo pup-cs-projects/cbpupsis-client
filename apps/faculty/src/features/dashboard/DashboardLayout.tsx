@@ -27,6 +27,22 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         </Link>
       )}
       navigation={[
+        ...[
+          {
+            label: "Grade corrections",
+            icon: <DashboardIcon name="briefcase" />,
+            children: [
+              {
+                label: "Correction of Entry",
+                content: (
+                  <Link to="/grade-corrections" className={settingsLink}>
+                    Correction of Entry
+                  </Link>
+                ),
+              },
+            ],
+          },
+        ],
         {
           label: "Courses",
           icon: <DashboardIcon name="book" />,
