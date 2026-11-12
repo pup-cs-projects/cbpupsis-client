@@ -1,3 +1,4 @@
+import { SampleDataNotice } from "../../components/SampleDataNotice";
 import { ApiError } from "@cbpupsis/shared/api";
 import {
   GradeValidationError,
@@ -44,6 +45,7 @@ export function GradesPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
+        <SampleDataNotice />
         <nav aria-label="Breadcrumb" className="text-brand-muted text-sm">
           <Link to="/grades" className="underline">
             Grades
@@ -102,6 +104,7 @@ function GradeEditor({
   const [confirming, setConfirming] = useState(false);
   const [blocked, setBlocked] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [lockRefreshFailed, setLockRefreshFailed] = useState(false);
   const [passed, setPassed] = useState(deadline.passed);
   const [receipt, setReceipt] = useState<GradeFinalization | null>(null);
   const running = useRef(false);
@@ -155,9 +158,15 @@ function GradeEditor({
           setLocked(true);
           try {
             const current = await dataSource.sheet(sheet.section.id);
-            if (alive.current) setSheet(current);
+            if (alive.current) {
+              setSheet(current);
+              setMarks(
+                Object.fromEntries(current.rows.map((row) => [row.studentId, row.mark ?? ""])),
+              );
+              setLockRefreshFailed(false);
+            }
           } catch {
-            /* Keep all writing locked even if reloading fails. */
+            if (alive.current) setLockRefreshFailed(true);
           }
         }
       }
@@ -302,6 +311,17 @@ function GradeEditor({
           </p>
         )}
       </section>
+      {lockRefreshFailed && (
+        <div role="alert" className={gradeCard}>
+          <p>
+            Final grades could not be reloaded. These are the last loaded marks; editing remains
+            locked.
+          </p>
+          <button className={gradeButton + " mt-3"} onClick={() => void onReload()}>
+            Reload final grades
+          </button>
+        </div>
+      )}
       <section className={gradeCard} aria-labelledby="distribution-heading">
         <div className="flex flex-wrap justify-between gap-3">
           <h2 id="distribution-heading" className="font-bold">

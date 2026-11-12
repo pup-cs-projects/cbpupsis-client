@@ -1,3 +1,4 @@
+import { SampleDataNotice } from "../../components/SampleDataNotice";
 import { ApiError } from "@cbpupsis/shared/api";
 import { gradingErrorMessage } from "@cbpupsis/shared/grades";
 import { ModalDialog } from "@cbpupsis/ui";
@@ -57,6 +58,7 @@ export function IncompleteCompletionsPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
+        <SampleDataNotice />
         <header>
           <p className="text-brand-muted text-sm">Academics / Grades</p>
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Inc completions</h1>
