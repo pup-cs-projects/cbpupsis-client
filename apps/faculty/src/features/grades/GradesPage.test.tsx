@@ -77,6 +77,9 @@ describe("Faculty grade grid (US-FAC-001)", () => {
     await user.click(screen.getByRole("button", { name: "Save draft" }));
     await user.clear(field);
     await user.type(field, "2.00");
+    await user.click(screen.getByRole("link", { name: "Grades" }));
+    await screen.findByRole("dialog", { name: "Leave unsaved grades?" });
+    await user.click(screen.getByRole("button", { name: "Keep editing grades" }));
     await act(async () =>
       finish({
         ...gradingSheet,

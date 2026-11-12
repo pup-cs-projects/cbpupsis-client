@@ -113,7 +113,7 @@ function GradeEditor({
   const dirty =
     !readOnly && sheet.rows.some((row) => (marks[row.studentId] ?? "") !== (row.mark ?? ""));
   const blocker = useBlocker({
-    shouldBlockFn: () => dirty && !busy,
+    shouldBlockFn: () => dirty,
     enableBeforeUnload: dirty,
     withResolver: true,
   });
