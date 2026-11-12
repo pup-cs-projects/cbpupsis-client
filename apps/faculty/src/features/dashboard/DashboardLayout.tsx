@@ -35,7 +35,24 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         {
           label: "Grades",
           icon: <DashboardIcon name="briefcase" />,
-          children: [{ label: "Grade Submission" }],
+          children: [
+            {
+              label: "Grade Submission",
+              content: (
+                <Link to="/grades" className={settingsLink}>
+                  Grade Submission
+                </Link>
+              ),
+            },
+            {
+              label: "Incomplete grades",
+              content: (
+                <Link to="/incompletes" className={settingsLink}>
+                  Incomplete grades
+                </Link>
+              ),
+            },
+          ],
         },
         {
           label: "Settings",

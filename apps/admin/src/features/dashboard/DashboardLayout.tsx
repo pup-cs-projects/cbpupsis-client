@@ -53,6 +53,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           children: [
             { label: "Calendar" },
             { label: "Courses" },
+            ...(me.data?.position === "dean"
+              ? [
+                  {
+                    label: "Inc completions",
+                    content: (
+                      <Link to="/incomplete-completions" className={settingsLink}>
+                        Inc completions
+                      </Link>
+                    ),
+                  },
+                ]
+              : []),
             ...(isReviewerRole(me.data?.position)
               ? [
                   {
