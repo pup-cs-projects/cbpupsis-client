@@ -92,6 +92,24 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             { label: "System Health" },
           ],
         },
+        ...(["chairperson", "dean", "registrar"].includes(me.data?.position ?? "")
+          ? [
+              {
+                label: "Grade corrections",
+                icon: <DashboardIcon name="briefcase" />,
+                children: [
+                  {
+                    label: "Correction of Entry",
+                    content: (
+                      <Link to="/grade-corrections" className={settingsLink}>
+                        Correction of Entry
+                      </Link>
+                    ),
+                  },
+                ],
+              },
+            ]
+          : []),
         {
           label: "Settings",
           icon: <DashboardIcon name="settings" />,
