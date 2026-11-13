@@ -1,3 +1,4 @@
+import type { FacultyGradeSheet } from "./gradingMode";
 import { ApiError } from "@cbpupsis/shared/api";
 import type { FacultyGradesApi } from "@cbpupsis/shared/grades";
 import type { Session } from "@cbpupsis/shared/auth";
@@ -23,7 +24,16 @@ export function createFacultyGradingDataSource(
       auth.authorized((token) => api.complete(token, id, input)),
   };
 }
-export type FacultyGradingDataSource = ReturnType<typeof createFacultyGradingDataSource>;
+export type FacultyGradingDataSource = Omit<
+  ReturnType<typeof createFacultyGradingDataSource>,
+  "sheet" | "saveDraft"
+> & {
+  sheet(id: string, signal?: AbortSignal): Promise<FacultyGradeSheet>;
+  saveDraft(
+    id: string,
+    input: Parameters<FacultyGradesApi["saveDraft"]>[2],
+  ): Promise<FacultyGradeSheet>;
+};
 const liveSource = createFacultyGradingDataSource(facultyGradesApi, session);
 let sample: Promise<FacultyGradingDataSource> | undefined;
 if (import.meta.env.DEV)
@@ -34,7 +44,7 @@ async function currentSource(): Promise<FacultyGradingDataSource> {
   if (import.meta.env.DEV && import.meta.env.VITE_FEATURE_MOCKS === "true") {
     if (!session.isSignedIn()) throw new ApiError(401, "NOT_SIGNED_IN");
     return (sample ??= import("./mockDataSource").then((module) =>
-      module.createMockFacultyGradingDataSource(),
+      module.createMockFacultyGradingDataSource(true),
     ));
   }
   return liveSource;
