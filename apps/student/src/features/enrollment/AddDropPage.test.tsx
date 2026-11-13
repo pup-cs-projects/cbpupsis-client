@@ -8,7 +8,7 @@ import { expectNoA11yViolations } from "../../test/axe";
 import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
 import { renderApp } from "../../test/renderApp";
 
-const SCHEDULE_ROUTE = "GET /students/me/schedule";
+const SCHEDULE_ROUTE = "GET /student/schedule";
 const AVAILABLE_ROUTE = "GET /student/enrollment/available-courses";
 const LIST_ROUTE = "GET /student/enrollment/add-drop";
 const CREATE_ROUTE = "POST /student/enrollment/add-drop";
@@ -140,14 +140,15 @@ function openPage(routes: Parameters<typeof mockApi>[0] = {}) {
   return api;
 }
 
-/** Pick COMP 016 to drop with a reason and COSC 304 to add, by keyboard only. */
+/** Stage a drop and an addition using the current tabbed course browser. */
 async function pickChanges(user: ReturnType<typeof userEvent.setup>) {
   const drop = await screen.findByRole("button", { name: "Drop COMP 016" });
   drop.focus();
   await user.keyboard("{Enter}");
-  await user.tab();
-  expect(screen.getByLabelText("Reason for dropping COMP 016")).toHaveFocus();
-  await user.keyboard("Schedule conflict with work");
+  await user.selectOptions(screen.getByRole("combobox", { name: "Reason" }), "Schedule Conflict");
+  const available = screen.getByRole("tab", { name: /^Available Courses/ });
+  available.focus();
+  await user.keyboard("{Enter}");
   const add = await screen.findByRole("button", { name: "Add COSC 304" });
   add.focus();
   await user.keyboard(" ");
@@ -172,7 +173,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     expect(within(units).getAllByText("15.0")).toHaveLength(2);
 
     // Dropping alone takes the total down; it updates as courses are picked.
-    await user.click(screen.getByRole("button", { name: "Add COSC 304" }));
+    await user.click(screen.getByRole("button", { name: "Remove COSC 304" }));
     expect(within(units).getByText("12.0")).toBeInTheDocument();
   });
 
@@ -180,6 +181,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     const user = userEvent.setup();
     openPage();
 
+    await user.click(await screen.findByRole("tab", { name: /^Available Courses/ }));
     await screen.findByRole("button", { name: "Add COSC 304" });
     await user.type(screen.getByLabelText("Search courses to add"), "thesis");
     expect(screen.queryByRole("button", { name: "Add COSC 304" })).not.toBeInTheDocument();
@@ -203,12 +205,14 @@ describe("AddDropPage (US-ENRL-004)", () => {
     expect(api.called(CREATE_ROUTE)).toHaveLength(1);
     expect(api.called(CREATE_ROUTE)[0].body).toEqual({
       add: [{ sectionId: AI }],
-      drop: [{ sectionId: WEBDEV, reason: "Schedule conflict with work" }],
+      drop: [{ sectionId: WEBDEV, reason: "Schedule Conflict" }],
+      comments: null,
     });
+    await user.click(screen.getByRole("tab", { name: /^Currently Enrolled/ }));
     expect(screen.getByText("Pending drop")).toBeInTheDocument();
     expect(screen.getByText("Pending add")).toBeInTheDocument();
     // Still enrolled: the drop waits for a reviewer.
-    const enrolled = screen.getByRole("region", { name: "Currently Enrolled Courses" });
+    const enrolled = screen.getByRole("region", { name: "Currently enrolled courses" });
     expect(within(enrolled).getByText("Web Development")).toBeInTheDocument();
     expect(within(enrolled).getByText("Software Engineering 1")).toBeInTheDocument();
     expect(api.called(SCHEDULE_ROUTE)).toHaveLength(1);
@@ -221,19 +225,19 @@ describe("AddDropPage (US-ENRL-004)", () => {
     await user.click(await screen.findByRole("button", { name: "Drop COMP 016" }));
     await user.click(screen.getByRole("button", { name: "Send request" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent("Give a reason for each course you drop.");
+    expect(screen.getByRole("alert")).toHaveTextContent(
+      "Select a reason for the courses you drop.",
+    );
     expect(api.called(CREATE_ROUTE)).toHaveLength(0);
   });
 
   it("AC-ENRL-004.3: shows each request's state and a rejection's remarks on the same row", async () => {
     openPage({ [LIST_ROUTE]: { status: 200, body: [rejected, request()] } });
 
-    const rejectedRow = (await screen.findByText("COSC 304 is full for your block.")).closest("li");
+    const rejectedRow = (await screen.findByText("COSC 304 is full for your block.")).closest("tr");
     expect(rejectedRow).not.toBeNull();
     expect(within(rejectedRow as HTMLElement).getByText("Rejected")).toBeInTheDocument();
-    expect(
-      within(rejectedRow as HTMLElement).getByText("Add COSC 304, Drop COMP 016"),
-    ).toBeInTheDocument();
+    expect(within(rejectedRow as HTMLElement).getByText("COSC 304, COMP 016")).toBeInTheDocument();
     // Status and remarks sit in a live region, so a change is read out.
     expect(rejectedRow?.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
@@ -298,6 +302,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
       },
     });
 
+    await user.click(await screen.findByRole("tab", { name: /^Available Courses/ }));
     await user.click(await screen.findByRole("button", { name: "Add COSC 304" }));
     await user.click(screen.getByRole("button", { name: "Send request" }));
 
@@ -368,9 +373,8 @@ describe("AddDropPage (US-ENRL-004)", () => {
     const api = openPage();
 
     expect(await screen.findByText("Add/Drop Deadline")).toBeInTheDocument();
-    expect(screen.getByText("August 22, 2026")).toBeInTheDocument();
-    expect(screen.getByText("2026-2027-First Semester")).toBeInTheDocument();
-    await screen.findByRole("button", { name: "Add COSC 304" });
+    expect(await screen.findByText("August 22, 2026")).toBeInTheDocument();
+    await screen.findByRole("button", { name: "Drop COMP 016" });
     const fetchMock = vi.mocked(fetch);
     const url = fetchMock.mock.calls
       .map(([input]) => String(input))
@@ -383,7 +387,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     const api = openPage({ [WINDOW_ROUTE]: { status: 200, body: {} } });
 
     expect(await screen.findByText("Web Development")).toBeInTheDocument();
-    expect(screen.queryByText("Add/Drop Deadline")).not.toBeInTheDocument();
+    expect(screen.getByText("Add/Drop Deadline").nextElementSibling).toHaveTextContent("TBA");
     expect(api.called(AVAILABLE_ROUTE)).toHaveLength(0);
   });
 

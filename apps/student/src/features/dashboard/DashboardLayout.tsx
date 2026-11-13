@@ -540,9 +540,12 @@ function UserMenu() {
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: PointerEvent) {
+      // A portalled confirmation makes this menu inert; keep its owner mounted.
+      if (container.current?.closest("[inert]")) return;
       if (!container.current?.contains(event.target as Node)) setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
+      if (container.current?.closest("[inert]")) return;
       if (event.key !== "Escape") return;
       setOpen(false);
       trigger.current?.focus();
