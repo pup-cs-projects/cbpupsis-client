@@ -1,3 +1,4 @@
+import { featureRoutes } from "./featureRoutes";
 import { createPortalRouter } from "@cbpupsis/account";
 import { MaintenancePage, NotFoundPage, ServerErrorPage } from "@cbpupsis/ui";
 import { createRoute, redirect, type RouterHistory } from "@tanstack/react-router";
@@ -19,6 +20,7 @@ export function createAppRouter(history?: RouterHistory) {
       maintenance: MaintenancePage,
     },
     extraRoutes: (rootRoute) => [
+      ...featureRoutes(rootRoute),
       createRoute({
         getParentRoute: () => rootRoute,
         path: "/enrollment-requests",
