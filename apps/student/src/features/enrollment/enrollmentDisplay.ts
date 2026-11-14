@@ -51,6 +51,12 @@ export function enrollmentStatusLabel(eligibility: EnrollmentEligibility): strin
   return "Open";
 }
 
+/** The header's date stat label: "Enrollment Date" while the period is open and the student may
+ * enroll right now, "Next Enrollment Date" otherwise (closed, or open to a future period). */
+export function enrollmentDateLabel(eligibility: EnrollmentEligibility): string {
+  return enrollmentStatusLabel(eligibility) === "Open" ? "Enrollment Date" : "Next Enrollment Date";
+}
+
 /** Sentences for the refusals that need none of the API's own numbers (AC-ENRL-001.5, .11). */
 const STATIC_REFUSAL: Partial<Record<string, string>> = {
   ENROLL_OVERLOAD_CAP_EXCEEDED: "An overload can add at most 9 units.",
