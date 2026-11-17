@@ -3953,7 +3953,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["FacultyLoginChallenge"];
+                    "application/json": components["schemas"]["FacultyLoginChallenge"] | components["schemas"]["FacultyTokenPair"];
                 };
             };
             /** @description Validation Error */
@@ -4232,7 +4232,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["AdminLoginChallenge"];
+                    "application/json": components["schemas"]["AdminLoginChallenge"] | components["schemas"]["AdminTokenPair"];
                 };
             };
             /** @description Validation Error */
