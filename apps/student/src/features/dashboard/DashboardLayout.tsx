@@ -540,7 +540,11 @@ function UserMenu() {
   useEffect(() => {
     if (!open) return;
     function onPointerDown(event: PointerEvent) {
-      if (!container.current?.contains(event.target as Node)) setOpen(false);
+      const target = event.target as Element;
+      // The sign-out confirmation is portaled to <body>; a click in it is not outside
+      // the menu, and closing here would unmount it before the sign-out runs.
+      if (target.closest?.('[role="alertdialog"]')) return;
+      if (!container.current?.contains(target)) setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
       if (event.key !== "Escape") return;

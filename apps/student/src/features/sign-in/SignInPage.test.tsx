@@ -279,7 +279,8 @@ describe("student sign-in (US-101)", () => {
     const user = await fillAndSubmit();
     await screen.findByText(`Signed in as ${me.email}`);
 
-    await user.click(screen.getByRole("button", { name: "Sign out" }));
+    await user.click(screen.getByRole("button", { name: /^Account menu/ }));
+    await user.click(screen.getByRole("button", { name: "Logout" }));
 
     // Sign out asks first; confirm in the dialog.
     const confirm = await screen.findByRole("alertdialog", { name: "Sign out?" });
