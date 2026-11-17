@@ -1,4 +1,4 @@
-import { AuthShell, useSignInNotice } from "@cbpupsis/account";
+import { AuthShell, signInStyles, useSignInNotice } from "@cbpupsis/account";
 import { ApiError, errorMessage, isChallengeRejected, isThrottled } from "@cbpupsis/shared/api";
 import {
   ErrorAlert,
@@ -16,6 +16,16 @@ import { session } from "../../lib/auth";
 import { SignInForm } from "./SignInForm";
 import { useEnterPortal, useFacultyAuth } from "./useFacultyAuth";
 
+type SecondFactorStep = "verify" | "setup";
+
+/** The second-factor step an API error sends the person to, if it names one. */
+function mfaStepOf(error: unknown): SecondFactorStep | undefined {
+  if (!(error instanceof ApiError)) return undefined;
+  if (error.code === "AUTH_MFA_REQUIRED") return "verify";
+  if (error.code === "AUTH_MFA_ENROLLMENT_REQUIRED") return "setup";
+  return undefined;
+}
+
 export function FacultyLoginPage() {
   const { login, enrollment, confirmation, verification } = useFacultyAuth();
   const enter = useEnterPortal();
@@ -25,21 +35,27 @@ export function FacultyLoginPage() {
   const [enteredWindow, setEnteredWindow] = useState<number>();
   const headingRef = useRef<HTMLHeadingElement>(null);
   const challenge = login.data;
+  const token = challenge?.challengeToken;
   const recoveryCodes = confirmation.data?.recoveryCodes;
   const error = verification.error || confirmation.error || enrollment.error || login.error;
+  // The API can also name the step itself: a challenge presented where a session is needed
+  // (AUTH_MFA_REQUIRED) or an account whose authenticator is not set up (AUTH_MFA_ENROLLMENT_REQUIRED).
+  const mfaStep = mfaStepOf(error);
+  const inSecondFactor = Boolean(challenge) || mfaStep !== undefined;
   const lockError = isThrottled(error) ? error : undefined;
   const remainingLock = useCountdown(lockError?.retryAt);
   const codeWindow = useCodeWindow(enrollment.data?.period ?? 30);
   const codeChanged =
     code.length > 0 && enteredWindow !== undefined && enteredWindow !== codeWindow.window;
   // The API refuses an expired or superseded challenge with a bare 401; only a new sign-in helps.
-  const expired = Boolean(challenge) && isChallengeRejected(error);
+  // Reaching a step by error alone leaves no challenge to answer, so that also needs a new sign-in.
+  const expired = inSecondFactor && (!challenge || isChallengeRejected(error));
   const idError =
     error instanceof ApiError && error.code === "AUTH_ID_FORMAT_INVALID"
       ? errorMessage(error)
       : undefined;
   const locked = Boolean(lockError && (remainingLock === undefined || remainingLock > 0));
-  const enrolling = challenge?.enrollmentRequired === true;
+  const enrolling = mfaStep ? mfaStep === "setup" : challenge?.enrollmentRequired === true;
   const busy =
     login.isPending ||
     enrollment.isPending ||
@@ -52,13 +68,13 @@ export function FacultyLoginPage() {
     ? "Save your recovery codes"
     : enrolling
       ? "Secure your account"
-      : challenge
+      : inSecondFactor
         ? "Two-step verification"
         : "Faculty Portal";
 
   useEffect(() => {
-    if (challenge) headingRef.current?.focus();
-  }, [challenge, title]);
+    if (inSecondFactor) headingRef.current?.focus();
+  }, [inSecondFactor, title]);
 
   function reset() {
     login.reset();
@@ -128,17 +144,17 @@ export function FacultyLoginPage() {
   }
 
   return (
-    <AuthShell busy={busy} cardClassName={challenge ? "verification-card" : ""}>
+    <AuthShell busy={busy} cardClassName={inSecondFactor ? "verification-card" : ""}>
       <header>
-        <h1 id="auth-title" tabIndex={-1} ref={headingRef}>
+        <h1 id="auth-title" tabIndex={-1} ref={headingRef} className={signInStyles.title}>
           {title}
         </h1>
-        <p className="auth-subtitle">
+        <p className={signInStyles.subtitle}>
           {recoveryCodes
             ? "Keep your account accessible and secure."
             : enrolling
               ? "Set up your authenticator to continue."
-              : challenge
+              : inSecondFactor
                 ? "One more step to your Faculty Portal."
                 : "Login and stay connected."}
         </p>
@@ -147,7 +163,7 @@ export function FacultyLoginPage() {
         {codeChanged ? "The previous code window has ended. Use the current code in your app." : ""}
         {remainingLock === 0 ? "The waiting period has ended. You can try signing in again." : ""}
       </div>
-      {status && !error && !challenge && <Notice>{status}</Notice>}
+      {status && !error && !inSecondFactor && <Notice>{status}</Notice>}
       {error && !idError && (
         <ErrorAlert error={error}>
           {error instanceof ApiError && error.code === "AUTH_TEMPORARY_PASSWORD_EXPIRED" && (
@@ -160,7 +176,7 @@ export function FacultyLoginPage() {
           {lockError && <RetryCountdown remaining={remainingLock} />}
         </ErrorAlert>
       )}
-      {!challenge ? (
+      {!inSecondFactor ? (
         <SignInForm
           disabled={busy || locked}
           busy={busy}
@@ -208,7 +224,7 @@ export function FacultyLoginPage() {
                 type="button"
                 className="primary-button"
                 disabled={busy || locked || expired}
-                onClick={() => enrollment.mutate(challenge.challengeToken)}
+                onClick={() => token && enrollment.mutate(token)}
               >
                 {enrollment.isError ? "Retry authenticator setup" : "Set up authenticator"}
               </button>
@@ -307,9 +323,11 @@ export function FacultyLoginPage() {
           </button>
         </div>
       )}
-      <p className="account-help">
+      <p className={signInStyles.help}>
         Don&apos;t have an account? Contact{" "}
-        <a href="mailto:icto-admin@pup.edu.ph">icto-admin@pup.edu.ph</a>
+        <a className={signInStyles.helpLink} href="mailto:icto-admin@pup.edu.ph">
+          icto-admin@pup.edu.ph
+        </a>
       </p>
     </AuthShell>
   );

@@ -1,4 +1,4 @@
-import { AuthShell, useSignInNotice } from "@cbpupsis/account";
+import { AuthShell, signInStyles, useSignInNotice } from "@cbpupsis/account";
 import { ApiError, isChallengeRejected, isThrottled } from "@cbpupsis/shared/api";
 import { ErrorAlert, Notice, QrCode, RetryCountdown, useCountdown } from "@cbpupsis/ui";
 import { Link } from "@tanstack/react-router";
@@ -64,10 +64,10 @@ export function SignInPage() {
   return (
     <AuthShell busy={busy} cardClassName={challenge ? "verification-card" : ""}>
       <header>
-        <h1 id="auth-title" tabIndex={-1} ref={headingRef}>
+        <h1 id="auth-title" tabIndex={-1} ref={headingRef} className={signInStyles.title}>
           {title}
         </h1>
-        <p className="auth-subtitle">
+        <p className={signInStyles.subtitle}>
           {enrolling
             ? "Set up your authenticator to continue."
             : challenge
@@ -174,9 +174,11 @@ export function SignInPage() {
           </button>
         </div>
       )}
-      <p className="account-help">
+      <p className={signInStyles.help}>
         Don&apos;t have an account? Contact{" "}
-        <a href="mailto:icto-admin@pup.edu.ph">icto-admin@pup.edu.ph</a>
+        <a className={signInStyles.helpLink} href="mailto:icto-admin@pup.edu.ph">
+          icto-admin@pup.edu.ph
+        </a>
       </p>
     </AuthShell>
   );

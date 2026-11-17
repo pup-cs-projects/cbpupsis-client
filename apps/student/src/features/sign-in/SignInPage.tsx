@@ -1,4 +1,4 @@
-import { AuthShell, useSignInNotice } from "@cbpupsis/account";
+import { AuthShell, signInStyles, useSignInNotice } from "@cbpupsis/account";
 import { ApiError, errorMessage, isThrottled } from "@cbpupsis/shared/api";
 import { ErrorAlert, Notice, RetryCountdown, useCountdown } from "@cbpupsis/ui";
 import { Link } from "@tanstack/react-router";
@@ -26,12 +26,10 @@ export function SignInPage() {
   return (
     <AuthShell busy={busy}>
       <header>
-        <h1 id="auth-title" className="font-bold!">
+        <h1 id="auth-title" className={signInStyles.title}>
           Hello, Iskolar.
         </h1>
-        <p className="auth-subtitle text-brand-maroon! font-semibold! [text-shadow:0_1px_2px_rgb(255_255_255/0.55)]">
-          Login and stay connected.
-        </p>
+        <p className={signInStyles.subtitle}>Login and stay connected.</p>
       </header>
       <div aria-live="polite" aria-atomic="true" className="sr-only">
         {remainingLock === 0 ? "The waiting period has ended. You can try signing in again." : ""}
@@ -56,12 +54,9 @@ export function SignInPage() {
         idError={idError}
         onSubmit={(credentials) => signIn.mutate(credentials, { onSuccess: () => enter.mutate() })}
       />
-      <p className="account-help text-xs! font-normal! text-white/90! drop-shadow-sm">
+      <p className={signInStyles.help}>
         Don&apos;t have an account? Contact{" "}
-        <a
-          className="text-brand-maroon! font-semibold! [text-shadow:0_1px_3px_rgb(255_255_255/0.4)]"
-          href="mailto:icto-admin@pup.edu.ph"
-        >
+        <a className={signInStyles.helpLink} href="mailto:icto-admin@pup.edu.ph">
           icto-admin@pup.edu.ph
         </a>
       </p>

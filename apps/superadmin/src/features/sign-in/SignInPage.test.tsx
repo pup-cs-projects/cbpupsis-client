@@ -1,5 +1,5 @@
 import { mockApi } from "@cbpupsis/account/testing";
-import { screen, waitFor } from "@testing-library/react";
+import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -56,6 +56,30 @@ afterEach(async () => {
 });
 
 describe("superadmin sign-in (US-104)", () => {
+  it("says the role sentence when the API refuses the account's role (AC-AUTH-003.4)", async () => {
+    mockApi({
+      "POST /auth/superadmin/login": {
+        status: 403,
+        body: {
+          detail: "Forbidden",
+          request_id: "req-role-403",
+          code: "AUTH_INSUFFICIENT_ROLE",
+        },
+      },
+    });
+    renderApp("/");
+
+    await signInWithPassword();
+
+    const alert = await screen.findByRole("alert");
+    expect(
+      within(alert).getByText("This action is not available to your role."),
+    ).toBeInTheDocument();
+    expect(alert).toHaveTextContent("req-role-403");
+    expect(screen.getByRole("heading", { name: "Superadmin Portal" })).toBeInTheDocument();
+    expect(session.isSignedIn()).toBe(false);
+  });
+
   it("gets only a challenge from the password, and no session until the code (AC-104.1)", async () => {
     const api = mockApi({ "POST /auth/superadmin/login": { status: 200, body: challenge(false) } });
     renderApp("/");

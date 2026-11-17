@@ -1,3 +1,4 @@
+import { signInStyles, submitButtonClass } from "@cbpupsis/account";
 import type { FacultyCredentials } from "@cbpupsis/shared/auth";
 import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
@@ -32,7 +33,7 @@ export function SignInForm({
     <form onSubmit={submit} className="sign-in-form">
       <fieldset disabled={disabled} className="form-fields">
         <div className="field-group">
-          <label htmlFor="faculty-id">
+          <label htmlFor="faculty-id" className={signInStyles.label}>
             Faculty ID <span className="required">*</span>
           </label>
           <input
@@ -43,6 +44,7 @@ export function SignInForm({
             autoCapitalize="characters"
             spellCheck={false}
             required
+            className={signInStyles.input}
             aria-invalid={Boolean(idError)}
             aria-describedby={idError ? "faculty-id-error" : undefined}
           />
@@ -52,8 +54,8 @@ export function SignInForm({
             </p>
           )}
         </div>
-        <div className="field-group password-group">
-          <label htmlFor="password">
+        <div className={`field-group password-group ${signInStyles.passwordGroup}`}>
+          <label htmlFor="password" className={signInStyles.label}>
             Password <span className="required">*</span>
           </label>
           <div className="password-input">
@@ -64,6 +66,7 @@ export function SignInForm({
               placeholder="Enter your password"
               autoComplete="current-password"
               required
+              className={signInStyles.input}
             />
             <button
               type="button"
@@ -73,27 +76,36 @@ export function SignInForm({
               aria-pressed={visible}
             >
               <svg
-                width="21"
-                height="21"
+                width="22"
+                height="22"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
-                strokeWidth="1.7"
+                strokeWidth="1.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
                 aria-hidden="true"
               >
-                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12Z" />
+                <path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12Z" />
                 <circle cx="12" cy="12" r="3" />
-                {!visible && <path d="m3 21 18-18" />}
+                {/* Slashed while the password is hidden. */}
+                {!visible && <path d="M4 4l16 16" />}
               </svg>
             </button>
           </div>
-          <Link to="/forgot-password" className="forgot-password">
-            Forgot password?
+          <Link to="/forgot-password" className={signInStyles.forgotPassword}>
+            Forgot Password?
           </Link>
         </div>
-        <button type="submit" className={busy ? "primary-button is-busy" : "primary-button"}>
-          {busy ? "Signing in…" : "Sign in to Portal"}
-        </button>
+        <div className={signInStyles.submitArea}>
+          <div className={signInStyles.submitStack}>
+            {/* Reserves the line the student page uses for its message, so the spacing matches. */}
+            <div aria-live="assertive" className={signInStyles.messageLine} />
+            <button type="submit" className={submitButtonClass(busy)}>
+              {busy ? "Signing in…" : "Sign in to Portal"}
+            </button>
+          </div>
+        </div>
       </fieldset>
     </form>
   );

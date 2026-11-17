@@ -45,7 +45,7 @@ export class ApiError extends Error {
  */
 export type ApiErrorCode =
   // From the API (cbpupsis_shared/domains/auth/exceptions.py and the rate limiter).
-  | "AUTH_FAILED"
+  | "AUTH_INVALID_CREDENTIALS"
   | "AUTH_ID_FORMAT_INVALID"
   | "AUTH_ACCOUNT_LOCKED"
   | "AUTH_MFA_INVALID"
@@ -101,6 +101,10 @@ export function isPasswordChangeRequired(error: unknown): error is ApiError {
  * or did not answer in words. Everything the API says, it says through `detail`.
  */
 const CLIENT_MESSAGES: Partial<Record<string, string>> = {
+  // One sentence for every failed sign-in, whatever the portal and whichever detail was wrong
+  // (AC-AUTH-001.3). It never says whether the identifier, the birthdate or the password failed.
+  AUTH_INVALID_CREDENTIALS: "Invalid credentials.",
+  AUTH_INSUFFICIENT_ROLE: "This action is not available to your role.",
   NETWORK_ERROR: "We could not reach the server. Check your connection, then try again.",
   INVALID_RESPONSE: "The server sent an answer we could not read. Try again in a moment.",
   NOT_SIGNED_IN: "Sign in to continue.",
@@ -111,10 +115,22 @@ const CLIENT_MESSAGES: Partial<Record<string, string>> = {
     "This link is incomplete. Open the whole link from the email, or request a new one.",
 };
 
+/**
+ * Codes whose sentence the client owns: it wins over the API's `detail`, so the screen says the
+ * same thing whatever wording the API (or one portal's API) uses for it. Sign-in failures must
+ * not leak which detail was wrong, so they are the ones that cannot be left to `detail`.
+ */
+const FIXED_MESSAGE_CODES: ReadonlySet<string> = new Set([
+  "AUTH_INVALID_CREDENTIALS",
+  "AUTH_INSUFFICIENT_ROLE",
+]);
+
 const FALLBACK = "Something went wrong. Try again in a moment.";
 
-/** The sentence to show a person for any error an API call rejected with: the API's own. */
+/** The sentence to show a person for any error an API call rejected with: the API's own, except for the codes the client words itself. */
 export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return FALLBACK;
-  return error.detail ?? (error.code && CLIENT_MESSAGES[error.code]) ?? FALLBACK;
+  const own = error.code ? CLIENT_MESSAGES[error.code] : undefined;
+  if (own && error.code && FIXED_MESSAGE_CODES.has(error.code)) return own;
+  return error.detail ?? own ?? FALLBACK;
 }

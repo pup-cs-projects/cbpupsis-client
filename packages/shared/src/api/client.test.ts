@@ -56,11 +56,19 @@ describe("createApiClient", () => {
   });
 
   it("branches on the envelope's code and keeps the request id for bug reports", async () => {
-    respond(401, { detail: "Sign-in failed", request_id: "req-1", code: "AUTH_FAILED" });
+    respond(401, {
+      detail: "Sign-in failed",
+      request_id: "req-1",
+      code: "AUTH_INVALID_CREDENTIALS",
+    });
 
     const error = await rejection(client.request("/auth/student/login"));
 
-    expect(error).toMatchObject({ status: 401, code: "AUTH_FAILED", requestId: "req-1" });
+    expect(error).toMatchObject({
+      status: 401,
+      code: "AUTH_INVALID_CREDENTIALS",
+      requestId: "req-1",
+    });
   });
 
   it("reads a lockout's wait from the body (AC-101.4)", async () => {
@@ -103,16 +111,65 @@ describe("the API's own words", () => {
   it("reads detail from the envelope when it is a sentence", async () => {
     respond(401, {
       status: "error",
-      message: "Invalid employee ID or password.",
-      detail: "Invalid employee ID or password.",
+      message: "The security code or hardware-key response is invalid",
+      detail: "The security code or hardware-key response is invalid",
       request_id: "req-2",
-      code: "AUTH_FAILED",
+      code: "AUTH_MFA_INVALID",
     });
 
-    const error = await rejection(client.request("/auth/faculty/login"));
+    const error = await rejection(client.request("/auth/faculty/mfa/verify"));
 
-    expect(error.detail).toBe("Invalid employee ID or password.");
-    expect(errorMessage(error)).toBe("Invalid employee ID or password.");
+    expect(error.detail).toBe("The security code or hardware-key response is invalid");
+    expect(errorMessage(error)).toBe("The security code or hardware-key response is invalid");
+  });
+
+  it("says one generic sentence for AUTH_INVALID_CREDENTIALS, whatever detail the API sent (AC-AUTH-001.3)", async () => {
+    const hints = [
+      "Invalid credentials. Please verify your Student ID, birthdate, and password.",
+      "Invalid employee ID or password.",
+    ];
+    for (const detail of hints) {
+      respond(401, {
+        detail,
+        message: detail,
+        request_id: "req-3",
+        code: "AUTH_INVALID_CREDENTIALS",
+      });
+
+      const error = await rejection(client.request("/auth/student/login"));
+
+      expect(error).toMatchObject({ status: 401, code: "AUTH_INVALID_CREDENTIALS" });
+      expect(errorMessage(error)).toBe("Invalid credentials.");
+    }
+    // Even a response with no words says the same sentence.
+    expect(errorMessage(new ApiError(401, "AUTH_INVALID_CREDENTIALS"))).toBe(
+      "Invalid credentials.",
+    );
+  });
+
+  it("says the role sentence for AUTH_INSUFFICIENT_ROLE (AC-AUTH-003.4)", async () => {
+    respond(403, { detail: "Forbidden", request_id: "req-4", code: "AUTH_INSUFFICIENT_ROLE" });
+
+    const error = await rejection(client.request("/admin/me"));
+
+    expect(error).toMatchObject({ status: 403, code: "AUTH_INSUFFICIENT_ROLE" });
+    expect(errorMessage(error)).toBe("This action is not available to your role.");
+  });
+
+  it("carries the second-factor codes through to the caller (AC-AUTH-002)", async () => {
+    respond(401, { detail: "A second factor is required", code: "AUTH_MFA_REQUIRED" });
+    expect(await rejection(client.request("/auth/faculty/me"))).toMatchObject({
+      status: 401,
+      code: "AUTH_MFA_REQUIRED",
+    });
+
+    respond(403, {
+      detail: "Set up multi-factor authentication to continue",
+      code: "AUTH_MFA_ENROLLMENT_REQUIRED",
+    });
+    const error = await rejection(client.request("/auth/faculty/mfa/totp/enroll"));
+    expect(error).toMatchObject({ status: 403, code: "AUTH_MFA_ENROLLMENT_REQUIRED" });
+    expect(errorMessage(error)).toBe("Set up multi-factor authentication to continue");
   });
 
   it("falls back to message when detail is missing or blank", async () => {
