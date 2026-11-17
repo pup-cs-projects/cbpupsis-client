@@ -274,17 +274,16 @@ Stories live in cbpupsis-api; this repository holds their `[WEB]` tasks. The ful
 
 ## 10. Troubleshooting
 
-| Symptom                                                                | Fix                                                                                                                                                         |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Permission denied` on push                                            | Accept the org invitation and confirm you have write access to the repo                                                                                     |
-| Commit refused: "Do not commit directly to dev" (or `staging`, `main`) | You are on `dev`, `staging`, `main`, or an FR branch. `git checkout -b web-us-<module>-<nnn>`, then commit                                                  |
-| PR check "Branch name and base" is red                                 | The branch name or the PR's base is wrong. A story branch targets its FR branch, an FR branch targets `dev`. Rename the branch or change the base in the PR |
-| Commit refused by commitlint                                           | Rewrite the message as `type(scope): description`                                                                                                           |
-| Hooks do not run at all                                                | `npm run prepare`, then check `git config core.hooksPath` prints `.husky/_`                                                                                 |
-| `format:check` fails on every file on Windows                          | Line endings. Run `git add --renormalize .` and commit; `.gitattributes` keeps LF from then on                                                              |
-| Port 3000 already in use                                               | Stop the other process. The port is fixed because the API's CORS setting expects it                                                                         |
-| API calls fail with a CORS error                                       | The API is not running, or `VITE_API_BASE_URL` in `.env.local` points somewhere else                                                                        |
-| CI fails but `npm run check` passes                                    | `npm run build` locally; then `gh run view <id> --log-failed`                                                                                               |
+| Symptom                                                                | Fix                                                                                                        |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `Permission denied` on push                                            | Accept the org invitation and confirm you have write access to the repo                                    |
+| Commit refused: "Do not commit directly to dev" (or `staging`, `main`) | You are on `dev`, `staging`, `main`, or an FR branch. `git checkout -b web-us-<module>-<nnn>`, then commit |
+| Commit refused by commitlint                                           | Rewrite the message as `type(scope): description`                                                          |
+| Hooks do not run at all                                                | `npm run prepare`, then check `git config core.hooksPath` prints `.husky/_`                                |
+| `format:check` fails on every file on Windows                          | Line endings. Run `git add --renormalize .` and commit; `.gitattributes` keeps LF from then on             |
+| Port 3000 already in use                                               | Stop the other process. The port is fixed because the API's CORS setting expects it                        |
+| API calls fail with a CORS error                                       | The API is not running, or `VITE_API_BASE_URL` in `.env.local` points somewhere else                       |
+| CI fails but `npm run check` passes                                    | `npm run build` locally; then `gh run view <id> --log-failed`                                              |
 
 Still stuck? Comment on your issue with the exact command and output, and mention the product
 owner.
