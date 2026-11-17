@@ -238,6 +238,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     expect(rejectedRow).not.toBeNull();
     expect(within(rejectedRow as HTMLElement).getByText("Rejected")).toBeInTheDocument();
     expect(within(rejectedRow as HTMLElement).getByText("COSC 304, COMP 016")).toBeInTheDocument();
+    expect(within(rejectedRow as HTMLElement).getByText("Add / Drop")).toBeInTheDocument();
     // Status and remarks sit in a live region, so a change is read out.
     expect(rejectedRow?.closest("[aria-live]")).toHaveAttribute("aria-live", "polite");
     expect(screen.getAllByText("Pending").length).toBeGreaterThan(0);
