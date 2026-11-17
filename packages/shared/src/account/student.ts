@@ -36,6 +36,10 @@ export interface StudentAccount {
   /** What is past due, with the penalty on it. Only sent when `paymentStatus` is OVERDUE. */
   overdueAmount: string | null;
   penaltyAmount: string | null;
+  /** The gateway's fee for paying online. Null or absent when the API sends none. */
+  processingFee?: string | null;
+  /** What paying everything costs, fee and penalty included, as the API computed it. */
+  totalAmountDue?: string | null;
   lines: AccountLine[];
 }
 
@@ -55,12 +59,12 @@ export interface StudentPayment {
 const AMOUNT = /^-?\d+(\.\d+)?$/;
 
 /** A peso amount, kept as the text the API sent. A JSON number is read back as its text. */
-function amount(value: unknown): string {
+export function amount(value: unknown): string {
   const text = typeof value === "number" && Number.isFinite(value) ? String(value) : value;
   return typeof text === "string" && AMOUNT.test(text) ? text : parse.invalid();
 }
 
-function optionalAmount(value: unknown): string | null {
+export function optionalAmount(value: unknown): string | null {
   return value === undefined || value === null ? null : amount(value);
 }
 
@@ -74,7 +78,8 @@ function parseLine(value: unknown): AccountLine {
   };
 }
 
-function parseAccount(body: unknown): StudentAccount {
+/** Narrow a GET /student/account body at the boundary; every amount stays text. */
+export function parseStudentAccount(body: unknown): StudentAccount {
   const account = parse.record(body);
   return {
     amountAssessed: amount(account.amountAssessed),
@@ -85,6 +90,8 @@ function parseAccount(body: unknown): StudentAccount {
     fheForfeitureReason: parse.optionalString(account.fheForfeitureReason),
     overdueAmount: optionalAmount(account.overdueAmount),
     penaltyAmount: optionalAmount(account.penaltyAmount),
+    processingFee: optionalAmount(account.processingFee),
+    totalAmountDue: optionalAmount(account.totalAmountDue),
     lines: parse.array(account.lines).map(parseLine),
   };
 }
@@ -106,7 +113,7 @@ export function createStudentAccountApi(client: ApiClient) {
   return {
     async account(accessToken: string): Promise<StudentAccount> {
       const body = await client.request("/student/account", { method: "GET", accessToken });
-      return parseAccount(body);
+      return parseStudentAccount(body);
     },
 
     /** In the order the API sends them; the page sorts them. */

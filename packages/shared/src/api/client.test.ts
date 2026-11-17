@@ -30,6 +30,21 @@ afterEach(() => {
 });
 
 describe("createApiClient", () => {
+  it("sends extra headers, but never lets them replace the client's own", async () => {
+    const fetchMock = respond(200, { ok: true });
+
+    await client.request("/student/payments", {
+      accessToken: "abc",
+      body: { amount: "1.00" },
+      headers: { "Idempotency-Key": "k-1", Authorization: "Bearer other", Accept: "text/plain" },
+    });
+
+    const headers = new Headers((fetchMock.mock.calls[0] as [string, RequestInit])[1].headers);
+    expect(headers.get("Idempotency-Key")).toBe("k-1");
+    expect(headers.get("Authorization")).toBe("Bearer abc");
+    expect(headers.get("Accept")).toBe("application/json");
+  });
+
   it("joins the path to the base URL and sends the access token as a bearer token", async () => {
     const fetchMock = respond(200, { ok: true });
 
