@@ -27,6 +27,22 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         </Link>
       )}
       navigation={[
+        ...[
+          {
+            label: "Grade corrections",
+            icon: <DashboardIcon name="briefcase" />,
+            children: [
+              {
+                label: "Correction of Entry",
+                content: (
+                  <Link to="/grade-corrections" className={settingsLink}>
+                    Correction of Entry
+                  </Link>
+                ),
+              },
+            ],
+          },
+        ],
         {
           label: "Courses",
           icon: <DashboardIcon name="book" />,
@@ -35,7 +51,24 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         {
           label: "Grades",
           icon: <DashboardIcon name="briefcase" />,
-          children: [{ label: "Grade Submission" }],
+          children: [
+            {
+              label: "Grade Submission",
+              content: (
+                <Link to="/grades" className={settingsLink}>
+                  Grade Submission
+                </Link>
+              ),
+            },
+            {
+              label: "Incomplete grades",
+              content: (
+                <Link to="/incompletes" className={settingsLink}>
+                  Incomplete grades
+                </Link>
+              ),
+            },
+          ],
         },
         {
           label: "Settings",

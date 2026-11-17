@@ -3,6 +3,9 @@ import { ErrorAlert, Notice } from "@cbpupsis/ui";
 import "@cbpupsis/account/styles.css";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { CourseTable } from "./CourseTable";
+import { GoogleCalendarPanel } from "./GoogleCalendarPanel";
+import { GOOGLE_CALENDAR_MESSAGES } from "./googleCalendar";
+import { useGoogleCalendar } from "./useGoogleCalendar";
 import { ScheduleActions } from "./ScheduleActions";
 import { useCourseSchedule, useScheduleActions } from "./useCourseSchedule";
 import { WeekGlance } from "./WeekGlance";
@@ -41,6 +44,7 @@ function Loading() {
 export function SchedulePage() {
   const schedule = useCourseSchedule();
   const actions = useScheduleActions();
+  const calendar = useGoogleCalendar();
   const data = schedule.data;
 
   return (
@@ -101,29 +105,50 @@ export function SchedulePage() {
           </h2>
         )}
 
-        {/* The header sits above the grid, so the table and the summary start on one line. */}
-        {data && (
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
+        <div className={data ? "grid grid-cols-1 gap-6 lg:grid-cols-12" : "max-w-xl"}>
+          {data && (
             <div className="min-w-0 lg:col-span-8">
               <CourseTable courses={data.courses} summary={data.summary} />
             </div>
-
-            {/* The rail stays in view while the table scrolls; one column below 1024px. */}
-            <aside
-              aria-label="Schedule summary and actions"
-              className="space-y-6 lg:sticky lg:top-6 lg:col-span-4 lg:self-start"
-            >
+          )}
+          <aside
+            aria-label="Schedule summary and actions"
+            className={
+              data
+                ? "min-w-0 space-y-6 lg:sticky lg:top-6 lg:col-span-4 lg:self-start"
+                : "space-y-6"
+            }
+          >
+            {data && (
               <ScheduleActions
                 summary={data.summary}
                 pending={actions.pending}
                 onDownloadCor={actions.downloadCor}
                 onExportIcs={actions.exportIcs}
-                onConnectGoogle={actions.connectGoogleCalendar}
+                onConnectGoogle={() => calendar.connect(data.term)}
+                google={{
+                  connected: Boolean(calendar.status.data?.connected),
+                  connecting: calendar.connecting,
+                  busy: calendar.busy,
+                  canConnect: calendar.canConnect,
+                  loading: calendar.status.isPending,
+                  disabledReason:
+                    calendar.status.data?.enabled === false && !calendar.canConnect
+                      ? GOOGLE_CALENDAR_MESSAGES.disabled
+                      : calendar.status.isError
+                        ? "Check Google Calendar status below."
+                        : undefined,
+                }}
               />
-              <WeekGlance courses={data.courses} />
-            </aside>
-          </div>
-        )}
+            )}
+            <GoogleCalendarPanel
+              calendar={calendar}
+              currentTerm={data?.term}
+              showConnectButton={!data}
+            />
+            {data && <WeekGlance courses={data.courses} />}
+          </aside>
+        </div>
       </div>
     </DashboardLayout>
   );

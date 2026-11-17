@@ -53,6 +53,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           children: [
             { label: "Calendar" },
             { label: "Courses" },
+            ...(me.data?.position === "dean"
+              ? [
+                  {
+                    label: "Inc completions",
+                    content: (
+                      <Link to="/incomplete-completions" className={settingsLink}>
+                        Inc completions
+                      </Link>
+                    ),
+                  },
+                ]
+              : []),
             ...(isReviewerRole(me.data?.position)
               ? [
                   {
@@ -80,6 +92,24 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             { label: "System Health" },
           ],
         },
+        ...(["chairperson", "dean", "registrar"].includes(me.data?.position ?? "")
+          ? [
+              {
+                label: "Grade corrections",
+                icon: <DashboardIcon name="briefcase" />,
+                children: [
+                  {
+                    label: "Correction of Entry",
+                    content: (
+                      <Link to="/grade-corrections" className={settingsLink}>
+                        Correction of Entry
+                      </Link>
+                    ),
+                  },
+                ],
+              },
+            ]
+          : []),
         {
           label: "Settings",
           icon: <DashboardIcon name="settings" />,

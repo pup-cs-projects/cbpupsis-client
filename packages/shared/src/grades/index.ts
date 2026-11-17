@@ -7,3 +7,5 @@ export {
   type Transcript,
   type TranscriptTerm,
 } from "./student";
+
+export * from "./faculty";

@@ -1,3 +1,4 @@
+import { featureRoutes } from "./featureRoutes";
 import { createPortalRouter } from "@cbpupsis/account";
 import { MaintenancePage, NotFoundPage, ServerErrorPage } from "@cbpupsis/ui";
 import type { RouterHistory } from "@tanstack/react-router";
@@ -17,6 +18,7 @@ export function createAppRouter(history?: RouterHistory) {
       serverError: ServerErrorPage,
       maintenance: MaintenancePage,
     },
+    extraRoutes: featureRoutes,
     history,
   });
 }

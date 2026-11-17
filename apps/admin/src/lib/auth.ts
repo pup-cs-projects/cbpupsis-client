@@ -7,6 +7,7 @@ import {
   createSession,
 } from "@cbpupsis/shared/auth";
 import { createAdminEnrollmentApi } from "@cbpupsis/shared/enrollment";
+import { createIncompleteReviewApi } from "@cbpupsis/shared/grades";
 
 const apiClient = createApiClient(
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1",
@@ -18,6 +19,9 @@ export const authApi = createAdminAuthApi(apiClient);
 export const passwordApi = createPasswordApi(apiClient);
 export const profileApi = createProfileApi(apiClient);
 export const enrollmentApi = createAdminEnrollmentApi(apiClient);
+
+// Supply the published backend codec here when its completion contract is available.
+export const incompleteReviewApi = createIncompleteReviewApi(apiClient);
 
 /** This app's one session. Tokens stay in memory; a reload restores it from the refresh cookie. */
 export const session = createSession(authApi);
