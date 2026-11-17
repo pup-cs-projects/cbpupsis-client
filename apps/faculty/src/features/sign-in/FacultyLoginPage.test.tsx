@@ -9,6 +9,7 @@ import { renderApp } from "../../test/renderApp";
 
 // The API's own sentences (cbpupsis_shared/domains/auth), shown unchanged.
 const ID_FORMAT = "Invalid employee ID format. Expected format: YYYY-NNNNN-XX-N";
+const INVALID_CREDENTIALS = "Invalid credentials.";
 const SESSION_ENDED = "Your session has ended. Sign in again.";
 const TEMPORARY_EXPIRED =
   "Your temporary password has expired. Ask the system administrator to issue a new one.";
@@ -232,6 +233,97 @@ describe("faculty sign-in (US-102)", () => {
     expect(screen.getByLabelText(/Authentication code/)).toBeDisabled();
     fireEvent.click(screen.getByRole("button", { name: "Back to sign in" }));
     expect(await screen.findByRole("heading", { name: "Faculty Portal" })).toBeInTheDocument();
+  });
+
+  it("says one generic sentence for a failed sign-in, never which detail was wrong (AC-AUTH-001.3)", async () => {
+    mockApi({
+      "POST /auth/faculty/login": {
+        status: 401,
+        body: {
+          status: "error",
+          message: "Invalid employee ID or password.",
+          detail: "Invalid employee ID or password.",
+          request_id: "req-faculty-401",
+          code: "AUTH_INVALID_CREDENTIALS",
+        },
+      },
+    });
+    renderApp("/");
+
+    await submitPassword();
+
+    const alert = await screen.findByRole("alert");
+    expect(within(alert).getByText(INVALID_CREDENTIALS)).toBeInTheDocument();
+    expect(alert).not.toHaveTextContent(/employee id|faculty id|password/i);
+    expect(alert).toHaveTextContent("req-faculty-401");
+    // Still on sign-in, with the password cleared.
+    expect(screen.getByRole("heading", { name: "Faculty Portal" })).toBeInTheDocument();
+    expect(screen.getByLabelText(/^Password/)).toHaveValue("");
+    expect(session.isSignedIn()).toBe(false);
+  });
+
+  it("moves to the verification step when the API asks for a second factor (AC-AUTH-002)", async () => {
+    mockApi({
+      "POST /auth/faculty/login": {
+        status: 401,
+        body: { detail: "A second factor is required", code: "AUTH_MFA_REQUIRED" },
+      },
+    });
+    renderApp("/");
+
+    await submitPassword();
+
+    expect(await screen.findByRole("heading", { name: "Two-step verification" })).toHaveFocus();
+    expect(screen.getByText("One more step to your Faculty Portal.")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Faculty ID/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Sign in to Portal" })).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent("A second factor is required");
+    // No challenge came with the answer, so the step can only lead back to a fresh sign-in.
+    fireEvent.click(screen.getByRole("button", { name: "Back to sign in" }));
+    expect(await screen.findByRole("heading", { name: "Faculty Portal" })).toBeInTheDocument();
+    expect(session.isSignedIn()).toBe(false);
+  });
+
+  it("moves to authenticator setup when the API says enrollment is required (AC-AUTH-002)", async () => {
+    mockApi({
+      "POST /auth/faculty/login": {
+        status: 403,
+        body: {
+          detail: "Set up multi-factor authentication to continue",
+          code: "AUTH_MFA_ENROLLMENT_REQUIRED",
+        },
+      },
+    });
+    renderApp("/");
+
+    await submitPassword();
+
+    expect(await screen.findByRole("heading", { name: "Secure your account" })).toHaveFocus();
+    expect(screen.getByText("Set up your authenticator to continue.")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/Faculty ID/)).not.toBeInTheDocument();
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Set up multi-factor authentication to continue",
+    );
+    expect(session.isSignedIn()).toBe(false);
+  });
+
+  it("goes to the verification step when the second factor is demanded mid-way (AC-AUTH-002)", async () => {
+    mockApi({
+      "POST /auth/faculty/login": { status: 200, body: challenge(false) },
+      "POST /auth/faculty/mfa/verify": {
+        status: 401,
+        body: { detail: "A second factor is required", code: "AUTH_MFA_REQUIRED" },
+      },
+    });
+    renderApp("/");
+    await submitPassword();
+
+    await enterCode();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("A second factor is required");
+    expect(screen.getByRole("heading", { name: "Two-step verification" })).toBeInTheDocument();
+    // The challenge is still good, so the code field stays usable.
+    expect(screen.getByLabelText(/Authentication code/)).toBeEnabled();
   });
 
   it("takes a first sign-in, with no factor enrolled yet, to authenticator setup", async () => {

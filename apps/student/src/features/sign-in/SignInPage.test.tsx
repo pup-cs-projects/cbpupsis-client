@@ -21,6 +21,8 @@ const me = {
 
 // The API's own sentences (cbpupsis_shared/domains/auth/constants.py).
 const FAILED = "Invalid credentials. Please verify your Student ID, birthdate, and password.";
+// What the screen says instead: one sentence that never names the detail that was wrong.
+const INVALID_CREDENTIALS = "Invalid credentials.";
 const TEMPORARY_EXPIRED =
   "Your temporary password has expired. Ask the system administrator to issue a new one.";
 
@@ -124,7 +126,7 @@ describe("student sign-in (US-101)", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
 
-  it("says only what the API says about the failed details, clears the password, and stays on sign-in (AC-101.3)", async () => {
+  it("says one generic sentence for failed details, clears the password, and stays on sign-in (AC-AUTH-001.3)", async () => {
     mockApi({
       "POST /auth/student/login": {
         status: 401,
@@ -133,7 +135,7 @@ describe("student sign-in (US-101)", () => {
           message: FAILED,
           detail: FAILED,
           request_id: "req-42",
-          code: "AUTH_FAILED",
+          code: "AUTH_INVALID_CREDENTIALS",
         },
       },
     });
@@ -143,7 +145,9 @@ describe("student sign-in (US-101)", () => {
     await fillAndSubmit();
 
     const alert = await screen.findByRole("alert");
-    expect(alert).toHaveTextContent(FAILED);
+    expect(within(alert).getByText(INVALID_CREDENTIALS)).toBeInTheDocument();
+    // The API's wording names the birthdate, the number and the password; the screen must not.
+    expect(alert).not.toHaveTextContent(/student id|birthdate/i);
     expect(alert).toHaveTextContent("req-42");
     expect(screen.getByLabelText(/^Password/)).toHaveValue("");
   });

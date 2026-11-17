@@ -1,14 +1,11 @@
+import { signInStyles, submitButtonClass } from "@cbpupsis/account";
 import type { StudentCredentials } from "@cbpupsis/shared/auth";
 import { Link } from "@tanstack/react-router";
 import { useState, type FormEvent } from "react";
 
 const INCOMPLETE = "Please complete all fields to sign in.";
-// Maroon outline for a control flagged by aria-invalid; `!` beats the shared auth.css border.
-const FLAGGED = "aria-invalid:border-brand-maroon!";
-// Type scale for the controls. Selects keep the shared dark/placeholder colour pair.
-const INPUT = `${FLAGGED} text-sm! font-normal! text-brand-ink!`;
-const SELECT = `${FLAGGED} text-sm! font-normal! max-lg:pr-8! max-lg:pl-3!`;
-const LABEL = "text-sm! font-semibold! text-white! drop-shadow-sm";
+// The look is shared with the other portals' sign-in pages (signInStyles in @cbpupsis/account).
+const { input: INPUT, select: SELECT, label: LABEL } = signInStyles;
 
 const MONTHS = [
   "January",
@@ -199,7 +196,7 @@ export function SignInForm({
             </select>
           </div>
         </fieldset>
-        <div className="field-group password-group mb-0!">
+        <div className={`field-group password-group ${signInStyles.passwordGroup}`}>
           <label htmlFor="password" className={LABEL}>
             Password
           </label>
@@ -241,30 +238,20 @@ export function SignInForm({
             </button>
           </div>
           {/* Inside the group so it sits snug under the input whatever the form gap is. */}
-          <Link
-            to="/forgot-password"
-            className="forgot-password text-brand-maroon! mt-0! min-h-8! px-0! text-xs! font-semibold! [text-shadow:0_1px_3px_rgb(255_255_255/0.4)] hover:underline"
-          >
+          <Link to="/forgot-password" className={signInStyles.forgotPassword}>
             Forgot Password?
           </Link>
         </div>
-        <div className="flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            {/* Always one line tall, so showing the message never moves anything. */}
-            <div aria-live="assertive" className="flex min-h-6 items-center justify-center">
+        <div className={signInStyles.submitArea}>
+          <div className={signInStyles.submitStack}>
+            <div aria-live="assertive" className={signInStyles.messageLine}>
               {message && (
-                <span
-                  id="sign-in-message"
-                  className="border-brand-maroon/40 bg-brand-maroon-dark/80 rounded-full border px-3 text-xs leading-5 font-medium text-white"
-                >
+                <span id="sign-in-message" className={signInStyles.message}>
                   {message}
                 </span>
               )}
             </div>
-            <button
-              type="submit"
-              className={`primary-button h-[52px]! min-h-[52px]! text-sm! font-semibold! text-white!${busy ? "is-busy" : ""}`}
-            >
+            <button type="submit" className={submitButtonClass(busy)}>
               {busy ? "Signing in…" : "Sign in to Portal"}
             </button>
           </div>

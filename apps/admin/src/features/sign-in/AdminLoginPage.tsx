@@ -1,4 +1,4 @@
-import { AuthShell, useSignInNotice } from "@cbpupsis/account";
+import { AuthShell, signInStyles, useSignInNotice } from "@cbpupsis/account";
 import { ApiError, isChallengeRejected, isThrottled } from "@cbpupsis/shared/api";
 import {
   ErrorAlert,
@@ -94,10 +94,10 @@ export function AdminLoginPage() {
   return (
     <AuthShell busy={busy} cardClassName={challenge ? "verification-card" : ""}>
       <header>
-        <h1 id="auth-title" tabIndex={-1} ref={headingRef}>
+        <h1 id="auth-title" tabIndex={-1} ref={headingRef} className={signInStyles.title}>
           {title}
         </h1>
-        <p className="auth-subtitle">
+        <p className={signInStyles.subtitle}>
           {enrolling
             ? "Set up a second factor to continue."
             : challenge
@@ -236,9 +236,11 @@ export function AdminLoginPage() {
           </button>
         </div>
       )}
-      <p className="account-help">
+      <p className={signInStyles.help}>
         Don&apos;t have an account? Contact{" "}
-        <a href="mailto:icto-admin@pup.edu.ph">icto-admin@pup.edu.ph</a>
+        <a className={signInStyles.helpLink} href="mailto:icto-admin@pup.edu.ph">
+          icto-admin@pup.edu.ph
+        </a>
       </p>
     </AuthShell>
   );

@@ -82,6 +82,30 @@ describe("admin sign-in (US-103)", () => {
     expect(api.calls).toHaveLength(0);
   });
 
+  it("says the role sentence when the API refuses the account's role (AC-AUTH-003.4)", async () => {
+    mockApi({
+      "POST /auth/admin/login": {
+        status: 403,
+        body: {
+          detail: "Forbidden",
+          request_id: "req-role-403",
+          code: "AUTH_INSUFFICIENT_ROLE",
+        },
+      },
+    });
+    renderApp("/");
+
+    await submitPassword();
+
+    const alert = await screen.findByRole("alert");
+    expect(
+      within(alert).getByText("This action is not available to your role."),
+    ).toBeInTheDocument();
+    expect(alert).toHaveTextContent("req-role-403");
+    expect(screen.getByRole("heading", { name: "Admin Portal" })).toBeInTheDocument();
+    expect(session.isSignedIn()).toBe(false);
+  });
+
   it("gets only a challenge from the password, sent as email and password (AC-103.1)", async () => {
     const api = mockApi({ "POST /auth/admin/login": { status: 200, body: challenge(false) } });
     renderApp("/");
