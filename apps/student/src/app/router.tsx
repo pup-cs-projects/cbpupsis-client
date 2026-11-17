@@ -1,6 +1,7 @@
 import { createPortalRouter } from "@cbpupsis/account";
 import { createRoute, redirect, useParams, type RouterHistory } from "@tanstack/react-router";
 
+import { AccountPage } from "../features/account/AccountPage";
 import { HomePage } from "../features/dashboard/HomePage";
 import { AddDropPage } from "../features/enrollment/AddDropPage";
 import { CertificatePage } from "../features/enrollment/CertificatePage";
@@ -42,6 +43,14 @@ export function createAppRouter(history?: RouterHistory) {
           if (!account.session.isSignedIn()) throw redirect({ to: "/" });
         },
         component: SchedulePage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/account",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: AccountPage,
       }),
       createRoute({
         getParentRoute: () => rootRoute,
