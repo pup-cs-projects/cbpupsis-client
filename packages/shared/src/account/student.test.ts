@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "../api/client";
-import { createStudentAccountApi } from "./student";
+import { createStudentAccountApi, isSettled } from "./student";
 
 const root = "http://localhost:8000/api/v1";
 
@@ -22,14 +22,17 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
+// What GET /api/v1/student/account returns (AccountRead in cbpupsis-api).
 const account = {
   amountAssessed: "3000.00",
-  subsidyApplied: null,
+  subsidyApplied: "0.00",
   netPayable: "3000.00",
-  paymentStatus: "UNPAID",
+  paymentStatus: "DUE",
+  holds: [],
+  lines: [{ description: "Tuition", amount: "3000.00", coveredByFhe: false }],
+  fheQualified: true,
   fheForfeited: false,
   fheForfeitureReason: null,
-  lines: [{ code: "TUITION", description: "Tuition", amount: "3000.00", coveredBySubsidy: false }],
 };
 
 describe("student account API boundary", () => {
@@ -45,9 +48,40 @@ describe("student account API boundary", () => {
     );
     expect(result.amountAssessed).toBe("9007199254740993.10");
     expect(result.netPayable).toBe("3000.00");
-    expect(result.subsidyApplied).toBeNull();
-    expect(result.overdueAmount).toBeNull();
+    expect(result.subsidyApplied).toBe("0.00");
     expect(result.lines).toEqual(account.lines);
+    expect(result.paymentStatus).toBe("DUE");
+    expect(result.overdueAmount).toBeNull();
+    expect(result.penaltyAmount).toBeNull();
+  });
+
+  it("an OVERDUE account's overdue amount is netPayable and its penalty is the fine line, as sent", async () => {
+    reply({
+      ...account,
+      paymentStatus: "OVERDUE",
+      netPayable: "3100.00",
+      amountAssessed: "3100.00",
+      lines: [
+        ...account.lines,
+        { description: "Late payment fine", amount: "100.00", coveredByFhe: false },
+      ],
+    });
+    const api = createStudentAccountApi(createApiClient(root));
+
+    const result = await api.account("t");
+
+    expect(result.overdueAmount).toBe("3100.00");
+    expect(result.penaltyAmount).toBe("100.00");
+  });
+
+  it("an OVERDUE account with no fine line has no penalty", async () => {
+    reply({ ...account, paymentStatus: "OVERDUE" });
+    const api = createStudentAccountApi(createApiClient(root));
+
+    const result = await api.account("t");
+
+    expect(result.overdueAmount).toBe("3000.00");
+    expect(result.penaltyAmount).toBeNull();
   });
 
   it("reads a JSON number amount back as its text", async () => {
@@ -64,33 +98,53 @@ describe("student account API boundary", () => {
     await expect(api.account("t")).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
   });
 
-  it("GET /student/payments reads the items", async () => {
-    const fetch = reply({
-      items: [
-        {
-          id: "p-1",
-          paidAt: "2026-06-10T02:00:00Z",
-          amount: "500.00",
-          reference: "REF-1",
-          status: "SETTLED",
-          receiptUrl: "https://sis.example.test/r/1",
-        },
-        {
-          id: "p-2",
-          paidAt: "2026-06-11T02:00:00Z",
-          amount: "100.00",
-          reference: "REF-2",
-          status: "PENDING",
-        },
-      ],
-    });
+  it("rejects a payment status the API does not define as INVALID_RESPONSE", async () => {
+    reply({ ...account, paymentStatus: "UNPAID" });
+    const api = createStudentAccountApi(createApiClient(root));
+
+    await expect(api.account("t")).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+
+  it("GET /student/payments reads the bare array, keyed by reference", async () => {
+    const fetch = reply([
+      { date: "2026-06-10T02:00:00Z", amount: "500.00", reference: "REF-1", status: "PAID" },
+      { date: "2026-06-09T02:00:00Z", amount: "100.00", reference: "REF-2", status: "PENDING" },
+    ]);
     const api = createStudentAccountApi(createApiClient(root));
 
     const result = await api.payments("student-access");
 
     expect(fetch.mock.calls[0]?.[0]).toBe(root + "/student/payments");
-    expect(result.map((payment) => payment.reference)).toEqual(["REF-1", "REF-2"]);
-    expect(result[0]?.receiptUrl).toBe("https://sis.example.test/r/1");
-    expect(result[1]?.receiptUrl).toBeNull();
+    expect(result).toEqual([
+      {
+        id: "REF-1",
+        paidAt: "2026-06-10T02:00:00Z",
+        amount: "500.00",
+        reference: "REF-1",
+        status: "PAID",
+        receiptUrl: null,
+      },
+      {
+        id: "REF-2",
+        paidAt: "2026-06-09T02:00:00Z",
+        amount: "100.00",
+        reference: "REF-2",
+        status: "PENDING",
+        receiptUrl: null,
+      },
+    ]);
+  });
+
+  it("an empty payment history is an empty array", async () => {
+    reply([]);
+    const api = createStudentAccountApi(createApiClient(root));
+
+    expect(await api.payments("t")).toEqual([]);
+  });
+
+  it("isSettled is true for a PAID payment only", () => {
+    expect(isSettled({ status: "PAID" })).toBe(true);
+    expect(isSettled({ status: "paid" })).toBe(true);
+    expect(isSettled({ status: "PENDING" })).toBe(false);
   });
 });

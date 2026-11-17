@@ -1,9 +1,11 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useState } from "react";
 
+import { ApiError } from "@cbpupsis/shared/api";
+
 import {
+  isSettled,
   PAYMENT_OVERDUE,
-  PAYMENT_SETTLED,
   type StudentAccount,
   type StudentPayment,
 } from "@cbpupsis/shared/account";
@@ -12,7 +14,7 @@ import "@cbpupsis/account/styles.css";
 import { formatShortDate } from "../../lib/datetime";
 import { formatPesoAmount, isPositiveAmount, isZeroAmount } from "../../lib/money";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
-import { billingSample } from "./sampleData";
+// import { billingSample } from "./sampleData"; // demo data, commented out: see useAccount.ts
 import { useStudentAccount, useStudentPayments } from "./useAccount";
 
 // Every amount below is the API's text, shown through formatPesoAmount. Nothing is added,
@@ -41,12 +43,23 @@ function Loading() {
   );
 }
 
-function LoadError({ onRetry }: { onRetry: () => void }) {
+/** What went wrong, for a bug report: the HTTP status, the API's code, and its request id. */
+function errorReference(error: unknown): string | null {
+  if (!(error instanceof ApiError)) return null;
+  const parts = [error.status > 0 ? `Error ${error.status}` : "No response from the server"];
+  if (error.code) parts.push(error.code);
+  if (error.requestId) parts.push(`Reference ${error.requestId}`);
+  return parts.join(" · ");
+}
+
+function LoadError({ error, onRetry }: { error: unknown; onRetry: () => void }) {
+  const reference = errorReference(error);
   return (
     <div className="rounded-2xl border border-neutral-200 bg-white px-6 py-10 text-center shadow-sm">
       <p role="alert" className="font-semibold text-neutral-900">
         We couldn&apos;t load your billing statement. Check your connection and try again.
       </p>
+      {reference && <p className="mt-2 text-sm break-words text-neutral-600">{reference}</p>}
       <button
         type="button"
         onClick={onRetry}
@@ -96,7 +109,7 @@ function GoodStanding() {
     >
       <CheckCircle2 aria-hidden="true" className="mt-0.5 size-5 shrink-0" />
       <p className="min-w-0 break-words">
-        No Outstanding Balance — Your account is in good standing. Enrollment is accessible.
+        No Outstanding Balance — Your account is in good standing.
       </p>
     </div>
   );
@@ -106,7 +119,8 @@ function AccountStatus({ account }: { account: StudentAccount }) {
   const [payNotice, setPayNotice] = useState(false);
   const overdue = account.paymentStatus === PAYMENT_OVERDUE;
   const owes = isPositiveAmount(account.netPayable);
-  const hasSubsidy = account.subsidyApplied !== null && !isZeroAmount(account.subsidyApplied);
+  // The API sends "0.00" when there is no subsidy (AC-FIN-001.6): then there is no line for it.
+  const hasSubsidy = !isZeroAmount(account.subsidyApplied);
 
   return (
     <section aria-labelledby="account-status-heading">
@@ -125,7 +139,7 @@ function AccountStatus({ account }: { account: StudentAccount }) {
 
         <dl className="mt-3 grid grid-cols-[140px_1fr] gap-y-1 text-sm">
           <Figure label="Amount Assessed" value={formatPesoAmount(account.amountAssessed)} />
-          {hasSubsidy && account.subsidyApplied !== null && (
+          {hasSubsidy && (
             <Figure label="Subsidy Applied" value={formatPesoAmount(account.subsidyApplied)} />
           )}
         </dl>
@@ -206,14 +220,14 @@ function Assessment({ account }: { account: StudentAccount }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-neutral-200">
-                {account.lines.map((line) => (
-                  <tr key={line.code}>
+                {account.lines.map((line, index) => (
+                  <tr key={`${index}-${line.description}`}>
                     <th scope="row" className={`${CELL} font-medium break-words`}>
                       {line.description}
                     </th>
                     <td className={`${CELL} tabular-nums`}>{formatPesoAmount(line.amount)}</td>
                     <td className={CELL}>
-                      {line.coveredBySubsidy ? (
+                      {line.coveredByFhe ? (
                         <span className="text-sm font-medium text-emerald-700">
                           Subsidized (Free Tuition)
                         </span>
@@ -234,10 +248,10 @@ function Assessment({ account }: { account: StudentAccount }) {
 
 /** "SETTLED" as "Paid", "PENDING" as "Pending", any other status in its own words. Plain text. */
 function StatusLabel({ status }: { status: string }) {
-  if (status === PAYMENT_SETTLED) {
+  if (status.toUpperCase() === "PAID") {
     return <span className="text-sm font-medium text-emerald-700">Paid</span>;
   }
-  if (status === "PENDING") {
+  if (status.toUpperCase() === "PENDING") {
     return <span className="text-sm font-medium text-amber-700">Pending</span>;
   }
   const text = status.replaceAll("_", " ").toLowerCase();
@@ -256,7 +270,7 @@ function PaymentRow({ payment }: { payment: StudentPayment }) {
         <StatusLabel status={payment.status} />
       </td>
       <td className={CELL}>
-        {payment.status === PAYMENT_SETTLED && payment.receiptUrl !== null && (
+        {isSettled(payment) && payment.receiptUrl !== null && (
           <a
             href={payment.receiptUrl}
             target="_blank"
@@ -356,6 +370,7 @@ export function AccountPage() {
           </p>
         </div>
 
+        {/* Demo-data note, commented out with the demo data (see useAccount.ts):
         {billingSample() && (
           <p
             role="note"
@@ -364,17 +379,34 @@ export function AccountPage() {
             Local sample data ({billingSample()}). No real records are shown.
           </p>
         )}
+        */}
 
         {(account.isPending || payments.isPending) && !account.isError && !payments.isError && (
           <Loading />
         )}
 
-        {(account.isError || payments.isError) && <LoadError onRetry={retry} />}
+        {(account.isError || payments.isError) && (
+          <LoadError error={account.error ?? payments.error} onRetry={retry} />
+        )}
 
-        {account.data && payments.data && (
+        {account.data !== undefined && payments.data && (
           <>
-            <AccountStatus account={account.data} />
-            <Assessment account={account.data} />
+            {account.data ? (
+              <>
+                <AccountStatus account={account.data} />
+                <Assessment account={account.data} />
+              </>
+            ) : (
+              // The API has no billing account for this student yet (404): nothing is owed.
+              <section aria-labelledby="account-status-heading">
+                <h2 id="account-status-heading" className="mb-4 text-xl font-bold text-neutral-900">
+                  Account Status
+                </h2>
+                <div className={TABLE_CARD}>
+                  <p className={EMPTY}>No billing statement for this semester yet.</p>
+                </div>
+              </section>
+            )}
             <PaymentHistory payments={payments.data} />
           </>
         )}

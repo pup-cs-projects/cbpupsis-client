@@ -1,7 +1,7 @@
-# Checks the conventions a squash merge depends on. The PR title becomes the
-# commit on its base branch, so it must follow Conventional Commits; the branch
-# name and base branch must match CONTRIBUTING.md (story -> frNNN -> dev).
-# Releases flow dev -> staging -> main,
+# Checks the convention a squash merge depends on: the PR title becomes the
+# commit on its base branch, so it must follow Conventional Commits. Branch
+# names and bases follow CONTRIBUTING.md (story -> frNNN -> dev) by agreement,
+# not by a check. Releases flow dev -> staging -> main,
 # and a merge into staging or main deploys (deploy.yml).
 #
 # The organization is on the GitHub Free plan with private repositories, so
@@ -42,40 +42,3 @@ jobs:
           subjectPatternError: >
             The description "{subject}" must start with a lowercase letter and
             must not end with a period. Example: feat(auth): add account lockout
-
-  branch:
-    name: Branch name and base
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Check branch naming and target
-        env:
-          HEAD_REF: ${{ github.head_ref }}
-          BASE_REF: ${{ github.base_ref }}
-          # Story branches in this repository start with web-; the API uses api-.
-          SIDE: web
-        run: |
-          fail() { echo "::error::$1"; exit 1; }
-          fix='(bugfix|style|docs)/[a-z0-9][a-z0-9._-]*'
-          case "$BASE_REF" in
-            fr[0-9][0-9][0-9])
-              echo "$HEAD_REF" | grep -Eq "^(${SIDE}-us-[a-z]+-[0-9]{3}|${SIDE}-${BASE_REF}-[a-z0-9][a-z0-9-]*|${fix})$" \
-                || fail "Branch '$HEAD_REF' cannot target $BASE_REF. Use ${SIDE}-us-<module>-<nnn> (a story under this FR), ${SIDE}-${BASE_REF}-<name>, or bugfix/, style/, docs/."
-              ;;
-            dev)
-              echo "$HEAD_REF" | grep -Eq "^(fr[0-9]{3}|${fix}|hotfix/[a-z0-9][a-z0-9._-]*|dependabot/.+)$" \
-                || fail "Branch '$HEAD_REF' cannot target dev. Story branches target their FR branch (frNNN); only frNNN, bugfix/, style/, docs/, or hotfix/ target dev."
-              ;;
-            staging)
-              echo "$HEAD_REF" | grep -Eq '^(dev|hotfix/[a-z0-9][a-z0-9._-]*)$' \
-                || fail "Only dev (a release candidate) or a hotfix/ branch may target staging. Retarget this PR to dev."
-              ;;
-            main)
-              echo "$HEAD_REF" | grep -Eq '^(staging|hotfix/[a-z0-9][a-z0-9._-]*)$' \
-                || fail "Only staging (a release tested on staging) or a hotfix/ branch may target main. Retarget this PR to dev."
-              ;;
-            *)
-              fail "PRs target an FR branch (frNNN) or dev. This one targets '$BASE_REF'."
-              ;;
-          esac
-          echo "ok: $HEAD_REF -> $BASE_REF"

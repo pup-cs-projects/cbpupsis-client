@@ -19,47 +19,49 @@ function account(overrides: Body = {}): Body {
     amountAssessed: "3000.00",
     subsidyApplied: "1000.00",
     netPayable: "2045.00",
-    paymentStatus: "UNPAID",
+    paymentStatus: "DUE",
+    holds: [],
+    fheQualified: true,
     fheForfeited: false,
     fheForfeitureReason: null,
-    overdueAmount: null,
-    penaltyAmount: null,
     lines: [
       {
-        code: "TUITION",
         description: "Tuition (18 units)",
         amount: "1000.00",
-        coveredBySubsidy: true,
+        coveredByFhe: true,
       },
       {
-        code: "LABORATORY",
         description: "Laboratory fee",
         amount: "2045.00",
-        coveredBySubsidy: false,
+        coveredByFhe: false,
       },
     ],
     ...overrides,
   };
 }
 
+/** A payment as the API sends it: date, amount, reference, status. */
 function payment(overrides: Body = {}): Body {
   return {
-    id: "pay-1",
-    paidAt: "2026-06-10T02:00:00Z",
+    date: "2026-06-10T02:00:00Z",
     amount: "500.00",
     reference: "REF-0001",
-    status: "SETTLED",
-    receiptUrl: "https://sis.example.test/receipts/REF-0001",
+    status: "PAID",
     ...overrides,
   };
 }
+
+const RECEIPT_URL = "https://sis.example.test/receipts/REF-0001";
+
+/** The late fine line the API adds once an account is overdue. */
+const FINE_LINE = { description: "Late payment fine", amount: "100.00", coveredByFhe: false };
 
 function openAccount(routes: Parameters<typeof mockApi>[0] = {}) {
   signInDirectly();
   const api = mockApi({
     [ME_ROUTE]: { status: 200, body: me },
     [ACCOUNT_ROUTE]: { status: 200, body: account() },
-    [PAYMENTS_ROUTE]: { status: 200, body: { items: [] } },
+    [PAYMENTS_ROUTE]: { status: 200, body: [] },
     ...routes,
   });
   renderApp("/account");
@@ -245,30 +247,28 @@ describe("AccountPage (US-FIN-001)", () => {
     expect(screen.queryByText("Paying status")).not.toBeInTheDocument();
   });
 
-  it.each([null, "0.00"])(
-    "AC-FIN-001.6: no subsidy line when the student has no subsidy (%s)",
-    async (subsidyApplied) => {
-      openAccount({
-        [ACCOUNT_ROUTE]: {
-          status: 200,
-          body: account({ subsidyApplied, netPayable: "3000.00" }),
-        },
-      });
-      await loaded();
+  it("AC-FIN-001.6: no subsidy line when the student has no subsidy (the API sends '0.00')", async () => {
+    openAccount({
+      [ACCOUNT_ROUTE]: {
+        status: 200,
+        body: account({ subsidyApplied: "0.00", netPayable: "3000.00" }),
+      },
+    });
+    await loaded();
 
-      expect(figure("Amount Assessed")).toHaveTextContent("₱3,000.00");
-      expect(screen.queryByText("Subsidy Applied")).not.toBeInTheDocument();
-    },
-  );
+    expect(figure("Amount Assessed")).toHaveTextContent("₱3,000.00");
+    expect(screen.queryByText("Subsidy Applied")).not.toBeInTheDocument();
+  });
 
   it("AC-FIN-001.7: an OVERDUE account shows an alert with a warning icon, the overdue amount, and the penalty", async () => {
     openAccount({
       [ACCOUNT_ROUTE]: {
         status: 200,
+        // The API folds the fine into netPayable and lists it as a line.
         body: account({
           paymentStatus: "OVERDUE",
-          overdueAmount: "2045.00",
-          penaltyAmount: "204.50",
+          netPayable: "2145.00",
+          lines: [...(account().lines as unknown[]), FINE_LINE],
         }),
       },
     });
@@ -276,12 +276,56 @@ describe("AccountPage (US-FIN-001)", () => {
 
     const alert = screen.getByRole("alert");
     expect(alert).toHaveTextContent(
-      "Overdue payment: ₱2,045.00 (Penalty: ₱204.50) — Pay now to lift the hold on enrollment.",
+      "Overdue payment: ₱2,145.00 (Penalty: ₱100.00) — Pay now to lift the hold on enrollment.",
     );
     expect(alert).not.toHaveTextContent("CoR");
     expect(alert.querySelector("svg.lucide-triangle-alert")).toBeInTheDocument();
     expect(alert.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     expect(screen.queryByText(/No Outstanding Balance/)).not.toBeInTheDocument();
+  });
+
+  it("AC-FIN-001.7: an OVERDUE account with no fine line yet shows the overdue amount alone", async () => {
+    openAccount({
+      [ACCOUNT_ROUTE]: {
+        status: 200,
+        body: account({ paymentStatus: "OVERDUE", netPayable: "2045.00" }),
+      },
+    });
+    await loaded();
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Overdue payment: ₱2,045.00 — Pay now to lift the hold on enrollment.",
+    );
+    expect(alert).not.toHaveTextContent("Penalty");
+  });
+
+  it("AC-FIN-001.7: a PARTIAL or DUE account is not shown as overdue", async () => {
+    openAccount({
+      [ACCOUNT_ROUTE]: { status: 200, body: account({ paymentStatus: "PARTIAL" }) },
+    });
+    await loaded();
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Pay Now" })).toBeInTheDocument();
+  });
+
+  it("shows the late fine as a line the student pays", async () => {
+    openAccount({
+      [ACCOUNT_ROUTE]: {
+        status: 200,
+        body: account({
+          paymentStatus: "OVERDUE",
+          netPayable: "2145.00",
+          lines: [...(account().lines as unknown[]), FINE_LINE],
+        }),
+      },
+    });
+    await loaded();
+
+    const fine = screen.getByRole("rowheader", { name: "Late payment fine" }).closest("tr");
+    expect(within(fine as HTMLElement).getByText("₱100.00")).toBeInTheDocument();
+    expect(within(fine as HTMLElement).getByText("Student Account")).toBeInTheDocument();
   });
 
   it("shows 'No Outstanding Balance' with a check icon, and no Pay Now, when nothing is owed", async () => {
@@ -328,29 +372,23 @@ describe("AccountPage (US-FIN-001)", () => {
     openAccount({
       [PAYMENTS_ROUTE]: {
         status: 200,
-        body: {
-          // Sent oldest first, then out of order: the page sorts.
-          items: [
-            payment({
-              id: "p-old",
-              paidAt: "2026-03-01T04:00:00Z",
-              reference: "REF-OLD",
-              amount: "100.00",
-            }),
-            payment({
-              id: "p-new",
-              paidAt: "2026-06-10T02:00:00Z",
-              reference: "REF-NEW",
-              amount: "2500.50",
-            }),
-            payment({
-              id: "p-mid",
-              paidAt: "2026-04-15T04:00:00Z",
-              reference: "REF-MID",
-              amount: "750.00",
-            }),
-          ],
-        },
+        body: [
+          payment({
+            date: "2026-03-01T04:00:00Z",
+            reference: "REF-OLD",
+            amount: "100.00",
+          }),
+          payment({
+            date: "2026-06-10T02:00:00Z",
+            reference: "REF-NEW",
+            amount: "2500.50",
+          }),
+          payment({
+            date: "2026-04-15T04:00:00Z",
+            reference: "REF-MID",
+            amount: "750.00",
+          }),
+        ],
       },
     });
     await loaded();
@@ -396,13 +434,11 @@ describe("AccountPage (US-FIN-001)", () => {
     openAccount({
       [PAYMENTS_ROUTE]: {
         status: 200,
-        body: {
-          items: [
-            // 17:00 UTC on June 30 is 01:00 on July 1 in Manila.
-            payment({ id: "p-1", paidAt: "2026-06-30T17:00:00Z", reference: "REF-LATE" }),
-            payment({ id: "p-2", paidAt: "2025-08-04T01:15:00Z", reference: "REF-AUG" }),
-          ],
-        },
+        body: [
+          // 17:00 UTC on June 30 is 01:00 on July 1 in Manila.
+          payment({ date: "2026-06-30T17:00:00Z", reference: "REF-LATE" }),
+          payment({ date: "2025-08-04T01:15:00Z", reference: "REF-AUG" }),
+        ],
       },
     });
     await loaded();
@@ -417,18 +453,18 @@ describe("AccountPage (US-FIN-001)", () => {
     openAccount({
       [PAYMENTS_ROUTE]: {
         status: 200,
-        body: {
-          items: [
-            payment({ id: "p-1", reference: "REF-SETTLED", paidAt: "2026-06-10T02:00:00Z" }),
-            payment({
-              id: "p-2",
-              reference: "REF-PENDING",
-              status: "PENDING",
-              receiptUrl: null,
-              paidAt: "2026-06-09T02:00:00Z",
-            }),
-          ],
-        },
+        body: [
+          payment({
+            reference: "REF-SETTLED",
+            date: "2026-06-10T02:00:00Z",
+            receiptUrl: RECEIPT_URL,
+          }),
+          payment({
+            reference: "REF-PENDING",
+            status: "PENDING",
+            date: "2026-06-09T02:00:00Z",
+          }),
+        ],
       },
     });
     await loaded();
@@ -437,7 +473,7 @@ describe("AccountPage (US-FIN-001)", () => {
     expect(receipts).toHaveLength(1);
     expect(receipts[0]).toHaveAccessibleName("Receipt for REF-SETTLED");
     expect(receipts[0]).toHaveTextContent("Receipt");
-    expect(receipts[0]).toHaveAttribute("href", "https://sis.example.test/receipts/REF-0001");
+    expect(receipts[0]).toHaveAttribute("href", RECEIPT_URL);
     expect(receipts[0]).toHaveClass(
       "text-sm",
       "font-semibold",
@@ -451,6 +487,16 @@ describe("AccountPage (US-FIN-001)", () => {
     const pendingLabel = within(pending).getByText("Pending");
     expect(pendingLabel).toHaveClass("text-sm", "font-medium", "text-amber-700");
     expectPlainText(pendingLabel);
+  });
+
+  it("AC-FIN-001.8: a paid payment the API sends without a receipt link shows no Receipt link", async () => {
+    // The API sends date, amount, reference, and status only.
+    openAccount({ [PAYMENTS_ROUTE]: { status: 200, body: [payment()] } });
+    await loaded();
+
+    const row = screen.getByText("REF-0001").closest("tr") as HTMLElement;
+    expect(within(row).getByText("Paid")).toBeInTheDocument();
+    expect(within(row).queryByRole("link")).not.toBeInTheDocument();
   });
 
   it("AC-FIN-001.8: shows 'No payment history yet.' when there are no payments", async () => {
@@ -470,21 +516,20 @@ describe("AccountPage (US-FIN-001)", () => {
           subsidyApplied: "300.5",
           netPayable: "999.99",
           lines: [
-            { code: "A", description: "Fee A", amount: "0.1", coveredBySubsidy: false },
-            { code: "B", description: "Fee B", amount: "0.2", coveredBySubsidy: false },
+            { code: "A", description: "Fee A", amount: "0.1", coveredByFhe: false },
+            { code: "B", description: "Fee B", amount: "0.2", coveredByFhe: false },
             // Beyond what a float holds: a number round trip would corrupt it.
             {
-              code: "C",
               description: "Fee C",
               amount: "9007199254740993.10",
-              coveredBySubsidy: false,
+              coveredByFhe: false,
             },
           ],
         }),
       },
       [PAYMENTS_ROUTE]: {
         status: 200,
-        body: { items: [payment({ amount: 1234567.5 })] },
+        body: [payment({ amount: 1234567.5 })],
       },
     });
     await loaded();
@@ -505,6 +550,22 @@ describe("AccountPage (US-FIN-001)", () => {
 
     expect(await screen.findByRole("status")).toHaveTextContent("Loading your billing statement");
     expect(screen.queryByRole("heading", { name: "Account Status" })).not.toBeInTheDocument();
+  });
+
+  it("a student with no billing account yet (404) sees a message, not an error, and still the history", async () => {
+    openAccount({
+      [ACCOUNT_ROUTE]: {
+        status: 404,
+        body: { code: "RESOURCE_NOT_FOUND", message: "Not found." },
+      },
+      [PAYMENTS_ROUTE]: { status: 200, body: [payment()] },
+    });
+    await loaded();
+
+    expect(screen.getByText("No billing statement for this semester yet.")).toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Pay Now" })).not.toBeInTheDocument();
+    expect(screen.getByText("REF-0001")).toBeInTheDocument();
   });
 
   it("shows 'No billing items' when the assessment has no lines", async () => {
@@ -541,10 +602,23 @@ describe("AccountPage (US-FIN-001)", () => {
     expect(api.called(PAYMENTS_ROUTE)).toHaveLength(1);
   });
 
+  it("the error names the status, the API's code, and the request reference", async () => {
+    openAccount({
+      [ACCOUNT_ROUTE]: {
+        status: 403,
+        body: { code: "FORBIDDEN", message: "No access.", request_id: "req-123" },
+      },
+    });
+
+    await screen.findByRole("alert");
+    expect(screen.getByText(/Error 403/)).toBeInTheDocument();
+    expect(screen.getByText(/FORBIDDEN/)).toBeInTheDocument();
+  });
+
   it("shows the alert when the payment history fails, and Retry loads it again", async () => {
     const user = userEvent.setup();
     const api = openAccount({
-      [PAYMENTS_ROUTE]: ["offline", { status: 200, body: { items: [payment()] } }],
+      [PAYMENTS_ROUTE]: ["offline", { status: 200, body: [payment()] }],
     });
 
     expect(await screen.findByRole("alert")).toBeInTheDocument();
@@ -561,20 +635,18 @@ describe("AccountPage (US-FIN-001)", () => {
         status: 200,
         body: account({
           paymentStatus: "OVERDUE",
-          overdueAmount: "2045.00",
-          penaltyAmount: "204.50",
+          netPayable: "2145.00",
+          lines: [...(account().lines as unknown[]), FINE_LINE],
           fheForfeited: true,
           fheForfeitureReason: "Dropped below the minimum load.",
         }),
       },
       [PAYMENTS_ROUTE]: {
         status: 200,
-        body: {
-          items: [
-            payment(),
-            payment({ id: "p-2", reference: "REF-2", status: "PENDING", receiptUrl: null }),
-          ],
-        },
+        body: [
+          payment({ receiptUrl: RECEIPT_URL }),
+          payment({ reference: "REF-2", status: "PENDING" }),
+        ],
       },
     });
     await loaded();
