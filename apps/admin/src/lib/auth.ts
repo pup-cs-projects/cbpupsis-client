@@ -8,9 +8,12 @@ import {
 } from "@cbpupsis/shared/auth";
 import { createAdminEnrollmentApi } from "@cbpupsis/shared/enrollment";
 
-const apiClient = createApiClient(
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1",
-);
+import { readAdminApiConfig } from "./apiConfig";
+export const apiConfig = readAdminApiConfig({
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  VITE_ADMIN_USERS_API_PATH: import.meta.env.VITE_ADMIN_USERS_API_PATH,
+});
+export const apiClient = createApiClient(apiConfig.baseUrl);
 
 export const authApi = createAdminAuthApi(apiClient);
 

@@ -15,6 +15,10 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Bound jsdom concurrency on developer machines and CI.
+    maxWorkers: 2,
+    // Route globs must discover files added by branch merges on every test run.
+    fsModuleCache: false,
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     coverage: {

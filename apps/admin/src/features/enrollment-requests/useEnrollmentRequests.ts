@@ -47,6 +47,8 @@ export function useEnrollmentRequests(
     },
     retry: false,
     onSuccess: (updated) => {
+      void queryClient.invalidateQueries({ queryKey: ["admin-dashboard", "overview"] });
+      void queryClient.invalidateQueries({ queryKey: ["admin-reports", userId] });
       const updatedKey = enrollmentReviewKeys.list(userId!, updated.kind);
       queryClient.setQueryData<EnrollmentRequestList>(updatedKey, (list) =>
         list

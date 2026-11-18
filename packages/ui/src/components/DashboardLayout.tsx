@@ -15,9 +15,11 @@ export function DashboardLayout({
   navigation,
   account,
   homeLink,
+  headerNavigation,
 }: {
   children: ReactNode;
   portal: string;
+  headerNavigation?: ReactNode;
   navigation: NavigationItem[];
   account: ReactNode | ((expanded: boolean) => ReactNode);
   homeLink: (className: string, children: ReactNode) => ReactNode;
@@ -115,18 +117,19 @@ export function DashboardLayout({
             "text-brand-maroon inline-flex min-h-11 items-center text-sm font-medium",
             "Home",
           )}
-          {["Profile", "Notifications"].map((label) => (
-            <span
-              key={label}
-              role="link"
-              aria-disabled="true"
-              title="Coming soon"
-              className="inline-flex min-h-11 cursor-default items-center text-sm font-medium"
-            >
-              {label}
-              <span className="sr-only">, coming soon</span>
-            </span>
-          ))}
+          {headerNavigation ??
+            ["Profile", "Notifications"].map((label) => (
+              <span
+                key={label}
+                role="link"
+                aria-disabled="true"
+                title="Coming soon"
+                className="inline-flex min-h-11 cursor-default items-center text-sm font-medium"
+              >
+                {label}
+                <span className="sr-only">, coming soon</span>
+              </span>
+            ))}
         </nav>
       </header>
       <div className="relative flex min-h-0 flex-1 overflow-hidden print:block print:overflow-visible">
@@ -153,7 +156,7 @@ export function DashboardLayout({
             <button
               type="button"
               className={`${navItem} ${expanded ? "gap-3 px-[18px]" : "justify-center"}`}
-              aria-label={expanded ? "Collapse menu" : "Expand menu"}
+              aria-label={expanded ? "Dashboard: collapse menu" : "Expand menu"}
               aria-expanded={expanded}
               aria-controls={sidebarId}
               onClick={() => (drawerOpen ? closeDrawer() : setIsExpanded((value) => !value))}
