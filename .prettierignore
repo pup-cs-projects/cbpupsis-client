@@ -3,3 +3,5 @@ coverage
 package-lock.json
 public
 packages/shared/src/api/schema.gen.ts
+
+packages/shared/src/psgc/data
