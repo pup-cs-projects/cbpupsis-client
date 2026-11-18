@@ -7,7 +7,7 @@ import { session } from "../../lib/auth";
 import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
 import { renderApp } from "../../test/renderApp";
 
-const DASHBOARD_ROUTE = "GET /student/me/dashboard";
+const DASHBOARD_ROUTE = "GET /student/dashboard";
 
 function dashboard(student: Record<string, unknown> = {}) {
   return {
