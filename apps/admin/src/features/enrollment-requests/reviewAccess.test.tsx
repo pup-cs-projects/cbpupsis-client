@@ -125,9 +125,9 @@ describe("Enrollment requests nav", () => {
     const api = openPage("finance");
 
     await screen.findByRole("heading", { name: "Not available to your role" });
-    await openAcademics();
 
-    expect(await screen.findByText("Courses")).toBeInTheDocument();
+    expect(screen.queryByText("Calendar")).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Course Management" })).not.toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Enrollment requests" })).not.toBeInTheDocument();
     expect(api.called("GET /admin/add-drop")).toHaveLength(0);
   });

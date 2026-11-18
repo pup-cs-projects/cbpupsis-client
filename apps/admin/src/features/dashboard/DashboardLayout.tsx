@@ -9,15 +9,19 @@ import type { ReactNode } from "react";
 
 import { useMe } from "../sign-in/useAdminAuth";
 import { isReviewerRole } from "../enrollment-requests/reviewRules";
+import { useCatalogAccess } from "../catalog/useCatalogAccess";
+import { useReportAccess } from "../reports/reportAccess";
 import { useProfile } from "./queries";
 
 /** Portal navigation and account wiring, separate from the dashboard page like student. */
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const me = useMe();
+  const catalogAccess = useCatalogAccess();
+  const reportAccess = useReportAccess();
   const profile = useProfile(me.isSuccess);
   const name = profile.data?.full_name?.trim() || profile.data?.display_name?.trim() || "Admin";
   const settingsLink =
-    "focus-visible:outline-brand-gold! flex min-h-11 items-center py-2.5 pr-4 pl-12 text-sm text-white/85 hover:bg-white/10";
+    "admin-sidebar-link focus-visible:outline-brand-gold! flex min-h-11 w-full items-center py-2.5 pr-4 pl-12 text-sm text-white/90 hover:bg-white/10";
 
   return (
     <PortalDashboardLayout
@@ -42,44 +46,87 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             },
           ],
         },
-        {
-          label: "Users",
-          icon: <DashboardIcon name="users" />,
-          children: [{ label: "User Management" }],
-        },
-        {
-          label: "Academics",
-          icon: <DashboardIcon name="mail" />,
-          children: [
-            { label: "Calendar" },
-            { label: "Courses" },
-            ...(isReviewerRole(me.data?.position)
-              ? [
+        ...(isReviewerRole(me.data?.position)
+          ? [
+              {
+                label: "Users",
+                icon: <DashboardIcon name="users" />,
+                children: [
                   {
-                    label: "Enrollment requests",
-                    content: (
-                      <Link
-                        to="/enrollment-requests"
-                        className={settingsLink + " aria-[current=page]:bg-white/15"}
-                      >
-                        Enrollment requests
-                      </Link>
-                    ),
+                    label: "User Management",
                   },
-                ]
-              : []),
-          ],
-        },
+                ],
+              },
+            ]
+          : []),
+        ...(catalogAccess.readable || isReviewerRole(me.data?.position)
+          ? [
+              {
+                label: "Academics",
+                icon: <DashboardIcon name="mail" />,
+                children: [
+                  { label: "Calendar" },
+                  ...(catalogAccess.readable
+                    ? [
+                        {
+                          label: "Courses",
+                        },
+                      ]
+                    : []),
+                  ...(me.data?.position === "dean"
+                    ? [
+                        {
+                          label: "INC completions",
+                        },
+                      ]
+                    : []),
+                  ...(isReviewerRole(me.data?.position)
+                    ? [
+                        {
+                          label: "Enrollment requests",
+                          content: (
+                            <Link
+                              to="/enrollment-requests"
+                              className={settingsLink + " aria-[current=page]:bg-white/15"}
+                            >
+                              Enrollment requests
+                            </Link>
+                          ),
+                        },
+                      ]
+                    : []),
+                ],
+              },
+            ]
+          : []),
         {
           label: "Reports",
           icon: <DashboardIcon name="briefcase" />,
           children: [
             { label: "User Management" },
-            { label: "Enrollment" },
+            ...(reportAccess.allowed
+              ? [
+                  {
+                    label: "Enrollment",
+                  },
+                ]
+              : []),
             { label: "Financial" },
-            { label: "System Health" },
           ],
         },
+        ...(isReviewerRole(me.data?.position)
+          ? [
+              {
+                label: "Grade corrections",
+                icon: <DashboardIcon name="briefcase" />,
+                children: [
+                  {
+                    label: "Correction of Entry",
+                  },
+                ],
+              },
+            ]
+          : []),
         {
           label: "Settings",
           icon: <DashboardIcon name="settings" />,
