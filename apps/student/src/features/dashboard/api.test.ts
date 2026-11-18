@@ -14,6 +14,7 @@ function dashboard(overrides: Partial<StudentDashboard> = {}): StudentDashboard 
       avatarUrl: null,
     },
     currentTerm: { academicYear: "2026-2027", semester: "first" },
+    holds: [],
     announcements: [],
     events: [],
     recentActivity: [],
@@ -121,9 +122,71 @@ describe("shaping the API's dashboard for the screen", () => {
       {
         id: "r1",
         occurredAt: "2026-07-21T09:15:00+08:00",
-        description: "Failed sign-in attempt",
+        description: "Sign-in attempt failed",
         status: "warning",
       },
+    ]);
+  });
+
+  it("carries the programme, year level, and enrollment status for the welcome header", () => {
+    const view = toDashboard(dashboard());
+
+    expect(view).toMatchObject({
+      programme: "BS Computer Science",
+      yearLevel: 3,
+      enrollmentStatus: "ENROLLED",
+    });
+  });
+
+  it("keeps holds as the API gave them, and unknown holds as null, not as none", () => {
+    const hold = {
+      type: "FINANCIAL",
+      office: "Cashier",
+      description: "Unpaid tuition balance.",
+      amountOutstanding: 1500,
+      currency: "PHP",
+      blocksEnrollment: true,
+    };
+
+    expect(toDashboard(dashboard({ holds: [hold] })).holds).toEqual([
+      {
+        type: "FINANCIAL",
+        office: "Cashier",
+        description: "Unpaid tuition balance.",
+        amount: 1500,
+        currency: "PHP",
+        blocksEnrollment: true,
+      },
+    ]);
+    expect(toDashboard(dashboard({ holds: [] })).holds).toEqual([]);
+    expect(toDashboard(dashboard({ holds: null })).holds).toBeNull();
+  });
+
+  it("writes activity for the student: no error codes, no event keys", () => {
+    const view = toDashboard(
+      dashboard({
+        recentActivity: [
+          {
+            id: "r1",
+            occurredAt: "2026-07-21T09:15:00+08:00",
+            type: "LOGIN_FAILED",
+            severity: "warning",
+            description: "Login attempt failed. AUTH_FAILED",
+          },
+          {
+            id: "r2",
+            occurredAt: "2026-07-21T09:10:00+08:00",
+            type: "AUDIT",
+            severity: "info",
+            description: "Action emergency_contact.created completed.",
+          },
+        ],
+      }),
+    );
+
+    expect(view.recentActivity.map((item) => item.description)).toEqual([
+      "Sign-in attempt failed",
+      "Emergency contact added.",
     ]);
   });
 });
