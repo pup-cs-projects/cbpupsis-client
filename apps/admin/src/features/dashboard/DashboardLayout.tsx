@@ -62,6 +62,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 children: [
                   {
                     label: "User Management",
+                    content: (
+                      <Link to="/users" className={settingsLink}>
+                        User Management
+                      </Link>
+                    ),
                   },
                 ],
               },
@@ -78,6 +83,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     ? [
                         {
                           label: "Courses",
+                          content: (
+                            <Link to="/catalog" className={settingsLink}>
+                              Courses
+                            </Link>
+                          ),
                         },
                       ]
                     : []),
