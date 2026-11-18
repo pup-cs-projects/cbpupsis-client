@@ -52,11 +52,21 @@ export function SchedulePage() {
       {actions.notice && <Notice tone={actions.notice.tone}>{actions.notice.text}</Notice>}
 
       <div className="space-y-6 px-4 py-8 sm:px-8">
+        <nav aria-label="Breadcrumb">
+          <ol className="mb-2 flex items-center gap-1.5 text-xs text-neutral-500">
+            <li>Academics</li>
+            <li aria-hidden="true">&gt;</li>
+            <li aria-current="page" className="text-brand-ink font-semibold">
+              My Schedule
+            </li>
+          </ol>
+        </nav>
+
         <div>
-          <h1 className="text-brand-maroon text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="text-brand-crimson text-3xl font-bold tracking-tight sm:text-4xl">
             Course Schedule
           </h1>
-          <p className="text-brand-muted mt-2 max-w-3xl text-sm leading-relaxed">
+          <p className="mt-1 mb-6 max-w-3xl text-sm leading-relaxed text-neutral-600">
             Your enrolled classes for the term. Download your Certificate of Registration or add
             your classes to your calendar.
           </p>

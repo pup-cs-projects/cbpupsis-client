@@ -3,6 +3,7 @@ import { Link } from "@tanstack/react-router";
 import { useMemo, useState, type KeyboardEvent } from "react";
 
 import { DashboardLayout } from "../dashboard/DashboardLayout";
+import { AdminPageHeader, adminPage, adminField } from "../../components/AdminPage";
 import { useMe } from "../sign-in/useAdminAuth";
 import { RequestReviewDialog } from "./RequestReviewDialog";
 import { RequestsTable } from "./RequestsTable";
@@ -13,8 +14,7 @@ import { reviewLoadError } from "./reviewErrors";
 import type { EnrollmentReviewDataSource, RequestKind } from "./types";
 import { useEnrollmentRequests } from "./useEnrollmentRequests";
 
-const filterField =
-  "border-brand-border/35 focus:border-brand-maroon focus-visible:outline-offset-0! min-h-11 w-full rounded-lg border bg-white px-3 py-2 text-sm";
+const filterField = adminField;
 
 export function EnrollmentRequestsPage({
   dataSource,
@@ -101,7 +101,7 @@ export function EnrollmentRequestsPage({
 
   return (
     <DashboardLayout>
-      <div className="mx-auto max-w-[1600px] space-y-6 px-4 py-6 sm:px-8 sm:py-8">
+      <div className={adminPage}>
         <nav
           aria-label="Breadcrumb"
           className="text-brand-muted flex min-h-11 flex-wrap items-center gap-2 text-xs"
@@ -119,19 +119,11 @@ export function EnrollmentRequestsPage({
             Enrollment requests
           </span>
         </nav>
-        <header className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <p className="text-brand-muted mb-2 text-xs font-semibold tracking-[0.16em] uppercase">
-              Academic administration
-            </p>
-            <h1 className="text-brand-maroon text-3xl leading-tight font-bold tracking-tight sm:text-4xl">
-              Enrollment requests
-            </h1>
-            <p className="text-brand-muted mt-3 max-w-2xl text-sm leading-relaxed">
-              Review course changes, academic overloads, and co-requisite waivers in one place.
-            </p>
-          </div>
-        </header>
+        <AdminPageHeader
+          eyebrow="Academic administration"
+          title="Enrollment requests"
+          description="Review course changes, academic overloads, and co-requisite waivers in one place."
+        />
         {me.isPending && (
           <div
             role="status"
@@ -179,7 +171,7 @@ export function EnrollmentRequestsPage({
                 </button>
               </div>
             )}
-            <div className="grid grid-cols-3 gap-2 sm:gap-3">
+            <div className="grid gap-3 sm:grid-cols-3">
               {[
                 {
                   label: "Total requests",

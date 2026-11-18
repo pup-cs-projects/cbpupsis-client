@@ -87,7 +87,11 @@ export function idleWarningSuite({
 
     it("keeps the session on the API when the person stays, and gives focus back", async () => {
       const { api, user } = await openDashboard();
-      const signOut = screen.getByRole("button", { name: "Sign out" });
+      // Any control that stays on the page will do; portals that keep Sign out inside an
+      // account menu have the home link instead.
+      const signOut =
+        screen.queryByRole("button", { name: "Sign out" }) ??
+        screen.getByRole("link", { name: /CBPUPSIS/ });
       signOut.focus();
       await wait(minutes(10));
 

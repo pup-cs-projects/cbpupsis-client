@@ -1,5 +1,7 @@
 import type { ApiClient } from "../api/client";
+import { isRecord } from "../api/client";
 import * as parse from "../api/parse";
+import type { AcademicBlock } from "./waiver";
 
 export type EnrollmentTermType = "REGULAR" | "SUMMER";
 
@@ -8,6 +10,14 @@ export interface EnrollmentHold {
   type: string;
   amount: number | null;
   isBlocking: boolean;
+}
+
+/** The student's enrollment this term, once submitted (eligibility `currentEnrollment`). */
+export interface CurrentEnrollment {
+  enrollmentId: string;
+  /** "ENROLLED_PENDING", "OFFICIALLY_ENROLLED", or a legacy lowercase "enrolled". */
+  status: string;
+  totalUnits: number;
 }
 
 /** Why the student may not enroll, in the API's own words (one per unmet condition). */
@@ -54,6 +64,8 @@ export interface EnrollmentEligibility {
   holds: EnrollmentHold[];
   academicPeriod: EnrollmentPeriod;
   reasons: EligibilityReason[];
+  /** Null when nothing is submitted this term, or from an API that does not send it yet. */
+  currentEnrollment: CurrentEnrollment | null;
 }
 
 export interface EnrollmentMeeting {
@@ -79,6 +91,10 @@ export interface EnrollmentSection {
   blockReason: string | null;
   /** Ids of sections already selected or enrolled that overlap this one's schedule. */
   conflictsWith: string[];
+  /** Each academic rule that blocks this section (prerequisite, third year gate, PE). */
+  blocks: AcademicBlock[];
+  /** Whether the student may request a prerequisite waiver for this section. */
+  waiverAvailable: boolean;
 }
 
 export interface EnrolledSection {
@@ -215,6 +231,19 @@ function parseEligibility(value: unknown): EnrollmentEligibility {
     holds: Array.isArray(e.holds) ? e.holds.map(parseHold) : [],
     academicPeriod: parsePeriod(e.academicPeriod),
     reasons: Array.isArray(e.reasons) ? e.reasons.map(parseReason) : [],
+    currentEnrollment:
+      e.currentEnrollment === null || e.currentEnrollment === undefined
+        ? null
+        : parseCurrentEnrollment(e.currentEnrollment),
+  };
+}
+
+function parseCurrentEnrollment(value: unknown): CurrentEnrollment {
+  const c = parse.record(value);
+  return {
+    enrollmentId: parse.string(c.enrollmentId),
+    status: parse.string(c.status),
+    totalUnits: decimal(c.totalUnits),
   };
 }
 
@@ -250,6 +279,20 @@ function parseSection(value: unknown): EnrollmentSection {
       s.prerequisitesSatisfied === undefined ? true : parse.boolean(s.prerequisitesSatisfied),
     blockReason: parse.optionalString(s.blockReason),
     conflictsWith: Array.isArray(s.conflictsWith) ? s.conflictsWith.map(parse.string) : [],
+    blocks: Array.isArray(s.blocks) ? s.blocks.map(parseBlock) : [],
+    waiverAvailable: s.waiverAvailable === undefined ? false : parse.boolean(s.waiverAvailable),
+  };
+}
+
+/** One AcademicBlock of AvailableCourseRead.blocks. */
+function parseBlock(value: unknown): AcademicBlock {
+  const b = parse.record(value);
+  return {
+    rule: parse.string(b.rule),
+    courseCode: parse.string(b.courseCode),
+    blockingMark: parse.optionalString(b.blockingMark),
+    requiredRange: parse.optionalString(b.requiredRange),
+    details: isRecord(b.details) ? b.details : {},
   };
 }
 

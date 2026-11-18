@@ -5,7 +5,8 @@ import type {
   EnrollmentResult,
 } from "@cbpupsis/shared/enrollment";
 import { ErrorAlert } from "@cbpupsis/ui";
-import { Link } from "@tanstack/react-router";
+import { Link, useSearch } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
 
 import "@cbpupsis/account/styles.css";
@@ -17,18 +18,21 @@ import { CourseTable } from "./CourseTable";
 import { certificateErrorMessage } from "./certificateDisplay";
 import { EnlistedCourses } from "./EnlistedCourses";
 import {
+  enrollmentDateLabel,
   enrollmentStatusLabel,
   periodDateRange,
   periodDayCount,
   periodStartDate,
-  refusalMessage,
+  currentEnrollmentLabel,
   refusalSectionIds,
   termTypeLabel,
 } from "./enrollmentDisplay";
-import { LimitPanel } from "./LimitPanel";
+import { refusalMessage } from "./blocking";
+import { MOCK_AVAILABLE_COURSES } from "./mockCourses";
 import { OverloadPanel } from "./OverloadPanel";
 import { downloadCertificate } from "./useCertificate";
 import {
+  enrollmentKeys,
   useAvailableCourses,
   currentTermOf,
   type CurrentTerm,
@@ -48,6 +52,27 @@ function Loading() {
         <div className="bg-brand-skeleton/25 h-40 animate-pulse rounded-2xl motion-reduce:animate-none lg:col-span-12" />
         <div className="bg-brand-skeleton/25 h-96 animate-pulse rounded-2xl motion-reduce:animate-none lg:col-span-8" />
         <div className="bg-brand-skeleton/25 h-72 animate-pulse rounded-2xl motion-reduce:animate-none lg:col-span-4" />
+      </div>
+    </div>
+  );
+}
+
+/** A right-sized stand-in for the courses table while it loads, so the picker never shows the
+ * page-level skeleton (sized for the whole dashboard) hanging under the unit limit card. */
+function CoursesLoading() {
+  return (
+    <div
+      aria-hidden="true"
+      className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm"
+    >
+      <div className="bg-brand-crimson/80 h-11" />
+      <div className="divide-y divide-neutral-100">
+        {Array.from({ length: 4 }).map((_, index) => (
+          <div
+            key={index}
+            className="h-16 animate-pulse bg-neutral-100 motion-reduce:animate-none"
+          />
+        ))}
       </div>
     </div>
   );
@@ -274,15 +299,21 @@ function DownloadCorButton({ termId }: { termId: string | undefined }) {
   );
 }
 
+/**
+ * The enrolled state, in place of the picker: right after a submit (with the sections it
+ * returned), or on any later visit from eligibility's `currentEnrollment`.
+ */
 function EnrolledCompletionPanel({
   data,
   result,
   term,
 }: {
   data: EnrollmentEligibility;
-  result: EnrollmentResult;
+  result: EnrollmentResult | null;
   term: CurrentTerm | null;
 }) {
+  const status = result?.status ?? data.currentEnrollment?.status;
+  const totalUnits = result?.totalUnits ?? data.currentEnrollment?.totalUnits;
   return (
     <section
       aria-labelledby="officially-enrolled-title"
@@ -305,6 +336,26 @@ function EnrolledCompletionPanel({
       </div>
 
       <dl className="mt-6 grid gap-3 sm:grid-cols-2">
+        {status && (
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+            <dt className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
+              Enrollment Status
+            </dt>
+            <dd className="mt-1 text-lg font-bold text-neutral-900">
+              {currentEnrollmentLabel(status)}
+            </dd>
+          </div>
+        )}
+        {totalUnits !== undefined && (
+          <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
+            <dt className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
+              Enrolled Units
+            </dt>
+            <dd className="mt-1 text-lg font-bold text-neutral-900 tabular-nums">
+              {totalUnits} units
+            </dd>
+          </div>
+        )}
         <div className="rounded-lg border border-neutral-200 bg-neutral-50 p-4">
           <dt className="text-xs font-semibold tracking-wider text-neutral-500 uppercase">
             Allowed Units
@@ -315,7 +366,7 @@ function EnrolledCompletionPanel({
         </div>
       </dl>
 
-      {result.sections.length > 0 && <EnrolledSectionsTable result={result} />}
+      {result && result.sections.length > 0 && <EnrolledSectionsTable result={result} />}
 
       <Link
         to="/enrollment/certificate"
@@ -329,21 +380,30 @@ function EnrolledCompletionPanel({
 
 /** US-ENRL-001: pick sections, watch the running total against the real limit, then submit. */
 export function EnrollmentPage() {
+  // Dev-only preview: `?previewCourses=1` swaps in a fixed mock catalog so the table design can
+  // be eyeballed without seeded course data. Off by default, so real students and tests never
+  // see it (see mockCourses.ts).
+  const { previewCourses } = useSearch({ strict: false });
+  const previewMockCourses = previewCourses === "1";
+
   const eligibility = useEligibility();
   const data = eligibility.data;
   const currentTerm = currentTermOf(data);
   const term = currentTerm?.id;
-  const coursesEnabled = Boolean(data?.isEligible && data.academicPeriod.isOpen);
+  const coursesEnabled = Boolean(
+    data?.isEligible && data.academicPeriod.isOpen && !data.currentEnrollment,
+  );
   const courses = useAvailableCourses(term, coursesEnabled);
   const submit = useSubmitEnrollment(term);
+  const queryClient = useQueryClient();
 
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const selectedSections = useMemo(
-    () => (courses.data ?? []).filter((section) => selectedIds.has(section.sectionId)),
-    [courses.data, selectedIds],
-  );
+  const selectedSections = useMemo(() => {
+    const availableSections = previewMockCourses ? MOCK_AVAILABLE_COURSES : (courses.data ?? []);
+    return availableSections.filter((section) => selectedIds.has(section.sectionId));
+  }, [previewMockCourses, courses.data, selectedIds]);
   const runningTotal = selectedSections.reduce((sum, section) => sum + section.units, 0);
 
   function toggle(sectionId: string) {
@@ -362,13 +422,19 @@ export function EnrollmentPage() {
   // Mutually exclusive and exhaustive once `data` loads, in the order the picker gives way:
   // a closed period first, then a blocking hold, then any other ineligibility, else the picker.
   const blockingHold = data?.holds.find((hold) => hold.isBlocking);
-  const showPeriodClosed = Boolean(data && !data.academicPeriod.isOpen);
+  // An enrollment already submitted this term comes first: it replaces everything below.
+  const showEnrolled = Boolean(data && (submit.isSuccess || data.currentEnrollment));
+  const showPeriodClosed = Boolean(data && !showEnrolled && !data.academicPeriod.isOpen);
   const showHolds = Boolean(data && !showPeriodClosed && !data.isEligible && blockingHold);
   const showIneligible = Boolean(data && !showPeriodClosed && !showHolds && !data.isEligible);
-  const showPicker = Boolean(data && data.isEligible && data.academicPeriod.isOpen);
+  const showPicker = Boolean(
+    data && !showEnrolled && data.isEligible && data.academicPeriod.isOpen,
+  );
   // A refusal that names sections (a conflict, a full section) is repeated beside them.
+  const refusedIds = submit.isError ? refusalSectionIds(submit.error) : [];
+  const refusedSection = courses.data?.find((section) => refusedIds.includes(section.sectionId));
   const refusal = submit.isError
-    ? { sectionIds: refusalSectionIds(submit.error), message: refusalMessage(submit.error) }
+    ? { sectionIds: refusedIds, message: refusalMessage(submit.error, refusedSection?.blocks) }
     : null;
 
   return (
@@ -376,13 +442,10 @@ export function EnrollmentPage() {
       {/* The inline card below is the one retry action for an eligibility failure; this toast
           is awareness only, so the page never offers two differently-placed "Try again"s. */}
       {eligibility.isError && <ErrorAlert error={eligibility.error} />}
-      {courses.isError && (
-        <ErrorAlert error={courses.error} onRetry={() => void courses.refetch()} />
-      )}
 
       <div className="space-y-6 px-4 py-8 sm:px-8">
         <nav aria-label="Breadcrumb">
-          <ol className="text-brand-muted flex flex-wrap items-center gap-1.5 text-sm">
+          <ol className="mb-2 flex items-center gap-1.5 text-xs text-neutral-500">
             <li>Academics</li>
             <li aria-hidden="true">&gt;</li>
             <li aria-current="page" className="text-brand-ink font-semibold">
@@ -392,7 +455,7 @@ export function EnrollmentPage() {
         </nav>
 
         <div>
-          <h1 className="text-brand-maroon text-3xl font-bold tracking-tight sm:text-4xl">
+          <h1 className="text-brand-crimson text-3xl font-bold tracking-tight sm:text-4xl">
             Course Enrollment
           </h1>
         </div>
@@ -428,7 +491,7 @@ export function EnrollmentPage() {
               </div>
               <div>
                 <dt className="text-brand-muted text-xs font-semibold tracking-wide uppercase">
-                  Next Enrollment Date
+                  {enrollmentDateLabel(data)}
                 </dt>
                 <dd className="text-brand-ink mt-1 font-bold">
                   {periodStartDate(data.academicPeriod)}
@@ -473,69 +536,94 @@ export function EnrollmentPage() {
               </div>
             )}
 
-            {showPicker && submit.isSuccess && (
-              <EnrolledCompletionPanel data={data} result={submit.data} term={currentTerm} />
+            {showEnrolled && (
+              <EnrolledCompletionPanel
+                data={data}
+                result={submit.data ?? null}
+                term={currentTerm}
+              />
             )}
 
-            {showPicker && !submit.isSuccess && (
+            {showPicker && (
               <>
-                <LimitPanel
-                  eligibility={data}
-                  runningTotal={runningTotal}
-                  subjectCount={selectedSections.length}
-                />
+                {/* A plain div, not a landmark section: CourseTable's own scroll region already
+                    is one, and a second "Available Courses" landmark here would collide with it
+                    (axe's landmark-unique). The heading alone still gives the document outline. */}
+                <div>
+                  <h2 className="mb-3 text-xl font-bold text-neutral-900">Available Courses</h2>
 
-                {courses.isPending && <Loading />}
+                  {previewMockCourses ? (
+                    <CourseTable
+                      sections={MOCK_AVAILABLE_COURSES}
+                      selectedIds={selectedIds}
+                      onToggle={toggle}
+                      refusal={refusal}
+                    />
+                  ) : (
+                    <>
+                      {courses.isPending && <CoursesLoading />}
 
-                {courses.isSuccess && (
-                  <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-                    <div className="min-w-0 space-y-6 lg:col-span-8">
-                      <CourseTable
-                        sections={courses.data}
-                        selectedIds={selectedIds}
-                        onToggle={toggle}
-                        refusal={refusal}
-                      />
-                    </div>
-                    <aside
-                      aria-label="Enlisted courses and overload"
-                      className="space-y-6 lg:sticky lg:top-6 lg:col-span-4 lg:self-start"
-                    >
-                      <EnlistedCourses
-                        sections={selectedSections}
-                        totalUnits={runningTotal}
-                        onClearAll={clearAll}
-                        onRemove={toggle}
-                      />
-
-                      {submit.isError && (
-                        <div
-                          role="alert"
-                          className="rounded-2xl border border-red-700/30 bg-red-50 p-4 text-sm text-red-900"
-                        >
-                          <p className="font-bold">We could not submit your enrollment.</p>
-                          <p className="mt-1">{refusal?.message}</p>
-                        </div>
-                      )}
-
-                      <button
-                        type="button"
-                        disabled={selectedSections.length === 0 || submit.isPending || !term}
-                        onClick={() => setConfirmOpen(true)}
-                        className="bg-brand-crimson hover:bg-brand-crimson-dark min-h-11 w-full rounded-xl px-5 text-sm font-semibold text-white disabled:opacity-60"
-                      >
-                        Review and Submit
-                      </button>
-
-                      {term && (
-                        <OverloadPanel
-                          eligible={data.overloadEligible}
-                          pendingUnits={data.pendingOverloadUnits}
-                          term={term}
+                      {courses.isError && (
+                        <ErrorAlert
+                          error={courses.error}
+                          onRetry={() => void courses.refetch()}
+                          placement="inline"
                         />
                       )}
-                    </aside>
+
+                      {courses.isSuccess && (
+                        <CourseTable
+                          sections={courses.data}
+                          selectedIds={selectedIds}
+                          onToggle={toggle}
+                          refusal={refusal}
+                          onWaiverFiled={() =>
+                            void queryClient.invalidateQueries({
+                              queryKey: enrollmentKeys.availableCourses(),
+                            })
+                          }
+                        />
+                      )}
+                    </>
+                  )}
+                </div>
+
+                <EnlistedCourses
+                  sections={selectedSections}
+                  totalUnits={runningTotal}
+                  effectiveCeiling={data.effectiveCeiling}
+                  summerSubjectCap={data.summerSubjectCap}
+                  onClearAll={clearAll}
+                  onRemove={toggle}
+                />
+
+                {submit.isError && (
+                  <div
+                    role="alert"
+                    className="rounded-2xl border border-red-700/30 bg-red-50 p-4 text-sm text-red-900"
+                  >
+                    <p className="font-bold">We could not submit your enrollment.</p>
+                    <p className="mt-1">{refusal?.message}</p>
                   </div>
+                )}
+
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    disabled={selectedSections.length === 0 || submit.isPending || !term}
+                    onClick={() => setConfirmOpen(true)}
+                    className="bg-brand-crimson hover:bg-brand-crimson-dark min-h-11 w-full rounded-xl px-5 text-sm font-semibold text-white disabled:opacity-60 sm:w-auto"
+                  >
+                    Review and Submit
+                  </button>
+                </div>
+
+                {term && (
+                  <OverloadPanel
+                    eligible={data.overloadEligible}
+                    pendingUnits={data.pendingOverloadUnits}
+                    term={term}
+                  />
                 )}
               </>
             )}

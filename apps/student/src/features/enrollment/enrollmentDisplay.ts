@@ -30,6 +30,13 @@ export function periodStartDate(period: EnrollmentPeriod): string {
   return formatEventDates(calendarDateInManila(period.start));
 }
 
+/** What a submitted enrollment's status means for the student. */
+export function currentEnrollmentLabel(status: string): string {
+  return status.toUpperCase() === "ENROLLED_PENDING"
+    ? "Submitted, waiting to be made official"
+    : "Officially enrolled";
+}
+
 /** Whole days from the period's start through its end, inclusive. */
 export function periodDayCount(period: EnrollmentPeriod): number {
   const ms = new Date(period.end).getTime() - new Date(period.start).getTime();
@@ -38,9 +45,16 @@ export function periodDayCount(period: EnrollmentPeriod): number {
 
 /** The header's Status cell: what the student can do right now. */
 export function enrollmentStatusLabel(eligibility: EnrollmentEligibility): string {
+  if (eligibility.currentEnrollment) return "Enrolled";
   if (!eligibility.academicPeriod.isOpen) return "Closed";
   if (!eligibility.isEligible) return "Not Eligible";
   return "Open";
+}
+
+/** The header's date stat label: "Enrollment Date" while the period is open and the student may
+ * enroll right now, "Next Enrollment Date" otherwise (closed, or open to a future period). */
+export function enrollmentDateLabel(eligibility: EnrollmentEligibility): string {
+  return enrollmentStatusLabel(eligibility) === "Open" ? "Enrollment Date" : "Next Enrollment Date";
 }
 
 /** Sentences for the refusals that need none of the API's own numbers (AC-ENRL-001.5, .11). */

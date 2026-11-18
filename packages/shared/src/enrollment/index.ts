@@ -13,6 +13,7 @@ export type {
 export * from "./addDrop";
 export {
   createStudentEnrollmentApi,
+  type CurrentEnrollment,
   type EligibilityReason,
   type EnrolledSection,
   type EnrollmentEligibility,
@@ -39,3 +40,15 @@ export {
   type CertificateVerification,
   type StudentCertificateApi,
 } from "./certificate";
+export {
+  createStudentWaiverApi,
+  WAIVER_STATES,
+  type AcademicBlock,
+  type BlockedSection,
+  type StudentWaiverApi,
+  type StudentWaiverRead,
+  type WaiverCondition,
+  type WaiverFile,
+  type WaiverFiled,
+  type WaiverState,
+} from "./waiver";
