@@ -2,7 +2,10 @@ import { errorMessage } from "@cbpupsis/shared/api";
 import { useRef, useState } from "react";
 
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
-const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
+const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png"]);
+
+/** The one line that tells a student what the uploader takes; the checks below enforce it. */
+const AVATAR_HELPER_TEXT = "JPEG or PNG, up to 2 MB.";
 const PLACEHOLDER = "/assets/profile-placeholder.webp";
 
 function CameraIcon() {
@@ -25,8 +28,8 @@ function CameraIcon() {
 }
 
 /**
- * Center-crops a File to a square JPEG using the Canvas API. Re-encoding also turns a WebP into
- * a JPEG, which is what the API accepts.
+ * Center-crops a File to a square JPEG using the Canvas API. Re-encoding also turns a PNG into
+ * a JPEG, which the API accepts alongside PNG.
  */
 function cropToSquare(file: File): Promise<Blob> {
   return new Promise((resolve, reject) => {
@@ -100,7 +103,7 @@ export function AvatarUpload({ avatarUrl, onConfirm }: AvatarUploadProps) {
     if (!file) return;
 
     if (!ACCEPTED_TYPES.has(file.type)) {
-      setValidationError("Only JPEG, PNG, or WebP images are accepted.");
+      setValidationError("Only JPEG or PNG images are accepted.");
       return;
     }
     if (file.size > MAX_SIZE_BYTES) {
@@ -194,7 +197,9 @@ export function AvatarUpload({ avatarUrl, onConfirm }: AvatarUploadProps) {
         <button
           type="button"
           aria-label="Upload profile photo"
-          aria-describedby={validationError ? errorId : undefined}
+          aria-describedby={
+            validationError ? `avatar-upload-help ${errorId}` : "avatar-upload-help"
+          }
           className="bg-brand-maroon hover:bg-brand-maroon-dark focus-visible:outline-brand-gold absolute right-2 bottom-2 grid size-9 place-items-center rounded-full text-white shadow-md transition-colors focus-visible:outline-3 focus-visible:outline-offset-2"
           style={{ display: isPreviewing ? "none" : undefined }}
           onClick={openPicker}
@@ -203,11 +208,15 @@ export function AvatarUpload({ avatarUrl, onConfirm }: AvatarUploadProps) {
         </button>
       </div>
 
+      <p id="avatar-upload-help" className="text-brand-muted max-w-[13rem] text-center text-xs">
+        {AVATAR_HELPER_TEXT}
+      </p>
+
       {/* Hidden file input */}
       <input
         ref={fileRef}
         type="file"
-        accept="image/jpeg,image/png,image/webp"
+        accept="image/jpeg,image/png"
         className="sr-only"
         aria-hidden="true"
         tabIndex={-1}

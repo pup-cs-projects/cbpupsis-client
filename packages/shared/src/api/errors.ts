@@ -118,3 +118,19 @@ export function errorMessage(error: unknown): string {
   if (!(error instanceof ApiError)) return FALLBACK;
   return error.detail ?? (error.code && CLIENT_MESSAGES[error.code]) ?? FALLBACK;
 }
+
+/**
+ * The per-field reasons a 422 carries in `details.errors`, keyed by the API's field name
+ * (`{ phone: "Expected Philippine mobile format…" }`). Empty for any other failure, so a
+ * form shows these under the matching inputs and falls back to `errorMessage` for the rest.
+ */
+export function fieldErrors(error: unknown): Record<string, string> {
+  if (!(error instanceof ApiError)) return {};
+  const errors: unknown = error.details?.errors;
+  if (typeof errors !== "object" || errors === null || Array.isArray(errors)) return {};
+  const result: Record<string, string> = {};
+  for (const [field, reason] of Object.entries(errors)) {
+    if (typeof reason === "string" && reason) result[field] = reason;
+  }
+  return result;
+}

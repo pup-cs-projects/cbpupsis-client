@@ -2,6 +2,7 @@ export { createApiClient, type ApiClient, type RequestOptions } from "./client";
 export {
   ApiError,
   errorMessage,
+  fieldErrors,
   isChallengeRejected,
   isPasswordChangeRequired,
   isThrottled,
