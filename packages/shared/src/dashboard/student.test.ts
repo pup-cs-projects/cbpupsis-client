@@ -11,7 +11,7 @@ function json(body: unknown, status = 200) {
   return fetchMock;
 }
 
-// The shape GET /student/me/dashboard returns, including sections this client ignores.
+// The shape GET /student/dashboard returns, including sections this client ignores.
 function dashboard(data: Record<string, unknown> = {}) {
   return {
     status: "success",
@@ -75,7 +75,10 @@ describe("student dashboard api", () => {
     const result = await api.me("tok");
 
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
-    expect(url).toBe("http://api.test/api/v1/student/me/dashboard");
+    // The one dashboard endpoint, asking for as many events and activity items as the API allows:
+    // the screen shows three of each and keeps the rest for "see all".
+    expect(url).toBe("http://api.test/api/v1/student/dashboard?eventLimit=50&activityLimit=50");
+    expect(url).not.toContain("/me/");
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer tok");
     expect(result.student).toEqual({
       studentNumber: "2021-00456-MN-0",
@@ -86,6 +89,7 @@ describe("student dashboard api", () => {
       avatarUrl: null,
     });
     expect(result.currentTerm).toEqual({ academicYear: "2026-2027", semester: "first" });
+    expect(result.holds).toEqual([]);
     expect(result.announcements[0]).toMatchObject({ id: "a1", isPinned: true });
     expect(result.events[0]).toMatchObject({ id: "e1", isMultiDay: false, description: null });
     expect(result.recentActivity[0]).toMatchObject({ type: "LOGIN_FAILED", severity: "warning" });
@@ -111,6 +115,25 @@ describe("student dashboard api", () => {
     expect(result.student.name).toBeNull();
     expect(result.student.programme).toBeNull();
     expect(result.currentTerm).toBeNull();
+  });
+
+  it("reads a missing year level or enrollment status as not on record, never as a value", async () => {
+    json(
+      dashboard({
+        student: {
+          student_number: "2021-00456-MN-0",
+          name: "Juan",
+          programme: "BSCS",
+          year_level: 0,
+          enrollment_status: "",
+        },
+      }),
+    );
+
+    const result = await api.me("tok");
+
+    expect(result.student.yearLevel).toBeNull();
+    expect(result.student.enrollmentStatus).toBeNull();
   });
 
   it("passes the API's empty-state messages through", async () => {
@@ -151,5 +174,92 @@ describe("student dashboard api", () => {
     json({ status: "success" });
 
     await expect(api.me("tok")).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+
+  describe("holds (AC-STU-001.2)", () => {
+    const hold = {
+      type: "FINANCIAL",
+      office: "Cashier",
+      description: "Unpaid tuition balance.",
+      amount_outstanding: "1500.00",
+      currency: "PHP",
+      is_blocking: true,
+      blocks_enrollment: true,
+      blocks: ["ENROLLMENT", "COR"],
+    };
+
+    it("reads each hold's office, description, amount, and what it blocks", async () => {
+      json(
+        dashboard({
+          holds: [
+            hold,
+            { ...hold, type: "ACADEMIC", office: "Registrar", amount_outstanding: "0.00" },
+          ],
+        }),
+      );
+
+      const { holds } = await api.me("tok");
+
+      expect(holds).toEqual([
+        {
+          type: "FINANCIAL",
+          office: "Cashier",
+          description: "Unpaid tuition balance.",
+          amountOutstanding: 1500,
+          currency: "PHP",
+          blocksEnrollment: true,
+        },
+        expect.objectContaining({ office: "Registrar", amountOutstanding: null }),
+      ]);
+    });
+
+    it("keeps an empty list as none, which is not the same as unknown", async () => {
+      json(dashboard({ holds: [] }));
+
+      await expect(api.me("tok")).resolves.toMatchObject({ holds: [] });
+    });
+
+    it("reads a missing, null, or unreadable section as unknown, and the rest still loads", async () => {
+      for (const holds of [undefined, null, "none", [{ office: 5 }, "x"]]) {
+        json(dashboard({ holds }));
+
+        const result = await api.me("tok");
+
+        expect(result.holds).toBeNull();
+        expect(result.student.name).toBe("Juan A. Dela Cruz");
+      }
+    });
+
+    it("never invents an amount: a missing, zero, or unreadable figure is no amount", async () => {
+      json(
+        dashboard({
+          holds: [
+            { ...hold, amount_outstanding: undefined },
+            { ...hold, amount_outstanding: "0" },
+            { ...hold, amount_outstanding: "abc" },
+            { ...hold, amount_outstanding: null },
+          ],
+        }),
+      );
+
+      const { holds } = await api.me("tok");
+
+      expect(holds?.map((h) => h.amountOutstanding)).toEqual([null, null, null, null]);
+    });
+
+    it("says a hold blocks enrollment unless the API says it does not", async () => {
+      json(
+        dashboard({
+          holds: [
+            { ...hold, blocks_enrollment: undefined },
+            { ...hold, blocks_enrollment: false },
+          ],
+        }),
+      );
+
+      const { holds } = await api.me("tok");
+
+      expect(holds?.map((h) => h.blocksEnrollment)).toEqual([true, false]);
+    });
   });
 });

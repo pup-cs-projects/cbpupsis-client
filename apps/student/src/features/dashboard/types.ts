@@ -1,4 +1,4 @@
-// What the student dashboard shows, shaped for the screen from GET /student/me/dashboard (see
+// What the student dashboard shows, shaped for the screen from GET /student/dashboard (see
 // api.ts). The API's own shapes live in @cbpupsis/shared/dashboard.
 
 /** The term the dashboard is showing. */
@@ -43,6 +43,19 @@ export interface EmptyMessages {
   recentActivity: string;
 }
 
+/** An administrative or financial hold, ready to show (AC-STU-001.2). */
+export interface Hold {
+  type: string;
+  /** The office that placed it. */
+  office: string;
+  description: string;
+  /** What is owed, or null when nothing is or the API gave no figure. Never a default. */
+  amount: number | null;
+  /** An ISO 4217 code, "PHP". */
+  currency: string;
+  blocksEnrollment: boolean;
+}
+
 export interface Dashboard {
   /** The student's name as the University records it; null when it has none. */
   fullName: string | null;
@@ -50,7 +63,15 @@ export interface Dashboard {
   studentNumber: string | null;
   /** The profile picture's address, for the same authenticated fetch the Profile page uses. */
   avatarUrl: string | null;
+  /** The programme as the University records it; null when it has none on record. */
+  programme: string | null;
+  /** 1 for first year; null when the University has none on record. */
+  yearLevel: number | null;
+  /** As the API sends it ("ENROLLED", "NOT_ENROLLED"); null when it sends none. */
+  enrollmentStatus: string | null;
   term: AcademicTerm | null;
+  /** Null when the API could not say, which is not the same as none: holds are then unknown. */
+  holds: Hold[] | null;
   announcements: Announcement[];
   events: CalendarEvent[];
   recentActivity: ActivityItem[];
