@@ -7,8 +7,16 @@ import { PersonalInfoSection } from "./PersonalInfoSection";
 import { useStudentProfile } from "./useStudentProfile";
 
 export function ProfilePage() {
-  const { data, loading, error, retry, updateAvatar, updatePersonalInfo, setAllEmergencyContacts } =
-    useStudentProfile();
+  const {
+    data,
+    loading,
+    error,
+    retry,
+    updateAvatar,
+    updatePersonalInfo,
+    saveEmergencyContact,
+    deleteEmergencyContact,
+  } = useStudentProfile();
 
   return (
     <DashboardLayout>
@@ -48,7 +56,8 @@ export function ProfilePage() {
             {/* Emergency contacts */}
             <EmergencyContactsSection
               contacts={data.emergencyContacts}
-              onSaveAll={setAllEmergencyContacts}
+              onSave={saveEmergencyContact}
+              onDelete={deleteEmergencyContact}
             />
           </>
         )}

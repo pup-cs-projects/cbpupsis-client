@@ -2,7 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createApiClient } from "../api/client";
 import { ApiError } from "../api/errors";
-import { createStudentProfileApi } from "./student";
+import { createStudentProfileApi, PROFILE_UPDATE_KEYS, type ProfileUpdate } from "./student";
 
 const api = createStudentProfileApi(createApiClient("http://api.test/api/v1"));
 
@@ -75,6 +75,37 @@ describe("student profile api", () => {
     const { init } = call(fetchMock);
     expect(init.method).toBe("PATCH");
     expect(JSON.parse(String(init.body))).toEqual({ phone: "09123456789" });
+  });
+
+  it("sends only the four profile keys the API takes, whatever else the caller passes", async () => {
+    const fetchMock = json(PROFILE);
+
+    await api.update("tok", {
+      phone: "09123456789",
+      emailAddress: "juan@example.com",
+      permanentAddress: "123 Mabini St., Brgy. 630, Manila, Metro Manila",
+      currentAddress: "9 Quezon Ave., Brgy. 630, Manila, Metro Manila",
+      // Old names a stale caller might still send; none may reach the wire.
+      mailingAddress: "x",
+      personalEmail: "x",
+      phoneNumber: "x",
+    } as ProfileUpdate);
+
+    const body = JSON.parse(String(call(fetchMock).init.body)) as Record<string, string>;
+    expect(Object.keys(body)).toEqual([...PROFILE_UPDATE_KEYS]);
+  });
+
+  it("sends only the six contact keys the API takes, on create and on update", async () => {
+    const stray = { ...CONTACT, address: null, fullName: "x", phoneNumber: "x" };
+    const sixKeys = ["address", "email", "isPrimary", "name", "phone", "relationship"];
+
+    let fetchMock = json(CONTACT, 201);
+    await api.createContact("tok", stray);
+    expect(Object.keys(JSON.parse(String(call(fetchMock).init.body))).sort()).toEqual(sixKeys);
+
+    fetchMock = json(CONTACT);
+    await api.updateContact("tok", "c1", stray);
+    expect(Object.keys(JSON.parse(String(call(fetchMock).init.body))).sort()).toEqual(sixKeys);
   });
 
   it("uploads the picture as multipart, leaving the boundary to the browser", async () => {
