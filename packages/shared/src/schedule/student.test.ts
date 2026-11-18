@@ -145,74 +145,72 @@ it("AC-STU-005.15: callback deadline exceeds the backend's 25-second provider ti
   expect(timeout).toHaveBeenCalledWith(35_000);
 });
 
-describe.each(["/student/schedule", "/students/me/schedule"] as const)(
-  "configured schedule namespace %s",
-  (schedulePath) => {
-    it("uses the selected namespace for schedule reads and both export formats", async () => {
-      const fetch = reply({
-        term: { year: "2026-2027", semester: "first" },
-        courses: [],
-        total_credits: "0.0",
-        state: "notEnrolled",
-        message: "No enrolled courses.",
-      });
-      const api = createStudentScheduleApi(createApiClient(root), schedulePath);
-      expect((await api.current("student-access")).state).toBe("notEnrolled");
-      for (const format of ["pdf", "ics"] as const) {
-        fetch.mockResolvedValueOnce(new Response("schedule-file"));
-        const file = await api.export("student-access", format);
-        expect(await file.blob.text()).toBe("schedule-file");
-        expect(file.filename).toBe(`course-schedule.${format}`);
-      }
-      expect(fetch.mock.calls.map(([url]) => url)).toEqual([
-        root + schedulePath,
-        `${root}${schedulePath}/export?format=pdf`,
-        `${root}${schedulePath}/export?format=ics`,
-      ]);
-      for (const [, init] of fetch.mock.calls) {
-        expect(init?.method).toBe("GET");
-        expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer student-access");
-      }
+describe("student schedule namespace /student/schedule (US-STU-003: AC-STU-003.1, .5, .6)", () => {
+  const schedulePath = "/student/schedule";
+  it("reads the schedule and exports both formats under /student/schedule", async () => {
+    const fetch = reply({
+      term: { year: "2026-2027", semester: "first" },
+      courses: [],
+      total_credits: "0.0",
+      state: "notEnrolled",
+      message: "No enrolled courses.",
     });
+    const api = createStudentScheduleApi(createApiClient(root));
+    expect((await api.current("student-access")).state).toBe("notEnrolled");
+    for (const format of ["pdf", "ics"] as const) {
+      fetch.mockResolvedValueOnce(new Response("schedule-file"));
+      const file = await api.export("student-access", format);
+      expect(await file.blob.text()).toBe("schedule-file");
+      expect(file.filename).toBe(`course-schedule.${format}`);
+    }
+    expect(fetch.mock.calls.map(([url]) => url)).toEqual([
+      root + schedulePath,
+      `${root}${schedulePath}/export?format=pdf`,
+      `${root}${schedulePath}/export?format=ics`,
+    ]);
+    for (const [, init] of fetch.mock.calls) {
+      expect(init?.method).toBe("GET");
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer student-access");
+    }
+  });
 
-    it("keeps status, consent, callback, sync and disconnect on one namespace", async () => {
-      const fetch = reply(status);
-      const api = createStudentScheduleApi(createApiClient(root), schedulePath).googleCalendar;
-      const calendarPath = root + schedulePath + "/google-calendar";
-      const term = { year: "2026-2027", semester: "first" };
-      await api.status("student-access");
-      fetch.mockResolvedValueOnce(
-        new Response(
-          JSON.stringify({
-            authorization_url: "https://accounts.google.com/o/oauth2/v2/auth?state=private",
-            expires_in: 600,
-          }),
-        ),
-      );
-      await api.authorize("student-access", term);
-      await api.callback("student-access", {
-        state: "valid-calendar-state-for-test-0001",
-        code: "single-use-code",
-      });
-      await api.sync("student-access", term);
-      await api.disconnect("student-access");
-      expect(fetch.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
-        [calendarPath, "GET"],
-        [calendarPath + "/authorization", "POST"],
-        [calendarPath + "/callback", "POST"],
-        [calendarPath + "/sync", "POST"],
-        [calendarPath, "DELETE"],
-      ]);
-      expect(JSON.parse(fetch.mock.calls[1]![1]!.body as string)).toEqual(term);
-      expect(JSON.parse(fetch.mock.calls[2]![1]!.body as string)).toEqual({
-        state: "valid-calendar-state-for-test-0001",
-        code: "single-use-code",
-      });
-      expect(JSON.parse(fetch.mock.calls[3]![1]!.body as string)).toEqual(term);
-      for (const [, init] of fetch.mock.calls) {
-        expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer student-access");
-        expect(init?.credentials).toBe("include");
-      }
+  it("keeps status, consent, callback, sync and disconnect under /student/schedule", async () => {
+    const fetch = reply(status);
+    const api = createStudentScheduleApi(createApiClient(root)).googleCalendar;
+    const calendarPath = root + schedulePath + "/google-calendar";
+    const term = { year: "2026-2027", semester: "first" };
+    await api.status("student-access");
+    fetch.mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          authorization_url: "https://accounts.google.com/o/oauth2/v2/auth?state=private",
+          expires_in: 600,
+        }),
+      ),
+    );
+    await api.authorize("student-access", term);
+    await api.callback("student-access", {
+      state: "valid-calendar-state-for-test-0001",
+      code: "single-use-code",
     });
-  },
-);
+    await api.sync("student-access", term);
+    await api.disconnect("student-access");
+    expect(fetch.mock.calls.map(([url, init]) => [url, init?.method])).toEqual([
+      [calendarPath, "GET"],
+      [calendarPath + "/authorization", "POST"],
+      [calendarPath + "/callback", "POST"],
+      [calendarPath + "/sync", "POST"],
+      [calendarPath, "DELETE"],
+    ]);
+    expect(JSON.parse(fetch.mock.calls[1]![1]!.body as string)).toEqual(term);
+    expect(JSON.parse(fetch.mock.calls[2]![1]!.body as string)).toEqual({
+      state: "valid-calendar-state-for-test-0001",
+      code: "single-use-code",
+    });
+    expect(JSON.parse(fetch.mock.calls[3]![1]!.body as string)).toEqual(term);
+    for (const [, init] of fetch.mock.calls) {
+      expect(new Headers(init?.headers).get("Authorization")).toBe("Bearer student-access");
+      expect(init?.credentials).toBe("include");
+    }
+  });
+});
