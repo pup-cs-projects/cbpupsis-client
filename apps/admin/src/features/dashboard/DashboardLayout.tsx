@@ -4,7 +4,7 @@ import {
   DashboardProfileCard,
   DashboardLayout as PortalDashboardLayout,
 } from "@cbpupsis/ui";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouter } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { useMe } from "../sign-in/useAdminAuth";
@@ -15,6 +15,8 @@ import { useProfile } from "./queries";
 
 /** Portal navigation and account wiring, separate from the dashboard page like student. */
 export function DashboardLayout({ children }: { children: ReactNode }) {
+  const router = useRouter();
+  const hasRoute = (path: string) => Object.hasOwn(router.routesByPath, path);
   const me = useMe();
   const catalogAccess = useCatalogAccess();
   const reportAccess = useReportAccess();
@@ -27,12 +29,14 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
     <PortalDashboardLayout
       portal="Admin"
       headerNavigation={
-        <Link
-          to="/notifications"
-          className="text-brand-maroon inline-flex min-h-11 items-center text-sm font-medium"
-        >
-          Notifications
-        </Link>
+        hasRoute("/notifications") ? (
+          <Link
+            to="/notifications"
+            className="text-brand-maroon inline-flex min-h-11 items-center text-sm font-medium"
+          >
+            Notifications
+          </Link>
+        ) : undefined
       }
       homeLink={(className, children) => (
         <Link to="/dashboard" className={className}>
@@ -62,11 +66,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 children: [
                   {
                     label: "User Management",
-                    content: (
+                    content: hasRoute("/users") ? (
                       <Link to="/users" className={settingsLink}>
                         User Management
                       </Link>
-                    ),
+                    ) : undefined,
                   },
                 ],
               },
@@ -83,11 +87,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     ? [
                         {
                           label: "Courses",
-                          content: (
+                          content: hasRoute("/catalog") ? (
                             <Link to="/catalog" className={settingsLink}>
                               Courses
                             </Link>
-                          ),
+                          ) : undefined,
                         },
                       ]
                     : []),
@@ -95,6 +99,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     ? [
                         {
                           label: "INC completions",
+                          content: hasRoute("/incomplete-completions") ? (
+                            <Link to="/incomplete-completions" className={settingsLink}>
+                              INC completions
+                            </Link>
+                          ) : undefined,
                         },
                       ]
                     : []),
@@ -126,11 +135,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               ? [
                   {
                     label: "Enrollment",
-                    content: (
+                    content: hasRoute("/reports") ? (
                       <Link to="/reports" className={settingsLink}>
                         Enrollment
                       </Link>
-                    ),
+                    ) : undefined,
                   },
                 ]
               : []),
@@ -145,6 +154,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 children: [
                   {
                     label: "Correction of Entry",
+                    content: hasRoute("/grade-corrections") ? (
+                      <Link to="/grade-corrections" className={settingsLink}>
+                        Correction of Entry
+                      </Link>
+                    ) : undefined,
                   },
                 ],
               },
