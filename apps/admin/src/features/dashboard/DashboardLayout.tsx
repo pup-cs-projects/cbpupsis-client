@@ -26,6 +26,14 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   return (
     <PortalDashboardLayout
       portal="Admin"
+      headerNavigation={
+        <Link
+          to="/notifications"
+          className="text-brand-maroon inline-flex min-h-11 items-center text-sm font-medium"
+        >
+          Notifications
+        </Link>
+      }
       homeLink={(className, children) => (
         <Link to="/dashboard" className={className}>
           {children}
@@ -108,6 +116,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               ? [
                   {
                     label: "Enrollment",
+                    content: (
+                      <Link to="/reports" className={settingsLink}>
+                        Enrollment
+                      </Link>
+                    ),
                   },
                 ]
               : []),
