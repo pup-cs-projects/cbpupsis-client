@@ -1,9 +1,11 @@
 import { SignOutButton } from "@cbpupsis/account";
-import { Link, type LinkProps } from "@tanstack/react-router";
+import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
+import { Bell, ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { useAvatarSrc } from "../profile/useAvatar";
 import { useMe } from "../sign-in/queries";
-import { useStudentName } from "./queries";
+import { useStudentIdentity } from "./queries";
 
 // ---- Icons (decorative: the label or the button's name carries the meaning) ----
 
@@ -28,6 +30,12 @@ function Icon({ children, className = "size-5" }: { children: ReactNode; classNa
 const MenuIcon = () => (
   <Icon>
     <path d="M4 6h16M4 12h16M4 18h16" />
+  </Icon>
+);
+const HomeIcon = () => (
+  <Icon>
+    <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
+    <polyline points="9 22 9 12 15 12 15 22" />
   </Icon>
 );
 const AcademicsIcon = () => (
@@ -61,21 +69,9 @@ const HelpIcon = () => (
     <circle cx="12" cy="17" r=".5" fill="currentColor" />
   </Icon>
 );
-const UserCircleIcon = () => (
-  <Icon>
-    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </Icon>
-);
 const ChevronDownIcon = () => (
   <Icon className="size-3.5">
     <path d="M6 9l6 6 6-6" />
-  </Icon>
-);
-const SignOutIcon = () => (
-  <Icon>
-    <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
-    <path d="M10 17l-5-5 5-5M5 12h11" />
   </Icon>
 );
 
@@ -97,42 +93,72 @@ const NAV_SECTIONS: NavSection[] = [
     id: "academics",
     label: "Academics",
     icon: <AcademicsIcon />,
-    children: [{ label: "My Schedule" }, { label: "My Grades" }, { label: "Enrollment" }],
+    children: [
+      { label: "My Schedule", to: "/schedule" },
+      { label: "My Grades", to: "/grades" },
+      { label: "Enrollment", to: "/enrollment" },
+    ],
   },
   {
     id: "finance",
     label: "Finance",
     icon: <BriefcaseIcon />,
-    children: [{ label: "Billing & Payments" }],
+    children: [{ label: "Billing & Payments", to: "/account" }],
   },
   {
     id: "forms",
     label: "Forms & Requests",
     icon: <MailIcon />,
-    children: [{ label: "Forms Portal" }, { label: "Track Requests" }],
+    children: [
+      { label: "Add or Drop Courses", to: "/enrollment/add-drop" },
+      { label: "Track Requests" },
+    ],
   },
+  // Profile, Change Password, and Logout now live in the header's account menu.
   {
     id: "settings",
     label: "Settings",
     icon: <GearIcon />,
-    children: [{ label: "Profile" }, { label: "Change Password", to: "/change-password" }],
+    children: [{ label: "Change Password", to: "/change-password" }],
   },
   // The same support address as the sign-in page.
   { id: "help", label: "Help & Support", icon: <HelpIcon />, href: "mailto:icto-admin@pup.edu.ph" },
 ];
 
 const SIDEBAR_ID = "student-sidebar";
+const SEARCH_LABEL = "Search for schedules, grades, forms...";
 
 // ---- Component ----
 
 /**
- * The student portal's frame: a white header (seal, name, the main links), the collapsible
- * obelisk sidebar (a drawer below 768px), and the main landmark the skip link jumps to.
+ * The student portal's frame: a white header (seal, name, the search/notifications/account
+ * cluster), the collapsible obelisk sidebar (a drawer below 768px), and the main landmark the
+ * skip link jumps to.
  */
 export function DashboardLayout({ children }: { children: ReactNode }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      return localStorage.getItem("student-sidebar-expanded") === "true";
+    } catch {
+      return false;
+    }
+  });
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const pathname = useLocation({ select: (location) => location.pathname });
+  // The section holding the current page: open on arrival, and marked even when collapsed.
+  const activeSection = NAV_SECTIONS.find((section) =>
+    section.children?.some((item) => item.to === pathname),
+  )?.id;
+  const [openSection, setOpenSection] = useState<string | null>(activeSection ?? null);
+
+  function persistExpanded(next: boolean) {
+    setIsExpanded(next);
+    try {
+      localStorage.setItem("student-sidebar-expanded", String(next));
+    } catch {
+      // Storage unavailable (private mode, quota) — the preference just won't persist.
+    }
+  }
   const menuButton = useRef<HTMLButtonElement>(null);
   const expanded = isExpanded || drawerOpen;
 
@@ -150,7 +176,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
   function handleSectionClick(id: string) {
     if (!expanded) {
-      setIsExpanded(true);
+      persistExpanded(true);
       setOpenSection(id);
     } else {
       setOpenSection((prev) => (prev === id ? null : id));
@@ -172,7 +198,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       </a>
 
       {/* ---- Full-width top header ---- */}
-      <header className="border-brand-border/30 z-20 flex h-[72px] shrink-0 items-center justify-between gap-4 border-b bg-white px-4 md:px-8">
+      <header className="border-brand-border/30 relative z-20 flex h-[72px] shrink-0 items-center justify-between gap-2 border-b bg-white px-4 md:gap-4 md:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <button
             ref={menuButton}
@@ -197,35 +223,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               <span className="text-brand-maroon block text-[22px] leading-none font-bold tracking-tight">
                 CBPUPSIS
               </span>
-              <span className="text-brand-maroon block text-xs leading-tight font-medium">
+              <span className="text-brand-maroon hidden text-xs leading-tight font-medium sm:block">
                 PUP Academic Portal
               </span>
             </span>
           </Link>
         </div>
 
-        <nav aria-label="Main" className="hidden items-center gap-12 sm:flex print:hidden">
-          <Link
-            to="/dashboard"
-            activeOptions={{ includeSearch: false }}
-            className="text-brand-ink hover:text-brand-maroon aria-[current=page]:text-brand-maroon inline-flex min-h-11 items-center text-sm font-medium transition-colors"
-          >
-            Home
-          </Link>
-          {["Profile", "Notifications"].map((label) => (
-            // Not built yet: not a link target and not focusable; screen readers hear why.
-            <span
-              key={label}
-              role="link"
-              aria-disabled="true"
-              title="Coming soon"
-              className="text-brand-ink inline-flex min-h-11 cursor-default items-center text-sm font-medium"
-            >
-              {label}
-              <span className="sr-only">, coming soon</span>
-            </span>
-          ))}
-        </nav>
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2 print:hidden">
+          <SearchField />
+          <NotificationBell />
+          <UserMenu />
+        </div>
       </header>
 
       {/* ---- Body row: sidebar + main ---- */}
@@ -262,16 +271,31 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                 if (drawerOpen) {
                   setDrawerOpen(false);
                   menuButton.current?.focus();
-                } else setIsExpanded((v) => !v);
+                } else persistExpanded(!isExpanded);
               }}
             >
               <MenuIcon />
+            </button>
+
+            <div className="mx-3 my-1.5 border-t border-white/15" />
+
+            {/* Dashboard — wired route with active highlight */}
+            <Link
+              to="/dashboard"
+              activeOptions={{ includeSearch: false }}
+              aria-label="Dashboard"
+              className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} aria-[current=page]:bg-white/20 aria-[current=page]:text-white`}
+            >
+              <HomeIcon />
               {expanded && (
-                <span className="text-sm font-semibold whitespace-nowrap" aria-hidden="true">
+                <span
+                  className="flex-1 text-left text-sm font-semibold whitespace-nowrap"
+                  aria-hidden="true"
+                >
                   Dashboard
                 </span>
               )}
-            </button>
+            </Link>
 
             <div className="mx-3 my-1.5 border-t border-white/15" />
 
@@ -279,7 +303,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               {NAV_SECTIONS.map((section) => {
                 const open = expanded && openSection === section.id;
                 const rowClass = `${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${
-                  open ? "bg-white/10 text-white" : ""
+                  open || section.id === activeSection ? "bg-white/10 text-white" : ""
                 }`;
                 return (
                   <li key={section.id}>
@@ -329,7 +353,10 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                         {section.children.map((item) => (
                           <li key={item.label}>
                             {item.to ? (
-                              <Link to={item.to} className={subItem}>
+                              <Link
+                                to={item.to}
+                                className={`${subItem} aria-[current=page]:bg-white/20 aria-[current=page]:font-semibold aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-gold)]`}
+                              >
                                 {item.label}
                               </Link>
                             ) : (
@@ -357,8 +384,6 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               })}
             </ul>
           </nav>
-
-          <ProfileCard expanded={expanded} />
         </aside>
 
         {/* ---- Main content ---- */}
@@ -375,37 +400,224 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 }
 
 /**
- * Who is signed in, and Sign out (with its confirmation). The name shows only once the API
- * gives one; it is never derived from the email.
+ * The search field: a plain input docked beside the bell and account menu on desktop, an icon
+ * that expands into the same input, as a panel beneath the header, on narrow screens.
  */
-function ProfileCard({ expanded }: { expanded: boolean }) {
-  const me = useMe();
-  const name = useStudentName();
-  const fullName = name.data?.fullName;
+function SearchField() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const toggleButton = useRef<HTMLButtonElement>(null);
+  const mobileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (mobileOpen) mobileInput.current?.focus();
+  }, [mobileOpen]);
+
+  function closeMobile() {
+    setMobileOpen(false);
+    toggleButton.current?.focus();
+  }
+
+  const fieldClass =
+    "w-64 lg:w-80 rounded-xl border border-neutral-200 bg-neutral-50/80 py-2 pr-4 pl-10 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-crimson/20 focus:border-brand-crimson focus:bg-white transition-all";
 
   return (
-    <div className="shrink-0 border-t border-white/15 p-3">
-      <div className={`flex items-center ${expanded ? "gap-3" : "flex-col gap-2"}`}>
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20 text-white">
-          <UserCircleIcon />
-        </div>
-        {me.isPending && <p className="sr-only">Loading your account</p>}
-        {me.isSuccess && <p className="sr-only">Signed in as {me.data.email}</p>}
-        {expanded && (
-          <div className="min-w-0 flex-1" aria-hidden="true">
-            <p className="truncate text-xs leading-tight font-semibold text-white">
-              {(fullName ?? "Student").toUpperCase()}
-            </p>
-            {me.isSuccess && (
-              <p className="truncate text-xs leading-tight text-white/80">{me.data.email}</p>
-            )}
-          </div>
+    <>
+      <button
+        ref={toggleButton}
+        type="button"
+        aria-label={mobileOpen ? "Close search" : "Search"}
+        aria-expanded={mobileOpen}
+        className="rounded-full p-2.5 text-neutral-700 transition-colors hover:bg-neutral-100 md:hidden"
+        onClick={() => setMobileOpen((open) => !open)}
+      >
+        {mobileOpen ? (
+          <X className="size-5" aria-hidden="true" />
+        ) : (
+          <Search className="size-5" aria-hidden="true" />
         )}
-        <SignOutButton className="focus-visible:outline-brand-gold! grid size-11 shrink-0 place-items-center rounded-lg text-white hover:bg-white/10">
-          <SignOutIcon />
-          <span className="sr-only">Sign out</span>
-        </SignOutButton>
-      </div>
+      </button>
+
+      <form
+        role="search"
+        className="relative hidden md:block"
+        onSubmit={(event) => event.preventDefault()}
+      >
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400"
+        />
+        <input
+          type="search"
+          aria-label={SEARCH_LABEL}
+          placeholder={SEARCH_LABEL}
+          className={fieldClass}
+        />
+      </form>
+
+      {mobileOpen && (
+        <div className="border-brand-border/30 absolute inset-x-0 top-full z-20 border-b bg-white p-3 shadow-sm md:hidden">
+          <form role="search" className="relative" onSubmit={(event) => event.preventDefault()}>
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400"
+            />
+            <input
+              ref={mobileInput}
+              type="search"
+              aria-label={SEARCH_LABEL}
+              placeholder={SEARCH_LABEL}
+              className={`${fieldClass} w-full`}
+              onKeyDown={(event) => event.key === "Escape" && closeMobile()}
+            />
+          </form>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * The notification bell. Not built yet (no notifications API) — unavailable, never a dead
+ * link — but the unread badge is ready for when there is a count to show.
+ */
+function NotificationBell() {
+  const unreadCount = 0;
+
+  return (
+    <button
+      type="button"
+      aria-disabled="true"
+      title="Coming soon"
+      className="relative cursor-default rounded-full p-2.5 text-neutral-700 transition-colors hover:bg-neutral-100"
+    >
+      <Bell className="size-5" aria-hidden="true" />
+      <span className="sr-only">Notifications, coming soon</span>
+      {unreadCount > 0 && (
+        <span className="absolute top-1 right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+          {unreadCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/** A photo, or an initial on a plain circle when there is none. */
+function Avatar({ name, src }: { name: string | null; src: string | null }) {
+  if (src) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="h-9 w-9 rounded-full border border-neutral-200 object-cover"
+      />
+    );
+  }
+  const initial = name?.trim().charAt(0).toUpperCase() || "S";
+  return (
+    <span
+      aria-hidden="true"
+      className="bg-brand-crimson/10 text-brand-crimson flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 text-sm font-semibold"
+    >
+      {initial}
+    </span>
+  );
+}
+
+/**
+ * Who is signed in: the name and avatar beside the bell, opening a menu with the full identity
+ * and Profile, Change Password, and Sign out (with its own confirmation). The name shows only
+ * once the API gives one; it is never derived from the email.
+ */
+function UserMenu() {
+  const me = useMe();
+  const identity = useStudentIdentity();
+  const avatarSrc = useAvatarSrc(identity.data?.avatarUrl ?? null);
+  const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  // Click-outside and Escape close the menu; Escape hands focus back to the trigger.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      // A portalled confirmation makes this menu inert; keep its owner mounted.
+      if (container.current?.closest("[inert]")) return;
+      if (!container.current?.contains(event.target as Node)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (container.current?.closest("[inert]")) return;
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      trigger.current?.focus();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const fullName = identity.data?.fullName ?? null;
+  const firstName = fullName?.split(" ")[0] ?? "Student";
+
+  return (
+    <div ref={container} className="relative">
+      {me.isPending && <p className="sr-only">Loading your account</p>}
+      {me.isSuccess && <p className="sr-only">Signed in as {me.data.email}</p>}
+
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={fullName ? `Account menu for ${fullName}` : "Account menu"}
+        className="flex cursor-pointer items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-neutral-100"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <span
+          aria-hidden="true"
+          className="hidden text-sm font-semibold text-neutral-800 sm:inline"
+        >
+          {firstName}
+        </span>
+        <Avatar name={fullName} src={avatarSrc} />
+        <ChevronDown className="h-4 w-4 text-neutral-500" aria-hidden="true" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-neutral-200 bg-white py-2 shadow-lg">
+          <div className="px-4 py-2">
+            <p className="truncate text-sm font-semibold text-neutral-900">
+              {fullName ?? "Student"}
+            </p>
+            {identity.data?.studentNumber && (
+              <p className="truncate text-xs text-neutral-500">{identity.data.studentNumber}</p>
+            )}
+            {me.isSuccess && <p className="truncate text-xs text-neutral-500">{me.data.email}</p>}
+          </div>
+
+          <div className="my-1 border-t border-neutral-100" />
+
+          <Link
+            to="/profile"
+            className="focus-visible:outline-brand-crimson! block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            onClick={() => setOpen(false)}
+          >
+            Profile
+          </Link>
+          <Link
+            to="/change-password"
+            className="focus-visible:outline-brand-crimson! block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            onClick={() => setOpen(false)}
+          >
+            Change Password
+          </Link>
+          <SignOutButton className="focus-visible:outline-brand-crimson! block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50">
+            Logout
+          </SignOutButton>
+        </div>
+      )}
     </div>
   );
 }

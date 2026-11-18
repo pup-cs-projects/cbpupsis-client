@@ -1,8 +1,10 @@
 # The org's Free plan cannot protect branches on private repositories, so
-# "never commit directly to main or dev" is enforced on each machine.
+# "never commit directly to main, staging, dev, or an FR branch" is enforced on
+# each machine.
+# A push to staging or main deploys, which makes it matter more.
 branch="$(git rev-parse --abbrev-ref HEAD)"
-if [ "$branch" = "main" ] || [ "$branch" = "dev" ]; then
-  echo "Do not commit directly to $branch. Create a branch first: git checkout -b feature/<name>"
+if [ "$branch" = "main" ] || [ "$branch" = "staging" ] || [ "$branch" = "dev" ] || echo "$branch" | grep -Eq '^fr[0-9]{3}$'; then
+  echo "Do not commit directly to $branch. Create a story branch first: git checkout -b web-us-<module>-<nnn>"
   exit 1
 fi
 

@@ -1,52 +1,66 @@
-import {
-  MOCK_ACTIVITY,
-  MOCK_ANNOUNCEMENTS,
-  MOCK_CURRENT_TERM,
-  MOCK_EVENTS,
-  MOCK_STUDENT_NAME,
-} from "./mocks";
-import type { AcademicTerm, ActivityItem, Announcement, CalendarEvent, StudentName } from "./types";
+import type { DashboardTerm, StudentDashboard } from "@cbpupsis/shared/dashboard";
 
-/*
- * Fictional data in `npm run dev` only, so local development looks like the mockup. Each call
- * reads import.meta.env.DEV inline: a production build replaces it with false, folds each
- * ternary to its empty branch, and drops mocks.ts from the bundle, so real students see each
- * section's empty state until its endpoint exists. (Behind a helper function the minifier would
- * keep the mocks.) Tests can stub the flag, because it is read on each call.
- */
+import { session, studentDashboardApi } from "../../lib/auth";
+import { calendarDateInManila } from "../../lib/datetime";
+import type { Dashboard } from "./types";
 
-/**
- * The dashboard's data calls. No endpoint exists for any of them yet.
- *
- * When an endpoint lands, its call goes in packages/shared (CONVENTIONS: data flow), parsed at
- * the boundary, and the function here calls it through the portal's session; then delete its
- * mock from mocks.ts.
- */
+// Used when the API leaves a section's message out, so an empty section never reads as blank.
+const FALLBACK_EMPTY = {
+  announcements: "No announcements at this time.",
+  events: "No upcoming events on the academic calendar.",
+  recentActivity: "Your account activity will appear here once you begin using the portal.",
+};
+
+// Terms are stored either as an identifier ("first") or already as words ("First Semester").
+const SEMESTER_NAMES: Record<string, string> = {
+  first: "First Semester",
+  second: "Second Semester",
+  summer: "Summer Term",
+};
+
+function termName(term: DashboardTerm) {
+  return SEMESTER_NAMES[term.semester.toLowerCase()] ?? term.semester;
+}
+
+/** Shape the API's dashboard for the screen. */
+export function toDashboard(data: StudentDashboard): Dashboard {
+  return {
+    fullName: data.student.name,
+    studentNumber: data.student.studentNumber,
+    avatarUrl: data.student.avatarUrl,
+    term: data.currentTerm && {
+      academicYear: data.currentTerm.academicYear,
+      termName: termName(data.currentTerm),
+    },
+    announcements: data.announcements.map(({ id, title, body }) => ({ id, title, body })),
+    events: data.events.map((event) => {
+      const startsOn = calendarDateInManila(event.startsAt);
+      const endsOn = calendarDateInManila(event.endsAt);
+      return {
+        id: event.id,
+        startsOn,
+        endsOn: event.isMultiDay && endsOn !== startsOn ? endsOn : null,
+        title: event.title,
+        details: event.description,
+      };
+    }),
+    recentActivity: data.recentActivity.map((item) => ({
+      id: item.id,
+      occurredAt: item.occurredAt,
+      description: item.description,
+      status: item.severity,
+    })),
+    emptyMessages: {
+      announcements: data.emptyStates.announcements ?? FALLBACK_EMPTY.announcements,
+      events: data.emptyStates.events ?? FALLBACK_EMPTY.events,
+      recentActivity: data.emptyStates.recentActivity ?? FALLBACK_EMPTY.recentActivity,
+    },
+  };
+}
+
+/** The dashboard's one call: GET /student/me/dashboard, through the portal's session. */
 export const dashboardApi = {
-  // TODO(api): GET /students/me/profile (or a name on GET /auth/student/me): full name (FR4).
-  // Never derive a name from the email.
-  async studentName(): Promise<StudentName | null> {
-    return import.meta.env.DEV ? MOCK_STUDENT_NAME : null;
-  },
-
-  // TODO(api): GET /academic-calendar/current: academic year and term name (FR11).
-  async currentTerm(): Promise<AcademicTerm | null> {
-    return import.meta.env.DEV ? MOCK_CURRENT_TERM : null;
-  },
-
-  // TODO(api): GET /announcements?audience=student: title and body, newest first.
-  async announcements(): Promise<Announcement[]> {
-    return import.meta.env.DEV ? MOCK_ANNOUNCEMENTS : [];
-  },
-
-  // TODO(api): GET /academic-calendar/events?from=today: upcoming dates for students (FR11).
-  async events(): Promise<CalendarEvent[]> {
-    return import.meta.env.DEV ? MOCK_EVENTS : [];
-  },
-
-  // TODO(api): GET /students/me/activity?limit=5: the student's own recent actions, such as an
-  // enrollment or a payment, with a status.
-  async recentActivity(): Promise<ActivityItem[]> {
-    return import.meta.env.DEV ? MOCK_ACTIVITY : [];
+  async get(): Promise<Dashboard> {
+    return toDashboard(await session.authorized((token) => studentDashboardApi.me(token)));
   },
 };

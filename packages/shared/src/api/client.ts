@@ -2,10 +2,19 @@ import { ApiError } from "./errors";
 
 export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  /** Serialized as JSON. */
+  /** Serialized as JSON, except `FormData`, which the browser sends as multipart. */
   body?: unknown;
   /** Sent as `Authorization: Bearer <token>`. */
   accessToken?: string;
+  /**
+   * Extra request headers, such as `Idempotency-Key` on a payment. They never override the
+   * ones the client owns: `Accept`, `Content-Type`, and `Authorization`.
+   */
+  headers?: Record<string, string>;
+  /** Cancels the call; it then rejects with the signal's reason, not an `ApiError`. */
+  signal?: AbortSignal;
+  /** Override the default 20-second deadline for documented long-running requests. */
+  timeoutMs?: number;
 }
 
 export interface ApiClient {
@@ -16,6 +25,9 @@ export interface ApiClient {
    * so a contract change fails there instead of deep inside a component.
    */
   request(path: string, options?: RequestOptions): Promise<unknown>;
+
+  /** Call the API for a file (an image, an export) and return its bytes. */
+  requestBlob(path: string, options?: RequestOptions): Promise<Blob>;
 }
 
 const TIMEOUT_MS = 20_000;
@@ -27,39 +39,66 @@ const TIMEOUT_MS = 20_000;
 export function createApiClient(baseUrl: string): ApiClient {
   const root = baseUrl.replace(/\/+$/, "");
 
+  async function send(
+    path: string,
+    { method = "POST", body, accessToken, headers, signal, timeoutMs = TIMEOUT_MS }: RequestOptions,
+    accept: string,
+  ): Promise<Response> {
+    const isForm = body instanceof FormData;
+    try {
+      return await fetch(root + path, {
+        method,
+        headers: {
+          ...headers,
+          Accept: accept,
+          // A multipart body sets its own Content-Type, boundary included.
+          ...(body === undefined || isForm ? {} : { "Content-Type": "application/json" }),
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
+        // The API also sets an HttpOnly refresh cookie; nothing reads it yet, and sending
+        // credentials keeps that option open without a client change.
+        credentials: "include",
+        cache: "no-store",
+        signal: signal
+          ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
+      });
+    } catch {
+      // A caller's cancellation is not a network failure; only a real one reaches the screen.
+      if (signal?.aborted) throw signal.reason;
+      throw new ApiError(0, "NETWORK_ERROR");
+    }
+  }
+
+  async function failure(response: Response): Promise<ApiError> {
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      return new ApiError(response.status, undefined);
+    }
+    return toApiError(response, data);
+  }
+
   return {
-    async request(path, { method = "POST", body, accessToken } = {}) {
-      let response: Response;
-      try {
-        response = await fetch(root + path, {
-          method,
-          headers: {
-            Accept: "application/json",
-            ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-          },
-          body: body === undefined ? undefined : JSON.stringify(body),
-          // The API also sets an HttpOnly refresh cookie; nothing reads it yet, and sending
-          // credentials keeps that option open without a client change.
-          credentials: "include",
-          cache: "no-store",
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-        });
-      } catch {
-        throw new ApiError(0, "NETWORK_ERROR");
-      }
+    async request(path, options = {}) {
+      const response = await send(path, options, "application/json");
 
       if (response.status === 204) return undefined;
+      if (!response.ok) throw await failure(response);
 
-      let data: unknown;
       try {
-        data = await response.json();
+        return (await response.json()) as unknown;
       } catch {
-        throw new ApiError(response.status, response.ok ? "INVALID_RESPONSE" : undefined);
+        throw new ApiError(response.status, "INVALID_RESPONSE");
       }
+    },
 
-      if (!response.ok) throw toApiError(response, data);
-      return data;
+    async requestBlob(path, options = {}) {
+      const response = await send(path, { method: "GET", ...options }, "*/*");
+      if (!response.ok) throw await failure(response);
+      return response.blob();
     },
   };
 }
@@ -81,7 +120,13 @@ function toApiError(response: Response, data: unknown): ApiError {
     Number.isFinite(retrySeconds) && retrySeconds >= 0
       ? Date.now() + retrySeconds * 1000
       : undefined;
-  return new ApiError(response.status, code, { detail: detailOf(envelope), requestId, retryAt });
+  const details = isRecord(envelope.details) ? envelope.details : undefined;
+  return new ApiError(response.status, code, {
+    detail: detailOf(envelope),
+    requestId,
+    retryAt,
+    details,
+  });
 }
 
 /**

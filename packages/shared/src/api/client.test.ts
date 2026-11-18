@@ -30,6 +30,21 @@ afterEach(() => {
 });
 
 describe("createApiClient", () => {
+  it("sends extra headers, but never lets them replace the client's own", async () => {
+    const fetchMock = respond(200, { ok: true });
+
+    await client.request("/student/payments", {
+      accessToken: "abc",
+      body: { amount: "1.00" },
+      headers: { "Idempotency-Key": "k-1", Authorization: "Bearer other", Accept: "text/plain" },
+    });
+
+    const headers = new Headers((fetchMock.mock.calls[0] as [string, RequestInit])[1].headers);
+    expect(headers.get("Idempotency-Key")).toBe("k-1");
+    expect(headers.get("Authorization")).toBe("Bearer abc");
+    expect(headers.get("Accept")).toBe("application/json");
+  });
+
   it("joins the path to the base URL and sends the access token as a bearer token", async () => {
     const fetchMock = respond(200, { ok: true });
 
@@ -38,6 +53,15 @@ describe("createApiClient", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe("http://api.test/api/v1/auth/student/me");
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer abc");
+  });
+
+  it("rejects with the caller's abort reason instead of a network error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError")));
+    const controller = new AbortController();
+    const reason = new Error("left the page");
+    controller.abort(reason);
+
+    await expect(client.request("/items", { signal: controller.signal })).rejects.toBe(reason);
   });
 
   it("returns undefined for 204 No Content", async () => {

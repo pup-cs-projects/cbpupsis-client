@@ -1,10 +1,12 @@
+import { featureRoutes } from "./featureRoutes";
 import { createPortalRouter } from "@cbpupsis/account";
-import type { RouterHistory } from "@tanstack/react-router";
+import { MaintenancePage, NotFoundPage, ServerErrorPage } from "@cbpupsis/ui";
+import { createRoute, redirect, type RouterHistory } from "@tanstack/react-router";
 
 import { AdminDashboard } from "../features/dashboard/AdminDashboard";
 import { AdminLoginPage } from "../features/sign-in/AdminLoginPage";
-import { account } from "../lib/auth";
-import { NotFoundPage } from "./NotFoundPage";
+import { EnrollmentRequestsPage } from "../features/enrollment-requests/EnrollmentRequestsPage";
+import { account, session } from "../lib/auth";
 
 /** Tests pass a memory history; the app uses the browser's. */
 export function createAppRouter(history?: RouterHistory) {
@@ -12,7 +14,22 @@ export function createAppRouter(history?: RouterHistory) {
     config: account,
     signIn: AdminLoginPage,
     dashboard: AdminDashboard,
-    notFound: NotFoundPage,
+    statusPages: {
+      notFound: NotFoundPage,
+      serverError: ServerErrorPage,
+      maintenance: MaintenancePage,
+    },
+    extraRoutes: (rootRoute) => [
+      ...featureRoutes(rootRoute),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/enrollment-requests",
+        beforeLoad: () => {
+          if (!session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: EnrollmentRequestsPage,
+      }),
+    ],
     history,
   });
 }
