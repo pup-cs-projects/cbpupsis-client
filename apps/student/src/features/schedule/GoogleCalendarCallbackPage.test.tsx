@@ -1,5 +1,6 @@
 import { mockApi } from "@cbpupsis/account/testing";
 import { cleanup, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { session } from "../../lib/auth";
@@ -44,10 +45,11 @@ describe("GoogleCalendarCallbackPage (US-STU-005)", () => {
     expect(api.called(CALLBACK_ROUTE)).toEqual([
       expect.objectContaining({ body: { state, code }, authorization: "Bearer access-1" }),
     ]);
+    await userEvent
+      .setup()
+      .click(await screen.findByRole("button", { name: "Manage Google Calendar" }));
     await screen.findByText("Connected", { exact: true });
-    expect(
-      screen.getByText(/Your schedule is queued to sync to the Google account you selected/),
-    ).toBeInTheDocument();
+    expect(screen.getByText("Sync queued", { exact: true })).toBeInTheDocument();
     // The backend callback already queues the first sync; do not submit a duplicate job.
     expect(api.called(SYNC_ROUTE)).toHaveLength(0);
     expect(view.router.state.location.searchStr).toBe("");
@@ -132,6 +134,26 @@ describe("GoogleCalendarCallbackPage (US-STU-005)", () => {
     await screen.findByText("Your student session has ended. Sign in, then connect again.");
     expect(api.called(CALLBACK_ROUTE)).toHaveLength(0);
     await waitFor(() => expect(view.router.state.location.searchStr).toBe(""));
+  });
+
+  it("AC-STU-005.11: a failed callback marks cached Google Calendar status stale", async () => {
+    mockCalendarApi({
+      [CALLBACK_ROUTE]: { status: 409, body: { code: "GOOGLE_CALENDAR_CONFLICT" } },
+    });
+    const view = renderCalendarApp(callbackUrl, true);
+    const invalidate = vi.spyOn(view.client, "invalidateQueries");
+    await screen.findByText(GOOGLE_CALENDAR_MESSAGES.conflict);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["google-calendar"] });
+  });
+
+  it("AC-STU-005.1: rerendering after success still sends the callback exactly once", async () => {
+    const api = mockCalendarApi({ [CALLBACK_ROUTE]: { status: 200, body: connectedCalendar } });
+    const view = renderCalendarApp(callbackUrl, true);
+    await screen.findByRole("heading", { name: "Course Schedule" });
+    view.rerenderPage();
+    view.rerenderPage();
+    expect(api.called(CALLBACK_ROUTE)).toHaveLength(1);
+    expect(view.router.state.location.pathname).toBe("/schedule");
   });
 
   it("AC-STU-005.15: failure page passes axe and provides a keyboard-accessible return link", async () => {

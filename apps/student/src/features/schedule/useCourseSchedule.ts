@@ -102,7 +102,7 @@ export function useScheduleActions() {
     onSuccess: (file) => {
       if (!file) return setNotice({ tone: "info", text: UNAVAILABLE.pdf });
       saveFile(file);
-      setNotice({ tone: "success", text: "Your Certificate of Registration is downloading." });
+      setNotice({ tone: "success", text: "Your schedule is downloading." });
     },
   });
 

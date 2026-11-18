@@ -79,6 +79,9 @@ function Metric({ label, value }: { label: string; value: number }) {
   );
 }
 
+/** Connect and Manage: outlined, high contrast; only a real "off" state looks dimmed. */
+const googleButton =
+  "flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60 border-brand-maroon text-brand-maroon hover:bg-brand-maroon/5 border-2 bg-white";
 const buttonBase =
   "flex min-h-12 w-full items-center justify-center gap-2.5 rounded-xl px-4 py-3 text-sm font-semibold transition-colors disabled:opacity-60";
 
@@ -88,13 +91,22 @@ interface ScheduleActionsProps {
   onDownloadCor: () => void;
   onExportIcs: () => void;
   onConnectGoogle: () => void;
+  onManageGoogle: () => void;
   google: {
-    connected: boolean;
     connecting: boolean;
     busy: boolean;
     canConnect: boolean;
     loading: boolean;
     disabledReason?: string;
+    /** Replaces Connect: connected, or an error state that needs the status pop-up. */
+    manageAvailable: boolean;
+    /** Inline only while the pop-up is closed; it shows the same things itself. */
+    statusError?: string;
+    onRetryStatus: () => void;
+    retryingStatus: boolean;
+    lastError?: string | null;
+    feedback?: { tone: "success" | "error"; message: string } | null;
+    onDismissFeedback: () => void;
   };
 }
 
@@ -105,6 +117,7 @@ export function ScheduleActions({
   onDownloadCor,
   onExportIcs,
   onConnectGoogle,
+  onManageGoogle,
   google,
 }: ScheduleActionsProps) {
   const busy = pending !== null;
@@ -127,13 +140,13 @@ export function ScheduleActions({
         <button
           type="button"
           className={`${buttonBase} bg-brand-maroon hover:bg-brand-maroon-dark text-white`}
-          aria-label="Download Certificate of Registration (COR) as a PDF"
+          aria-label="Download Schedule as a PDF"
           aria-busy={pending === "pdf"}
           disabled={busy}
           onClick={onDownloadCor}
         >
           {pending === "pdf" ? <Spinner /> : <DocumentIcon />}
-          Download COR (PDF)
+          Download Schedule (PDF)
         </button>
 
         <button
@@ -148,42 +161,89 @@ export function ScheduleActions({
           Export Calendar (.ics)
         </button>
 
-        {google.connected ? (
-          <a
-            href="#google-calendar-sync"
-            className={
-              buttonBase +
-              " border-brand-input-border text-brand-input-text hover:bg-brand-paper border bg-white"
-            }
+        {google.manageAvailable ? (
+          <button
+            type="button"
+            className={googleButton}
+            aria-haspopup="dialog"
+            onClick={onManageGoogle}
           >
             <GoogleIcon />
             Manage Google Calendar
-          </a>
+          </button>
         ) : (
-          <>
+          <button
+            id="google-calendar-connect"
+            type="button"
+            className={googleButton}
+            aria-label="Connect to Google Calendar to sync your class schedule"
+            aria-busy={google.connecting || google.loading}
+            aria-describedby={google.disabledReason ? "google-calendar-disabled-reason" : undefined}
+            disabled={busy || google.busy || !google.canConnect}
+            onClick={onConnectGoogle}
+          >
+            {google.connecting ? <Spinner /> : <GoogleIcon />}
+            {google.connecting ? "Opening Google…" : "Connect to Google Calendar"}
+          </button>
+        )}
+        {google.disabledReason && (
+          <p id="google-calendar-disabled-reason" className="text-brand-muted text-xs">
+            {google.disabledReason}
+          </p>
+        )}
+        {google.statusError && (
+          <div className="space-y-2">
+            <p role="alert" className="text-brand-maroon text-sm">
+              {google.statusError}
+            </p>
             <button
               type="button"
-              className={
-                buttonBase +
-                " border-brand-input-border text-brand-input-text hover:bg-brand-paper border bg-white"
-              }
-              aria-label="Connect to Google Calendar to sync your class schedule"
-              aria-busy={google.connecting || google.loading}
-              aria-describedby={
-                google.disabledReason ? "google-calendar-disabled-reason" : undefined
-              }
-              disabled={busy || google.busy || !google.canConnect}
-              onClick={onConnectGoogle}
+              onClick={google.onRetryStatus}
+              disabled={google.retryingStatus}
+              className="border-brand-border/40 min-h-11 w-full rounded-lg border px-4 py-2 text-sm font-semibold disabled:opacity-50"
             >
-              {google.connecting ? <Spinner /> : <GoogleIcon />}
-              {google.connecting ? "Opening Google…" : "Connect to Google Calendar"}
+              Retry Google Calendar status
             </button>
-            {google.disabledReason && (
-              <p id="google-calendar-disabled-reason" className="text-brand-muted text-xs">
-                {google.disabledReason}
-              </p>
+          </div>
+        )}
+        {google.lastError && (
+          <div role="alert" className="text-brand-maroon text-sm break-words">
+            <p>Last sync error: {google.lastError}</p>
+            {google.lastError === "reconnectRequired" && (
+              <p className="mt-1">Reconnect your Google account to resume syncing.</p>
             )}
-          </>
+          </div>
+        )}
+        {google.feedback && (
+          <div
+            role={google.feedback.tone === "error" ? "alert" : "status"}
+            className="border-brand-border/25 bg-brand-paper flex items-start justify-between gap-2 rounded-lg border py-1.5 pr-1 pl-3 text-sm"
+          >
+            <p
+              className={`min-w-0 py-1.5 leading-snug break-words ${google.feedback.tone === "error" ? "text-brand-maroon" : "text-brand-ink"}`}
+            >
+              {google.feedback.message}
+            </p>
+            <button
+              type="button"
+              aria-label="Dismiss message"
+              onClick={google.onDismissFeedback}
+              className="text-brand-muted hover:bg-brand-border/20 inline-flex size-9 shrink-0 items-center justify-center rounded-full"
+            >
+              <svg
+                className="size-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth={2.25}
+                strokeLinecap="round"
+                viewBox="0 0 24 24"
+                aria-hidden="true"
+                focusable="false"
+              >
+                <path d="M6 6l12 12M18 6L6 18" />
+              </svg>
+            </button>
+          </div>
         )}
       </div>
     </section>
