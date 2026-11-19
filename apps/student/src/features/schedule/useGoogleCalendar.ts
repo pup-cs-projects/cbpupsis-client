@@ -50,8 +50,7 @@ export function useGoogleCalendar() {
       status.data &&
       (status.data.enabled ||
         import.meta.env.VITE_GOOGLE_CALENDAR_ALLOW_CONNECT_ATTEMPT === "true") &&
-      !status.data.connected &&
-      !status.data.disconnecting,
+      !status.data.connected,
     );
   function assertOwner(id: string | undefined) {
     if (
@@ -98,10 +97,7 @@ export function useGoogleCalendar() {
     onSuccess: (count) =>
       setFeedback({
         tone: "success",
-        message:
-          count === 1
-            ? "Sync queued. Refresh status to check progress."
-            : `Sync queued for ${count} terms. Refresh status to check progress.`,
+        message: count === 1 ? "Sync queued" : `Sync queued for ${count} terms`,
       }),
   });
   const removal = useMutation({
@@ -180,7 +176,19 @@ export function useGoogleCalendar() {
     removing: removal.isPending,
     connect: (term?: ScheduleTerm) => {
       if (!canConnect) return;
-      void perform(() => authorize.mutateAsync(term));
+      void perform(async () => {
+        // The API refuses new consent while the previous revocation is pending, and status is
+        // never polled: look again first, and only start consent once the removal has finished.
+        if (status.data?.disconnecting) {
+          const fresh = await status.refetch();
+          if (fresh.isError) return;
+          if (fresh.data?.disconnecting) {
+            setFeedback({ tone: "error", message: GOOGLE_CALENDAR_MESSAGES.stillDisconnecting });
+            return;
+          }
+        }
+        await authorize.mutateAsync(term);
+      });
     },
     sync,
     clearFeedback: () => setFeedback(null),
