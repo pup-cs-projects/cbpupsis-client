@@ -42,24 +42,21 @@ export interface ScheduleFile {
   filename: string;
 }
 
-/** Supported schedule namespaces during the student API path migration. */
-export type StudentSchedulePath = "/student/schedule" | "/students/me/schedule";
+/** The signed-in student's schedule namespace: reads, exports and Google Calendar. */
+const SCHEDULE_PATH = "/student/schedule";
 
 /** The signed-in student's course schedule and its PDF and iCalendar exports. */
-export function createStudentScheduleApi(
-  client: ApiClient,
-  schedulePath: StudentSchedulePath = "/student/schedule",
-) {
+export function createStudentScheduleApi(client: ApiClient) {
   return {
-    googleCalendar: createGoogleCalendarApi(client, schedulePath),
+    googleCalendar: createGoogleCalendarApi(client),
     async current(accessToken: string): Promise<StudentSchedule> {
-      const body = await client.request(schedulePath, { method: "GET", accessToken });
+      const body = await client.request(SCHEDULE_PATH, { method: "GET", accessToken });
       return parseSchedule(body);
     },
 
     /** The whole current term, whatever the read was filtered to. */
     async export(accessToken: string, format: "pdf" | "ics"): Promise<ScheduleFile> {
-      const blob = await client.requestBlob(`${schedulePath}/export?format=${format}`, {
+      const blob = await client.requestBlob(`${SCHEDULE_PATH}/export?format=${format}`, {
         accessToken,
       });
       return { blob, filename: `course-schedule.${format}` };
@@ -214,8 +211,8 @@ function parseAuthorization(value: unknown): GoogleCalendarAuthorization {
   return { authorizationUrl, expiresIn: parse.positiveNumber(body.expires_in ?? 600) };
 }
 
-function createGoogleCalendarApi(client: ApiClient, schedulePath: StudentSchedulePath) {
-  const calendarPath = `${schedulePath}/google-calendar`;
+function createGoogleCalendarApi(client: ApiClient) {
+  const calendarPath = `${SCHEDULE_PATH}/google-calendar`;
   return {
     async status(accessToken: string, signal?: AbortSignal): Promise<GoogleCalendarConnection> {
       return parseConnection(
