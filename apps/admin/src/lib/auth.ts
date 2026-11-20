@@ -7,11 +7,15 @@ import {
   createSession,
 } from "@cbpupsis/shared/auth";
 import { createAdminEnrollmentApi } from "@cbpupsis/shared/enrollment";
-import { createIncompleteReviewApi } from "@cbpupsis/shared/grades";
+import { createIncompleteReviewApi, incompleteReviewContract } from "@cbpupsis/shared/grades";
 
-const apiClient = createApiClient(
-  import.meta.env.VITE_API_BASE_URL || "http://localhost:8000/api/v1",
-);
+import { readAdminApiConfig } from "./apiConfig";
+
+export const apiConfig = readAdminApiConfig({
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+  VITE_ADMIN_USERS_API_PATH: import.meta.env.VITE_ADMIN_USERS_API_PATH,
+});
+export const apiClient = createApiClient(apiConfig.baseUrl);
 
 export const authApi = createAdminAuthApi(apiClient);
 
@@ -20,8 +24,7 @@ export const passwordApi = createPasswordApi(apiClient);
 export const profileApi = createProfileApi(apiClient);
 export const enrollmentApi = createAdminEnrollmentApi(apiClient);
 
-// Supply the published backend codec here when its completion contract is available.
-export const incompleteReviewApi = createIncompleteReviewApi(apiClient);
+export const incompleteReviewApi = createIncompleteReviewApi(apiClient, incompleteReviewContract);
 
 /** This app's one session. Tokens stay in memory; a reload restores it from the refresh cookie. */
 export const session = createSession(authApi);
