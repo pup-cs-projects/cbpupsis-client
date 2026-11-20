@@ -22,20 +22,15 @@ export function UserManagementPage() {
   return (
     <AdminPage
       title="User management"
-      description="Student and faculty accounts, academic catalog, roles, and permissions."
+      description="Student and faculty accounts, roles, and permissions."
     >
       <p className={adminCard + " text-sm font-semibold"}>{scope}</p>
-      <div className="grid gap-4 md:grid-cols-3">
+      <div className="grid gap-4 md:grid-cols-2">
         {[
           {
             title: "Student Management",
             to: "/users/students",
             description: "Student profiles, roles, and account permissions.",
-          },
-          {
-            title: "Course Management",
-            to: "/catalog",
-            description: "Courses, curricula, sections, and substitutions.",
           },
           {
             title: "Faculty Management",
