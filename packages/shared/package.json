@@ -13,7 +13,11 @@
     "./schedule": "./src/schedule/index.ts",
     "./enrollment": "./src/enrollment/index.ts",
     "./grades/corrections": "./src/grades/corrections.ts",
-    "./grades/correction-samples": "./src/grades/correctionSamples.ts"
+    "./grades/correction-samples": "./src/grades/correctionSamples.ts",
+    "./reports/admin": "./src/reports/admin.ts",
+    "./sections/faculty": "./src/sections/faculty.ts",
+    "./catalog/admin": "./src/catalog/admin.ts",
+    "./grades/correction-contract": "./src/grades/correctionContract.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
