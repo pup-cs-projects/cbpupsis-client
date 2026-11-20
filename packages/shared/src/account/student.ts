@@ -71,7 +71,7 @@ export function isSettled(payment: Pick<StudentPayment, "status">): boolean {
 const AMOUNT = /^-?\d+(\.\d+)?$/;
 
 /** A peso amount, kept as the text the API sent. A JSON number is read back as its text. */
-function amount(value: unknown): string {
+export function amount(value: unknown): string {
   const text = typeof value === "number" && Number.isFinite(value) ? String(value) : value;
   return typeof text === "string" && AMOUNT.test(text) ? text : parse.invalid();
 }
@@ -85,7 +85,8 @@ function parseLine(value: unknown): AccountLine {
   };
 }
 
-function parseAccount(body: unknown): StudentAccount {
+/** Narrow a GET /student/account body at the boundary; every amount stays text. */
+export function parseStudentAccount(body: unknown): StudentAccount {
   const account = parse.record(body);
   const paymentStatus = parse.oneOf(account.paymentStatus, PAYMENT_STATUSES);
   const netPayable = amount(account.netPayable);
@@ -129,7 +130,7 @@ export function createStudentAccountApi(client: ApiClient) {
      */
     async account(accessToken: string): Promise<StudentAccount> {
       const body = await client.request("/student/account", { method: "GET", accessToken });
-      return parseAccount(body);
+      return parseStudentAccount(body);
     },
 
     /** Newest first, across terms. An empty history is an empty array. */

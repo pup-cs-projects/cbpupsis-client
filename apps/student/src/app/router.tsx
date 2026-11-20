@@ -2,6 +2,7 @@ import { createPortalRouter } from "@cbpupsis/account";
 import { createRoute, redirect, useParams, type RouterHistory } from "@tanstack/react-router";
 
 import { AccountPage } from "../features/account/AccountPage";
+import { PayCancelReturn, PayPage, PaySuccessReturn } from "../features/account/PayPage";
 import { HomePage } from "../features/dashboard/HomePage";
 import { AddDropPage } from "../features/enrollment/AddDropPage";
 import { CertificatePage } from "../features/enrollment/CertificatePage";
@@ -51,6 +52,33 @@ export function createAppRouter(history?: RouterHistory) {
           if (!account.session.isSignedIn()) throw redirect({ to: "/" });
         },
         component: AccountPage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/account/pay",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: PayPage,
+      }),
+      // Where the payment gateway sends the student back to (the API's XENDIT_SUCCESS_RETURN_URL
+      // and XENDIT_CANCEL_RETURN_URL, http://localhost:3000/payments/success and /cancel in
+      // development). A student whose session ended on the trip signs in first.
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/payments/success",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: PaySuccessReturn,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/payments/cancel",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: PayCancelReturn,
       }),
       createRoute({
         getParentRoute: () => rootRoute,
