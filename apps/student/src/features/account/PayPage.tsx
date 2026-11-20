@@ -1,13 +1,9 @@
-import { Link } from "@tanstack/react-router";
+import { useQueryClient } from "@tanstack/react-query";
+import { Link, useLocation } from "@tanstack/react-router";
 import { AlertCircle, AlertTriangle, CheckCircle2, Loader2, ShieldCheck } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 
-import {
-  PAYMENT_METHODS,
-  type PaymentDetail,
-  type PaymentMethod,
-  type StudentAccount,
-} from "@cbpupsis/shared/account";
+import { type PaymentDetail, type StudentAccount } from "@cbpupsis/shared/account";
 import { errorMessage } from "@cbpupsis/shared/api";
 
 import { formatTimestamp } from "../../lib/datetime";
@@ -23,15 +19,23 @@ import {
 } from "./payPreview";
 import {
   livePaymentsClient,
+  paymentIdFromSearch,
+  payKeys,
+  readPendingPayment,
   useReceiptDownload,
   usePayAccount,
   usePayAttempt,
   type FailureView,
+  type PayEntry,
   type PaymentsClient,
 } from "./usePayment";
 
 // US-FIN-002: pay the balance online. Every peso figure below is the API's text, shown through
 // formatPesoAmount (two decimals). Nothing is added, subtracted, or compared as a number.
+//
+// The student does not type card details here. Pressing Pay creates one hosted checkout and
+// sends them to the gateway's page; the gateway sends them back to /payments/success or
+// /payments/cancel, and this page then reads how the payment ended.
 
 const CARD = "bg-white border border-neutral-200 rounded-2xl p-6 sm:p-8 shadow-sm";
 /** The checkout cards: the same surface, with the tighter padding a two-column grid wants. */
@@ -48,18 +52,10 @@ const ACTIONS = "flex flex-col sm:flex-row items-stretch sm:items-center gap-3 m
 const SUMMARY_ACTIONS =
   "flex flex-col sm:flex-row lg:flex-col xl:flex-row items-stretch sm:items-center lg:items-stretch xl:items-center gap-3 mt-6";
 
-const METHOD_LABEL: Record<PaymentMethod, string> = {
-  EWALLET: "E-Wallet",
-  BANK_TRANSFER: "Bank Transfer",
-};
-
-/** One line under each method card: which channels it covers. */
-const METHOD_HINT: Record<PaymentMethod, string> = {
-  EWALLET: "GCash, Maya, GrabPay",
-  BANK_TRANSFER: "InstaPay / PESONet online banking",
-};
-
-/** A fee the API did not send is a fee it did not charge. */
+/**
+ * The API sends no processing fee: the gateway charges the student exactly the amount the
+ * checkout was created for. So the row shows zero, as the API's own text.
+ */
 const NONE = "0.00";
 
 // ---- Shared pieces ----
@@ -188,91 +184,42 @@ function PreviewBar({
 
 // ---- The form ----
 
-function MethodCard({
-  method,
-  onChange,
-  disabled,
-}: {
-  method: PaymentMethod;
-  onChange: (next: PaymentMethod) => void;
-  disabled: boolean;
-}) {
+/** Where the student pays: not here. The API takes no method; the gateway's page asks for it. */
+function CheckoutCard() {
   return (
     <section className={PANEL}>
-      <h2 id="payment-method-heading" className="mb-4 text-xl font-bold text-neutral-900">
-        Payment Method
-      </h2>
-      <div
-        role="radiogroup"
-        aria-labelledby="payment-method-heading"
-        className="grid grid-cols-1 gap-4 sm:grid-cols-2"
-      >
-        {PAYMENT_METHODS.map((option) => {
-          const selected = option === method;
-          const hintId = `payment-method-hint-${option}`;
-          return (
-            <label
-              key={option}
-              className={`flex min-h-[4.5rem] flex-col items-center justify-center gap-0.5 rounded-xl px-4 py-3 text-center text-base transition-colors focus-within:ring-2 focus-within:ring-[#7B1113] focus-within:ring-offset-2 ${
-                selected
-                  ? "border-2 border-[#7B1113] bg-[#7B1113]/[0.03] font-semibold text-[#7B1113]"
-                  : "border border-neutral-300 text-neutral-800 hover:border-neutral-400"
-              } ${disabled ? "cursor-not-allowed opacity-60" : "cursor-pointer"}`}
-            >
-              <input
-                type="radio"
-                name="payment-method"
-                value={option}
-                checked={selected}
-                disabled={disabled}
-                onChange={() => onChange(option)}
-                aria-describedby={hintId}
-                className="sr-only"
-              />
-              <span>{METHOD_LABEL[option]}</span>
-              {/* Hidden from the radio's name (which stays "E-Wallet"); read as its description. */}
-              <span id={hintId} aria-hidden="true" className="text-xs font-normal text-neutral-500">
-                {METHOD_HINT[option]}
-              </span>
-            </label>
-          );
-        })}
-      </div>
+      <h2 className="mb-4 text-xl font-bold text-neutral-900">Secure Checkout</h2>
+      <p className="text-sm text-neutral-700">
+        You choose how to pay on our payment partner&apos;s secure page, which opens when you press
+        Pay. This portal never sees your card or account details.
+      </p>
     </section>
   );
-}
-
-/** What the student has chosen and typed. Kept above the form, so a retry finds it as it was. */
-interface Choices {
-  method: PaymentMethod;
-  /** Null until the student edits it: the field then shows the API's balance as it is. */
-  typed: string | null;
 }
 
 function PaymentForm({
   account,
   attempt,
-  choices,
-  onChoices,
+  typed,
+  onTyped,
   locked,
   banner,
 }: {
   account: StudentAccount;
   attempt: ReturnType<typeof usePayAttempt>;
-  choices: Choices;
-  onChoices: (next: Choices) => void;
+  /** What the student typed; null until they edit it, when the field shows the API's balance. */
+  typed: string | null;
+  onTyped: (next: string) => void;
   /** True once a payment is on its way: the form can be read but not sent again. */
   locked: boolean;
   banner: ReactNode;
 }) {
   const { view } = attempt;
-  const { method, typed } = choices;
   const [formatError, setFormatError] = useState<string | null>(null);
 
   const amount = typed ?? account.netPayable;
   const submitting = view.kind === "submitting";
   const noBalance = isZeroAmount(account.netPayable);
-  const totalDue = account.totalAmountDue ?? account.netPayable;
   const amountError = formatError ?? (view.kind === "form" ? view.amountError : null);
   const notice = view.kind === "form" ? view.notice : null;
   const disabled = locked || submitting;
@@ -289,7 +236,7 @@ function PaymentForm({
       return;
     }
     setFormatError(null);
-    void attempt.submit({ amount: text, method });
+    void attempt.submit({ amount: text });
   }
 
   return (
@@ -297,11 +244,7 @@ function PaymentForm({
       {banner}
       <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-12">
         <div className="space-y-6 lg:col-span-7">
-          <MethodCard
-            method={method}
-            onChange={(next) => onChoices({ ...choices, method: next })}
-            disabled={disabled}
-          />
+          <CheckoutCard />
 
           <section className={PANEL} aria-labelledby="payment-amount-heading">
             <h2 id="payment-amount-heading" className="mb-4 text-xl font-bold text-neutral-900">
@@ -323,7 +266,7 @@ function PaymentForm({
                 value={amount}
                 disabled={disabled || noBalance}
                 onChange={(event) => {
-                  onChoices({ ...choices, typed: event.target.value });
+                  onTyped(event.target.value);
                   setFormatError(null);
                   attempt.clearAmountError();
                 }}
@@ -361,11 +304,16 @@ function PaymentForm({
           </h2>
           <dl>
             <Row label="Outstanding Balance">{formatPesoAmount(account.netPayable)}</Row>
-            <Row label="Processing Fee">{formatPesoAmount(account.processingFee ?? NONE)}</Row>
+            <Row label="Processing Fee">{formatPesoAmount(NONE)}</Row>
             <Row label="Late Fees">{formatPesoAmount(account.penaltyAmount ?? NONE)}</Row>
           </dl>
+          {account.penaltyAmount !== null && (
+            <p className="mt-1 text-xs text-neutral-500">
+              Your outstanding balance already includes late fees.
+            </p>
+          )}
           <Divider />
-          <TotalRow label="Total Amount Due" amount={totalDue} inColumn />
+          <TotalRow label="Total Amount Due" amount={account.netPayable} inColumn />
 
           <p className="mt-4 flex items-center gap-2 text-xs text-neutral-500">
             <ShieldCheck aria-hidden="true" className="size-4 shrink-0" />
@@ -418,7 +366,30 @@ function InProgressPanel() {
   );
 }
 
-function TimeoutPanel({ paymentId }: { paymentId: string | null }) {
+function RedirectPanel({ checkoutUrl }: { checkoutUrl: string }) {
+  return (
+    <div role="status" className={`${CARD} mb-6 flex items-start gap-4`}>
+      <Loader2
+        aria-hidden="true"
+        className="mt-0.5 size-6 shrink-0 animate-spin text-[#7B1113] motion-reduce:animate-none"
+      />
+      <div>
+        <p className="text-base font-bold text-neutral-900">
+          Taking you to the secure payment page.
+        </p>
+        <p className="mt-1 text-sm text-neutral-600">
+          If nothing happens,{" "}
+          <a href={checkoutUrl} className="font-semibold text-[#7B1113] underline">
+            continue to payment
+          </a>
+          .
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function TimeoutPanel() {
   return (
     <div
       role="alert"
@@ -430,9 +401,11 @@ function TimeoutPanel({ paymentId }: { paymentId: string | null }) {
           We are confirming your payment. Do not pay again.
         </p>
         <p className="mt-1 text-sm text-amber-900">
-          {paymentId === null
-            ? "Check Billing & Payments in a few minutes to see whether it went through."
-            : "This page updates once the bank answers."}
+          Check{" "}
+          <Link to="/account" className="font-semibold underline">
+            Billing &amp; Payments
+          </Link>{" "}
+          in a few minutes to see whether it went through.
         </p>
       </div>
     </div>
@@ -443,17 +416,16 @@ function TimeoutPanel({ paymentId }: { paymentId: string | null }) {
 
 function SuccessView({
   payment,
-  method,
+  balance,
   client,
 }: {
   payment: PaymentDetail;
-  method: PaymentMethod;
+  /** What the student owes now, from a fresh GET /student/account; null until it arrives. */
+  balance: string | null;
   client: PaymentsClient;
 }) {
   const heading = useFocusOnMount<HTMLHeadingElement>();
   const receipt = useReceiptDownload(client);
-  const paidVia = METHOD_LABEL[payment.method ?? method];
-  const paid = payment.totalAmountPaid ?? payment.amount ?? NONE;
 
   return (
     <div className="mx-auto max-w-2xl">
@@ -479,22 +451,18 @@ function SuccessView({
           <Row label="Reference Number">
             <span className="font-mono break-all">{payment.reference ?? "Not issued"}</span>
           </Row>
-          <Row label="Paid via">{paidVia}</Row>
-          <Row label="Date & Time">
-            {payment.processedAt === null ? "Not available" : formatTimestamp(payment.processedAt)}
-          </Row>
-          {payment.newBalance !== null && (
-            <Row label="New Balance">{formatPesoAmount(payment.newBalance)}</Row>
+          {payment.receiptNumber !== null && (
+            <Row label="Receipt Number">
+              <span className="font-mono break-all">{payment.receiptNumber}</span>
+            </Row>
           )}
+          <Row label="Date & Time">
+            {payment.paidAt === null ? "Not available" : formatTimestamp(payment.paidAt)}
+          </Row>
+          {balance !== null && <Row label="New Balance">{formatPesoAmount(balance)}</Row>}
         </dl>
         <Divider />
-        <dl>
-          <Row label="Payment Amount">{formatPesoAmount(payment.amount ?? NONE)}</Row>
-          <Row label="Processing Fee">{formatPesoAmount(payment.processingFee ?? NONE)}</Row>
-          <Row label="Late Fees">{formatPesoAmount(payment.lateFees ?? NONE)}</Row>
-        </dl>
-        <Divider />
-        <TotalRow label="Total Amount Paid" amount={paid} />
+        <TotalRow label="Total Amount Paid" amount={payment.amount} />
 
         {receipt.isError && (
           <p role="alert" className="mt-5 text-sm font-medium text-red-700">
@@ -506,7 +474,7 @@ function SuccessView({
           {/* A button, not a link: the receipt needs the student's access token to fetch. */}
           <button
             type="button"
-            onClick={() => receipt.mutate({ id: payment.id, reference: payment.reference })}
+            onClick={() => receipt.mutate({ id: payment.id, receiptNumber: payment.receiptNumber })}
             disabled={receipt.isPending}
             className={PRIMARY_BUTTON}
           >
@@ -558,7 +526,7 @@ function FailedView({
           <Row label="Status">
             <span className="font-semibold text-red-700">Failed</span>
           </Row>
-          <Row label="Reason">{failure.reason ?? "The payment gateway gave no reason."}</Row>
+          <Row label="Reason">{failure.reason ?? "The payment was not completed."}</Row>
         </dl>
         <Divider />
         <TotalRow label="Total Amount Due" amount={totalDue} />
@@ -581,49 +549,109 @@ function PayFlow({
   account,
   client,
   source,
+  entry,
+  preview,
 }: {
   account: StudentAccount;
   client: PaymentsClient;
   source: string;
+  entry: PayEntry;
+  /** A preview has no gateway page to visit: the student "comes back" at once. */
+  preview: boolean;
 }) {
-  const attempt = usePayAttempt(client, source);
-  const [choices, setChoices] = useState<Choices>({ method: "EWALLET", typed: null });
+  const attempt = usePayAttempt(
+    client,
+    source,
+    preview ? { entry, redirect: () => false } : { entry },
+  );
+  const queryClient = useQueryClient();
+  const [typed, setTyped] = useState<string | null>(null);
+  const [balance, setBalance] = useState<string | null>(null);
   const { view } = attempt;
-  const totalDue = account.totalAmountDue ?? account.netPayable;
+
+  // The status call has no balance. Once the payment is PAID, read the account again for what
+  // the student owes now.
+  const paid = view.kind === "success";
+  useEffect(() => {
+    if (!paid) return;
+    let live = true;
+    queryClient
+      .fetchQuery({
+        queryKey: payKeys.account(source),
+        queryFn: () => client.account(),
+        staleTime: 0,
+      })
+      .then((fresh) => {
+        if (live) setBalance(fresh.netPayable);
+      })
+      .catch(() => {
+        // The row simply stays out; the payment itself is already confirmed.
+      });
+    return () => {
+      live = false;
+    };
+  }, [paid, queryClient, source, client]);
 
   if (view.kind === "success") {
-    // The method on the receipt is the API's; the chosen one is only a fallback label.
-    return <SuccessView payment={view.payment} method={choices.method} client={client} />;
+    return <SuccessView payment={view.payment} balance={balance} client={client} />;
   }
   if (view.kind === "failed") {
-    return <FailedView failure={view.failure} totalDue={totalDue} onTryAgain={attempt.tryAgain} />;
+    return (
+      <FailedView
+        failure={view.failure}
+        totalDue={account.netPayable}
+        onTryAgain={attempt.tryAgain}
+      />
+    );
   }
 
-  const locked = view.kind === "in-progress" || view.kind === "timeout";
+  const locked =
+    view.kind === "in-progress" || view.kind === "timeout" || view.kind === "redirecting";
   const banner =
     view.kind === "in-progress" ? (
       <InProgressPanel />
     ) : view.kind === "timeout" ? (
-      <TimeoutPanel paymentId={view.paymentId} />
+      <TimeoutPanel />
+    ) : view.kind === "redirecting" ? (
+      <RedirectPanel checkoutUrl={view.checkoutUrl} />
     ) : null;
 
   return (
     <PaymentForm
       account={account}
       attempt={attempt}
-      choices={choices}
-      onChoices={setChoices}
+      typed={typed}
+      onTyped={setTyped}
       locked={locked}
       banner={banner}
     />
   );
 }
 
-/** US-FIN-002: settle the outstanding balance. */
-export function PayPage() {
-  // A preview scenario is a stand-in for the API while it is not deployed. With none set, this
+/**
+ * How the page was opened: fresh, or back from the gateway at one of the API's return URLs.
+ * On the success address the payment is the one the address names (`?payment_id=`), or else the
+ * one remembered before the trip.
+ */
+function entryFor(returned: "success" | "cancel" | undefined, search: unknown): PayEntry {
+  if (returned === "cancel") return { kind: "cancelled" };
+  if (returned === "success") {
+    const paymentId = paymentIdFromSearch(search) ?? readPendingPayment();
+    return paymentId === null ? { kind: "returned-unknown" } : { kind: "returned", paymentId };
+  }
+  return { kind: "new" };
+}
+
+/**
+ * US-FIN-002: settle the outstanding balance. Mounted at /account/pay, and, with `returned`, at
+ * the gateway's return addresses /payments/success and /payments/cancel.
+ */
+export function PayPage({ returned }: { returned?: "success" | "cancel" } = {}) {
+  // A preview scenario is a stand-in for the API while there is no gateway. With none set, this
   // is the live client and nothing below changes.
   const [scenario, setScenario] = useState<PreviewScenario | null>(initialPreview);
+  const search = useLocation({ select: (location) => location.search });
+  const [entry] = useState(() => entryFor(returned, search));
   const client = useMemo(
     () => (scenario === null ? livePaymentsClient : previewPaymentsClient(scenario)),
     [scenario],
@@ -674,10 +702,22 @@ export function PayPage() {
               source={scenario ?? "live"}
               account={account.data}
               client={client}
+              entry={scenario === null ? entry : { kind: "new" }}
+              preview={scenario !== null}
             />
           )}
         </div>
       </div>
     </DashboardLayout>
   );
+}
+
+/** The gateway's success address: the student paid, or thinks so. Ask how it ended. */
+export function PaySuccessReturn() {
+  return <PayPage returned="success" />;
+}
+
+/** The gateway's cancel address: the student left without paying. */
+export function PayCancelReturn() {
+  return <PayPage returned="cancel" />;
 }

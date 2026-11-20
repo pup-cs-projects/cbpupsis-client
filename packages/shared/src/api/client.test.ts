@@ -30,6 +30,19 @@ afterEach(() => {
 });
 
 describe("createApiClient", () => {
+  it("keeps the envelope's top-level reason, which a payment gateway refusal carries", async () => {
+    respond(502, {
+      code: "PAYMENT_GATEWAY_ERROR",
+      detail: "Rejected.",
+      reason: " Insufficient Funds ",
+    });
+
+    const error = await rejection(client.request("/student/payments"));
+
+    expect(error.status).toBe(502);
+    expect(error.reason).toBe("Insufficient Funds");
+  });
+
   it("sends extra headers, but never lets them replace the client's own", async () => {
     const fetchMock = respond(200, { ok: true });
 

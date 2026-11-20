@@ -1,17 +1,18 @@
-import type { PaymentDetail, StudentAccount } from "@cbpupsis/shared/account";
+import type { PaymentCreated, PaymentDetail, StudentAccount } from "@cbpupsis/shared/account";
 import { ApiError } from "@cbpupsis/shared/api";
 
 import type { PaymentsClient } from "./usePayment";
 
 // A stand-in for the payment API, so every state of the payment page can be seen in a browser
-// before the API serves /student/payments. It answers the same four calls as the live client
-// and goes through the same page code: the Pay button, the lock, the polling, the screens.
+// without a gateway. It answers the same four calls as the live client and goes through the
+// same page code: the Pay button, the lock, the replay, the polling, the screens. The one thing
+// it skips is the trip to the gateway's page: the student "comes back" at once.
 //
 // It is on only in a dev build (never in tests or production), and only when:
 //  - the address has ?preview=<scenario>, or apps/student/.env.local sets VITE_PAY_PREVIEW; or
 //  - the API cannot be reached, or does not know the route yet (see previewFallback).
 // The preview bar on the page then switches scenario. To go back to the live API, remove the
-// ?preview, the VITE_PAY_PREVIEW line, and nothing else: PayPage already calls the live client.
+// ?preview and the VITE_PAY_PREVIEW line, and nothing else: PayPage already calls the live client.
 
 /** What happens when the student presses Pay. */
 export const PREVIEW_SCENARIOS = [
@@ -55,46 +56,52 @@ export function previewFallback(error: unknown): boolean {
 
 // Sample figures are fixed text, as the API would send them.
 const ACCOUNT: StudentAccount = {
-  amountAssessed: "2190.00",
-  subsidyApplied: "145.00",
-  netPayable: "2045.00",
+  amountAssessed: "2145.00",
+  subsidyApplied: "0.00",
+  netPayable: "2145.00",
   paymentStatus: "OVERDUE",
+  fheQualified: false,
   fheForfeited: false,
   fheForfeitureReason: null,
-  overdueAmount: "2045.00",
-  penaltyAmount: "204.50",
-  processingFee: "15.00",
-  totalAmountDue: "2264.50",
-  lines: [],
+  lines: [
+    { description: "Tuition", amount: "2045.00", coveredByFhe: false },
+    { description: "Late payment fine", amount: "100.00", coveredByFhe: false },
+  ],
+  overdueAmount: "2145.00",
+  penaltyAmount: "100.00",
 };
 
-const SETTLED: PaymentDetail = {
-  id: "preview-settled",
-  status: "SETTLED",
-  reference: "PUP-2026-004521",
-  method: "EWALLET",
-  processedAt: "2026-11-17T06:42:00Z",
-  amount: "2045.00",
-  processingFee: "15.00",
-  lateFees: "204.50",
-  totalAmountPaid: "2264.50",
-  newBalance: "0.00",
-  failureReason: null,
+const PAID: PaymentDetail = {
+  id: "preview-paid",
+  state: "PAID",
+  amount: "2145.00",
+  currency: "PHP",
+  reference: "xnd-pay-8f3a1c",
+  receiptNumber: "RCPT-2026-004521",
+  paidAt: "2026-11-18T06:42:00Z",
+  createdAt: "2026-11-18T06:40:00Z",
 };
 
 const PENDING: PaymentDetail = {
-  ...SETTLED,
+  ...PAID,
   id: "preview-pending",
-  status: "PENDING",
+  state: "PENDING",
   reference: null,
-  processedAt: null,
-  newBalance: null,
+  receiptNumber: null,
+  paidAt: null,
 };
 
 const pause = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** The preview API for one scenario. */
 export function previewPaymentsClient(scenario: PreviewScenario): PaymentsClient {
+  let calls = 0;
+  const created = (id: string): PaymentCreated => ({
+    paymentId: id,
+    state: "PENDING",
+    checkoutUrl: "https://checkout.example.test/preview",
+  });
+
   return {
     async account() {
       await pause(300);
@@ -104,42 +111,38 @@ export function previewPaymentsClient(scenario: PreviewScenario): PaymentsClient
     async create() {
       // Long enough to see the locked, "Processing" button.
       await pause(900);
+      calls += 1;
       switch (scenario) {
         case "success":
-          return { ...PENDING, id: SETTLED.id };
+          return created(PAID.id);
         case "failed":
           throw new ApiError(502, "PAYMENT_GATEWAY_ERROR", {
-            detail: "Insufficient Funds",
-            details: {
-              reference: "PUP-2026-004522",
-              reason: "Insufficient Funds",
-              occurred_at: "2026-11-17T06:42:00Z",
-            },
+            detail: "The payment gateway rejected the request.",
+            reason: "Insufficient Funds",
           });
         case "in-progress":
-          throw new ApiError(409, "PAYMENT_IN_PROGRESS", {
-            retryAt: Date.now() + 3_000,
-            details: { payment_id: PENDING.id },
-          });
+          // The first call is "still being created"; asking again with the same key answers.
+          if (calls === 1) {
+            throw new ApiError(409, "PAYMENT_IN_PROGRESS", { retryAt: Date.now() + 4_000 });
+          }
+          return created(PAID.id);
         case "timeout":
-          throw new ApiError(504, "PAYMENT_GATEWAY_TIMEOUT", {
-            details: { payment_id: PENDING.id },
-          });
+          throw new ApiError(504, "PAYMENT_GATEWAY_TIMEOUT");
         case "amount-exceeds":
           throw new ApiError(422, "AMOUNT_EXCEEDS_BALANCE", {
-            detail: "The amount is more than your outstanding balance.",
+            detail: "The payment amount exceeds the available balance.",
           });
       }
     },
 
     async get(paymentId) {
       await pause(300);
-      return paymentId === SETTLED.id ? SETTLED : PENDING;
+      return paymentId === PAID.id ? PAID : PENDING;
     },
 
     async receipt() {
       await pause(300);
-      return new Blob(["Preview receipt. No real payment was made."], { type: "text/plain" });
+      return new Blob(["Preview receipt. No real payment was made."], { type: "application/pdf" });
     },
   };
 }

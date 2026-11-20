@@ -4,8 +4,9 @@ import { useEffect, useRef, useState } from "react";
 import {
   classifyPaymentError,
   PAYMENT_FAILED,
+  PAYMENT_PAID,
   PAYMENT_PENDING,
-  PAYMENT_SETTLED,
+  type PaymentCreated,
   type PaymentDetail,
   type PaymentRequest,
   type StudentAccount,
@@ -16,11 +17,15 @@ import { session, studentPaymentsApi as api } from "../../lib/auth";
 
 // US-FIN-002. The page renders; everything that talks to the API, or decides what an answer
 // means, is here. Amounts are the API's text throughout: nothing is added or compared.
+//
+// The flow (see packages/shared/src/account/payments.ts): POST creates one hosted checkout, the
+// student pays on the gateway's page, and the gateway sends them back to the portal, where
+// GET /student/payments/{id} says how it ended.
 
-/** The four payment calls, with the session's token applied. The page only sees this shape. */
+/** The payment calls, with the session's token applied. The page only sees this shape. */
 export interface PaymentsClient {
   account(): Promise<StudentAccount>;
-  create(request: PaymentRequest, idempotencyKey: string): Promise<PaymentDetail>;
+  create(request: PaymentRequest, idempotencyKey: string): Promise<PaymentCreated>;
   get(paymentId: string): Promise<PaymentDetail>;
   receipt(paymentId: string): Promise<Blob>;
 }
@@ -35,6 +40,62 @@ export const livePaymentsClient: PaymentsClient = {
   get: (paymentId) => session.authorized((token) => api.get(token, paymentId)),
   receipt: (paymentId) => session.authorized((token) => api.receipt(token, paymentId)),
 };
+
+/**
+ * Send the student to the gateway's page. True when the browser is leaving; false when nothing
+ * was left to do (a preview), so the page carries on as if the student had come back. A
+ * property so a test can stand in for it.
+ */
+export const checkout = {
+  go(url: string): boolean {
+    window.location.assign(url);
+    return true;
+  },
+};
+
+// The gateway sends the student back to a fixed address that names no payment, so the id is
+// kept for the trip. It is an opaque id, not a record or a token, and it lives in this tab only.
+const PENDING_KEY = "cbpupsis.pay.pending";
+
+export function rememberPendingPayment(paymentId: string): void {
+  try {
+    sessionStorage.setItem(PENDING_KEY, paymentId);
+  } catch {
+    // Storage can be blocked; the student then finds the result in Billing & Payments.
+  }
+}
+
+export function readPendingPayment(): string | null {
+  try {
+    return sessionStorage.getItem(PENDING_KEY);
+  } catch {
+    return null;
+  }
+}
+
+export function clearPendingPayment(): void {
+  try {
+    sessionStorage.removeItem(PENDING_KEY);
+  } catch {
+    // Nothing to clear.
+  }
+}
+
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * The payment a return address names, if it does: `?payment_id=` or `?paymentId=`. The API's
+ * return URLs are fixed and name none today, so this only serves a deployment that adds one.
+ * Anything that is not a UUID is ignored, never sent to the API.
+ */
+export function paymentIdFromSearch(search: unknown): string | null {
+  if (typeof search !== "object" || search === null) return null;
+  const record = search as Record<string, unknown>;
+  for (const value of [record.payment_id, record.paymentId]) {
+    if (typeof value === "string" && UUID.test(value)) return value;
+  }
+  return null;
+}
 
 /** "live", or the name of a preview scenario: keeps preview data out of the real cache. */
 export type PaySource = string;
@@ -67,12 +128,12 @@ function clampWait(ms: number | null): number {
 }
 
 function isFinal(payment: PaymentDetail | undefined): boolean {
-  return payment !== undefined && payment.status !== PAYMENT_PENDING;
+  return payment !== undefined && payment.state !== PAYMENT_PENDING;
 }
 
 /**
- * GET /student/payments/{payment_id}: the first call after `firstDelayMs` (the 409's
- * Retry-After, AC-FIN-002.4), then every few seconds until the payment is settled or failed.
+ * GET /student/payments/{payment_id}: the first call after `firstDelayMs`, then every few
+ * seconds until the payment is PAID or FAILED.
  */
 export function usePaymentPoll(
   client: PaymentsClient,
@@ -100,8 +161,9 @@ export function usePaymentPoll(
 
 /** What the failed-payment screen shows. */
 export interface FailureView {
+  /** The gateway's reference, when the API has one: a refusal at checkout has none. */
   reference: string | null;
-  /** An instant, ISO 8601. */
+  /** An instant, ISO 8601: when the page learned of the failure. */
   occurredAt: string;
   /** The gateway's own words, or null when it gave none. */
   reason: string | null;
@@ -111,29 +173,62 @@ export interface FailureView {
 export type PayView =
   | { kind: "form"; amountError: string | null; notice: string | null }
   | { kind: "submitting" }
-  /** 409, or accepted and not yet settled (AC-FIN-002.4). */
-  | { kind: "in-progress"; paymentId: string | null }
+  /** On its way to the gateway's page. */
+  | { kind: "redirecting"; checkoutUrl: string }
+  /** 409, or back from the gateway and not settled yet (AC-FIN-002.4). */
+  | { kind: "in-progress" }
   /** 504: do not pay again. */
-  | { kind: "timeout"; paymentId: string | null }
+  | { kind: "timeout" }
   | { kind: "success"; payment: PaymentDetail }
   | { kind: "failed"; failure: FailureView };
 
+/** How the page was opened: fresh, or back from the gateway. */
+export type PayEntry =
+  | { kind: "new" }
+  /** Back at the gateway's success address, with the payment known. */
+  | { kind: "returned"; paymentId: string }
+  /** Back at the gateway's success address, but no payment was named or remembered. */
+  | { kind: "returned-unknown" }
+  /** The student left the gateway's page without paying. */
+  | { kind: "cancelled" };
+
+type FormAttempt = { phase: "form"; amountError: string | null; notice: string | null };
+
 type Attempt =
-  | { phase: "form"; amountError: string | null; notice: string | null }
+  | FormAttempt
   | { phase: "submitting" }
-  | {
-      phase: "tracking";
-      paymentId: string | null;
-      delayMs: number;
-      cause: "accepted" | "in-progress" | "timeout";
-    }
+  | { phase: "waiting" }
+  | { phase: "redirecting"; checkoutUrl: string }
+  | { phase: "tracking"; paymentId: string; delayMs: number }
+  | { phase: "timeout" }
   | { phase: "failed"; failure: FailureView };
 
-const IDLE: Attempt = { phase: "form", amountError: null, notice: null };
+const IDLE: FormAttempt = { phase: "form", amountError: null, notice: null };
 
-/** The same request is the same payment: one key for it, until it is settled or refused. */
+function startOf(entry: PayEntry): Attempt {
+  switch (entry.kind) {
+    case "new":
+      return IDLE;
+    case "returned":
+      return { phase: "tracking", paymentId: entry.paymentId, delayMs: 0 };
+    case "returned-unknown":
+      return {
+        ...IDLE,
+        notice:
+          "We could not tell which payment you just made. Check Billing & Payments before paying again.",
+      };
+    case "cancelled":
+      return {
+        ...IDLE,
+        notice:
+          "You left the payment page before it finished. If you were not charged, you can try again.",
+      };
+  }
+}
+
+/** The same request is the same payment: one key for it, until it is paid or refused. */
 function fingerprint(request: PaymentRequest) {
-  return `${request.method}|${request.amount}`;
+  return request.amount;
 }
 
 /**
@@ -144,13 +239,27 @@ function fingerprint(request: PaymentRequest) {
  *    refused, gets a new one.
  *  - The first click locks the form, and a ref guards the same instant, so a double click can
  *    send only one request (AC-FIN-002.2, AC-FIN-002.3).
+ *  - A 409 means the first call with this key is still being made. It names no payment, so the
+ *    same request is sent again with the same key once Retry-After has passed, which returns
+ *    the first call's answer (AC-FIN-002.4).
  *  - A 502 shows the failure; `tryAgain` forgets the key, so the next attempt has a new one
  *    (AC-FIN-002.10).
+ *  - A 504 locks the form for good: the attempt may still go through, and its key would only
+ *    replay the 504. The API refuses a second payment for a balance already reserved.
+ *  - A created payment that is not PENDING needs no trip to the gateway: it is read at once.
  */
-export function usePayAttempt(client: PaymentsClient, source: PaySource) {
-  const [attempt, setAttempt] = useState<Attempt>(IDLE);
+export function usePayAttempt(
+  client: PaymentsClient,
+  source: PaySource,
+  options: { entry?: PayEntry; redirect?: (url: string) => boolean } = {},
+) {
+  const { entry = { kind: "new" }, redirect = checkout.go } = options;
+  const [attempt, setAttempt] = useState<Attempt>(() => startOf(entry));
   const key = useRef<{ value: string; fingerprint: string } | null>(null);
   const inFlight = useRef(false);
+  const replay = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  useEffect(() => () => clearTimeout(replay.current), []);
 
   const create = useMutation({
     mutationFn: (call: { request: PaymentRequest; key: string }) =>
@@ -161,20 +270,30 @@ export function usePayAttempt(client: PaymentsClient, source: PaySource) {
   const tracking = attempt.phase === "tracking" ? attempt : null;
   const poll = usePaymentPoll(client, source, tracking?.paymentId ?? null, tracking?.delayMs ?? 0);
 
-  async function submit(request: PaymentRequest) {
-    if (inFlight.current) return;
-    inFlight.current = true;
-    setAttempt({ phase: "submitting" });
+  // Leaving the gateway's page unpaid ends the trip too: forget the remembered payment.
+  const cancelled = entry.kind === "cancelled";
+  useEffect(() => {
+    if (cancelled) clearPendingPayment();
+  }, [cancelled]);
 
-    const print = fingerprint(request);
-    if (key.current?.fingerprint !== print) {
-      key.current = { value: crypto.randomUUID(), fingerprint: print };
-    }
+  // Once the gateway has answered, the trip is over: forget the remembered payment.
+  const answered = isFinal(poll.data);
+  useEffect(() => {
+    if (answered) clearPendingPayment();
+  }, [answered]);
 
+  async function run(request: PaymentRequest, idempotencyKey: string) {
+    let waiting = false;
     try {
-      const payment = await create.mutateAsync({ request, key: key.current.value });
-      // What was accepted is read back from the payment itself, never from this response.
-      setAttempt({ phase: "tracking", paymentId: payment.id, delayMs: 0, cause: "accepted" });
+      const created = await create.mutateAsync({ request, key: idempotencyKey });
+      // Remembered before the student leaves: the gateway's return address names no payment.
+      rememberPendingPayment(created.paymentId);
+      const leaving = created.state === PAYMENT_PENDING && redirect(created.checkoutUrl);
+      setAttempt(
+        leaving
+          ? { phase: "redirecting", checkoutUrl: created.checkoutUrl }
+          : { phase: "tracking", paymentId: created.paymentId, delayMs: 0 },
+      );
     } catch (error) {
       const outcome = classifyPaymentError(error);
       switch (outcome.kind) {
@@ -184,28 +303,23 @@ export function usePayAttempt(client: PaymentsClient, source: PaySource) {
           setAttempt({ phase: "form", amountError: outcome.message, notice: null });
           break;
         case "in-progress":
-          setAttempt({
-            phase: "tracking",
-            paymentId: outcome.paymentId,
-            delayMs: clampWait(outcome.retryAfterMs),
-            cause: "in-progress",
-          });
+          waiting = true;
+          setAttempt({ phase: "waiting" });
+          replay.current = setTimeout(
+            () => void run(request, idempotencyKey),
+            clampWait(outcome.retryAfterMs),
+          );
           break;
         case "gateway-timeout":
           // Unknown: it may yet go through. Stay locked; never invite a second payment.
-          setAttempt({
-            phase: "tracking",
-            paymentId: outcome.paymentId,
-            delayMs: clampWait(outcome.retryAfterMs),
-            cause: "timeout",
-          });
+          setAttempt({ phase: "timeout" });
           break;
         case "gateway-error":
           setAttempt({
             phase: "failed",
             failure: {
-              reference: outcome.reference,
-              occurredAt: outcome.occurredAt ?? new Date().toISOString(),
+              reference: null,
+              occurredAt: new Date().toISOString(),
               reason: outcome.reason,
             },
           });
@@ -224,13 +338,26 @@ export function usePayAttempt(client: PaymentsClient, source: PaySource) {
           break;
       }
     } finally {
-      inFlight.current = false;
+      if (!waiting) inFlight.current = false;
     }
+  }
+
+  async function submit(request: PaymentRequest) {
+    if (inFlight.current) return;
+    inFlight.current = true;
+    setAttempt({ phase: "submitting" });
+
+    const print = fingerprint(request);
+    if (key.current?.fingerprint !== print) {
+      key.current = { value: crypto.randomUUID(), fingerprint: print };
+    }
+    await run(request, key.current.value);
   }
 
   /** Back to the form after a failure, as a new attempt with a new key (AC-FIN-002.10). */
   function tryAgain() {
     key.current = null;
+    clearPendingPayment();
     setAttempt(IDLE);
   }
 
@@ -252,23 +379,28 @@ function derive(attempt: Attempt, polled: PaymentDetail | undefined, polledAt: n
       return { kind: "form", amountError: attempt.amountError, notice: attempt.notice };
     case "submitting":
       return { kind: "submitting" };
+    case "waiting":
+      return { kind: "in-progress" };
+    case "redirecting":
+      return { kind: "redirecting", checkoutUrl: attempt.checkoutUrl };
+    case "timeout":
+      return { kind: "timeout" };
     case "failed":
       return { kind: "failed", failure: attempt.failure };
     case "tracking": {
-      if (polled?.status === PAYMENT_SETTLED) return { kind: "success", payment: polled };
-      if (polled?.status === PAYMENT_FAILED) {
+      if (polled?.state === PAYMENT_PAID) return { kind: "success", payment: polled };
+      if (polled?.state === PAYMENT_FAILED) {
         return {
           kind: "failed",
           failure: {
             reference: polled.reference,
-            occurredAt: polled.processedAt ?? new Date(polledAt).toISOString(),
-            reason: polled.failureReason,
+            occurredAt: new Date(polledAt).toISOString(),
+            // The status call carries no reason; the gateway's is only sent with a 502.
+            reason: null,
           },
         };
       }
-      return attempt.cause === "timeout"
-        ? { kind: "timeout", paymentId: attempt.paymentId }
-        : { kind: "in-progress", paymentId: attempt.paymentId };
+      return { kind: "in-progress" };
     }
   }
 }
@@ -276,13 +408,13 @@ function derive(attempt: Attempt, polled: PaymentDetail | undefined, polledAt: n
 /** GET /student/payments/{payment_id}/receipt, handed to the browser as a file (AC-FIN-002.9). */
 export function useReceiptDownload(client: PaymentsClient) {
   return useMutation({
-    mutationFn: async (payment: { id: string; reference: string | null }) => {
+    mutationFn: async (payment: { id: string; receiptNumber: string | null }) => {
       const file = await client.receipt(payment.id);
-      const url = URL.createObjectURL(file);
+      const url = URL.createObjectURL(new Blob([file], { type: "application/pdf" }));
       try {
         const link = document.createElement("a");
         link.href = url;
-        link.download = `receipt-${payment.reference ?? payment.id}`;
+        link.download = `payment-receipt-${payment.receiptNumber ?? payment.id}.pdf`;
         document.body.append(link);
         link.click();
         link.remove();

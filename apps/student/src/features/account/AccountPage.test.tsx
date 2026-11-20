@@ -338,9 +338,7 @@ describe("AccountPage (US-FIN-001)", () => {
     await loaded();
 
     const banner = screen.getByRole("status");
-    expect(banner).toHaveTextContent(
-      "No Outstanding Balance — Your account is in good standing. Enrollment is accessible.",
-    );
+    expect(banner).toHaveTextContent("No Outstanding Balance — Your account is in good standing.");
     expect(banner).not.toHaveTextContent("CoR");
     expect(banner.querySelector("svg.lucide-circle-check")).toBeInTheDocument();
     expect(figure("Net Payable")).toHaveTextContent("₱0.00");

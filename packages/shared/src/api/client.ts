@@ -121,11 +121,16 @@ function toApiError(response: Response, data: unknown): ApiError {
       ? Date.now() + retrySeconds * 1000
       : undefined;
   const details = isRecord(envelope.details) ? envelope.details : undefined;
+  const reason =
+    typeof envelope.reason === "string" && envelope.reason.trim()
+      ? envelope.reason.trim()
+      : undefined;
   return new ApiError(response.status, code, {
     detail: detailOf(envelope),
     requestId,
     retryAt,
     details,
+    reason,
   });
 }
 
