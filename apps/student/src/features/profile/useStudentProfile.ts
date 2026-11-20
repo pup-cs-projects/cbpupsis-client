@@ -6,8 +6,10 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { authApi, profileApi, session } from "../../lib/auth";
+import { dashboardKeys } from "../dashboard/queries";
+import type { Dashboard } from "../dashboard/types";
 import type { EmergencyContact, PersonalInformation, StudentProfileData } from "./profileTypes";
-import { profileKeys, useAvatarSrc } from "./useAvatar";
+import { profileKeys, profileQueryOptions, useAvatarSrc } from "./useAvatar";
 
 type PersonalInfoPatch = Omit<PersonalInformation, "fullLegalName" | "program">;
 
@@ -54,10 +56,7 @@ function sameContact(a: EmergencyContact, b: EmergencyContact): boolean {
 export function useStudentProfile() {
   const queryClient = useQueryClient();
 
-  const profile = useQuery({
-    queryKey: profileKeys.profile(),
-    queryFn: () => session.authorized((token) => profileApi.get(token)),
-  });
+  const profile = useQuery(profileQueryOptions());
   // The institutional address the student signs in with; the profile's email is the personal one.
   const account = useQuery({
     queryKey: profileKeys.account(),
@@ -79,7 +78,18 @@ export function useStudentProfile() {
   const uploadAvatar = useMutation({
     mutationFn: (image: Blob) =>
       session.authorized((token) => profileApi.uploadAvatar(token, image)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: profileKeys.profile() }),
+    onSuccess: (avatarUrl) => {
+      // The header reads the profile (and the dashboard, as a fallback): give both the new
+      // picture now, then refresh them.
+      queryClient.setQueryData<StudentProfile>(profileKeys.profile(), (current) =>
+        current ? { ...current, avatarUrl } : current,
+      );
+      queryClient.setQueryData<Dashboard>(dashboardKeys.me(), (dashboard) =>
+        dashboard ? { ...dashboard, avatarUrl } : dashboard,
+      );
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.me() });
+      return queryClient.invalidateQueries({ queryKey: profileKeys.profile() });
+    },
   });
 
   const saveContacts = useMutation({

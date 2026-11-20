@@ -8,6 +8,7 @@ import { EnrollmentPage } from "../features/enrollment/EnrollmentPage";
 import { GradesPage } from "../features/grades/GradesPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
 import { SchedulePage } from "../features/schedule/SchedulePage";
+import { SettingsPage } from "../features/settings/SettingsPage";
 import { SignInPage } from "../features/sign-in/SignInPage";
 import { VerifyCertificatePage } from "../features/verify/VerifyCertificatePage";
 import { account } from "../lib/auth";
@@ -27,6 +28,16 @@ export function createAppRouter(history?: RouterHistory) {
           if (!account.session.isSignedIn()) throw redirect({ to: "/" });
         },
         component: ProfilePage,
+      }),
+      // Account preferences and password management, opened from the account menu. The shared
+      // /change-password route stays as the temporary-password step the API sends people to.
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/settings",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: SettingsPage,
       }),
       createRoute({
         getParentRoute: () => rootRoute,
