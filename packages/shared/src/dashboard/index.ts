@@ -10,3 +10,9 @@ export {
   type StudentDashboard,
   type StudentDashboardApi,
 } from "./student";
+export {
+  createFacultyDashboardApi,
+  type FacultyDashboard,
+  type FacultyDashboardSection,
+  type FacultyDashboardNotification,
+} from "./faculty";

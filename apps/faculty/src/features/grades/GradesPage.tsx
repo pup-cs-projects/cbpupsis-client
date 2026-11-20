@@ -1,4 +1,3 @@
-import { SampleDataNotice } from "../../components/SampleDataNotice";
 import { ApiError } from "@cbpupsis/shared/api";
 import {
   GradeValidationError,
@@ -45,7 +44,6 @@ export function GradesPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
-        <SampleDataNotice />
         <nav aria-label="Breadcrumb" className="text-brand-muted text-sm">
           <Link to="/grades" className="underline">
             Grades
@@ -311,10 +309,11 @@ function GradeEditor({
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-brand-muted text-sm">
-              {sheet.section.termLabel} · {sheet.section.sectionName}
+              {[sheet.section.termLabel, sheet.section.sectionName].filter(Boolean).join(" · ")}
             </p>
             <h2 className="mt-1 text-xl font-bold">
-              {sheet.section.courseCode}: {sheet.section.courseTitle}
+              {[sheet.section.courseCode, sheet.section.courseTitle].filter(Boolean).join(": ") ||
+                sheet.section.sectionName}
             </h2>
           </div>
           <span className="rounded border border-neutral-300 bg-neutral-50 px-3 py-1 text-xs font-semibold">
@@ -366,7 +365,7 @@ function GradeEditor({
           className={
             policy.mode === "PASS_FAIL"
               ? "mt-4 grid grid-cols-2 gap-3"
-              : "mt-4 grid grid-cols-3 gap-3 sm:grid-cols-6"
+              : "mt-4 grid grid-cols-3 gap-3 sm:grid-cols-5"
           }
         >
           {counts.map(({ label, count }) => (
@@ -499,7 +498,7 @@ function GradeEditor({
                   </th>
                   {policy.mode !== "PASS_FAIL" && (
                     <th scope="col" className="px-4 py-3">
-                      Inc completion deadline
+                      INC completion deadline
                     </th>
                   )}
                 </tr>

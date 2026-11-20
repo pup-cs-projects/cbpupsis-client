@@ -1,4 +1,3 @@
-import { SampleDataNotice } from "../../components/SampleDataNotice";
 import { ApiError } from "@cbpupsis/shared/api";
 import {
   gradingErrorMessage,
@@ -57,7 +56,11 @@ export function IncompletesPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
-        <SampleDataNotice />
+        {dataSource.completionAvailable === false && (
+          <p role="status" className={gradeCard}>
+            Completion filing is currently unavailable. You can review existing INC records below.
+          </p>
+        )}
         <header>
           <p className="text-brand-muted text-sm">Academics / Grades</p>
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Incomplete grades</h1>
@@ -122,7 +125,13 @@ export function IncompletesPage({
               No Incomplete grades match these filters.
             </p>
           ) : (
-            <div className="overflow-x-auto">
+            <div
+              className="focus-visible:outline-brand-maroon overflow-x-auto rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+              role="region"
+              aria-label="Incomplete grades table"
+              // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Keyboard users must be able to scroll when all filing actions are disabled.
+              tabIndex={0}
+            >
               <table className="w-full min-w-[650px] text-left text-sm">
                 <caption className="sr-only">
                   Incomplete grades and their completion periods
@@ -154,10 +163,10 @@ export function IncompletesPage({
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <time dateTime={item.completionDeadline}>
+                        <time dateTime={item.completionDeadline ?? undefined}>
                           {gradeDate(item.completionDeadline)}
                         </time>
-                        {item.state === "PENDING_COMPLETION" && (
+                        {item.state === "PENDING_COMPLETION" && item.daysLeft !== null && (
                           <p className="text-brand-muted mt-1 text-xs">
                             {Math.max(0, item.daysLeft)} days left
                           </p>
@@ -170,7 +179,11 @@ export function IncompletesPage({
                         <button
                           className={gradeButton}
                           aria-label={`File completion for ${item.studentName}`}
-                          disabled={item.state !== "PENDING_COMPLETION" || item.completionPending}
+                          disabled={
+                            dataSource.completionAvailable === false ||
+                            item.state !== "PENDING_COMPLETION" ||
+                            item.completionPending
+                          }
                           onClick={() => {
                             setNotice(null);
                             setSelection({ owner: me.data!.id, item });
