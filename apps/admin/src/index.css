@@ -2,3 +2,190 @@
 @import "@cbpupsis/ui/theme.css";
 @source "../../../packages/ui/src";
 @source "../../../packages/account/src";
+
+/* Admin-only presentation; shared portal behavior and role access stay in their components. */
+#admin-sidebar {
+  box-shadow: inset -1px 0 0 rgb(255 255 255 / 12%);
+  transition-property: width, transform;
+  transition-duration: 220ms;
+  transition-timing-function: ease;
+}
+
+/* Keep wheel, touch and keyboard scrolling without a visible scrollbar. */
+#admin-sidebar > nav {
+  scrollbar-width: none;
+}
+
+#admin-sidebar > nav::-webkit-scrollbar {
+  display: none;
+}
+#admin-sidebar nav > button,
+#admin-sidebar nav > ul > li > button {
+  min-height: 52px;
+  cursor: pointer;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+#admin-sidebar nav > ul > li > button[aria-expanded="true"] {
+  background: rgb(255 255 255 / 13%);
+  color: white;
+}
+
+#admin-sidebar nav > ul > li > button svg {
+  width: 20px;
+  height: 20px;
+  stroke-width: 1.75;
+}
+
+#admin-sidebar nav > ul > li > button span:last-child svg {
+  width: 14px;
+  height: 14px;
+}
+
+#admin-sidebar nav > ul > li > button span:last-child {
+  transition: transform 180ms ease;
+}
+
+#admin-sidebar nav ul ul {
+  animation: admin-reveal 160ms ease-out;
+  background: rgb(0 0 0 / 14%);
+}
+
+#admin-sidebar .admin-sidebar-link {
+  position: relative;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease;
+}
+
+#admin-sidebar .admin-sidebar-link[aria-current="page"] {
+  background: rgb(255 255 255 / 17%);
+  box-shadow: inset 3px 0 var(--color-brand-gold);
+  color: white;
+  font-weight: 600;
+}
+
+#admin-sidebar :is(button, a):focus-visible {
+  outline: 2px solid var(--color-brand-gold) !important;
+  outline-offset: -3px !important;
+}
+
+#admin-sidebar [aria-disabled="true"] {
+  color: rgb(255 255 255 / 80%);
+  cursor: default;
+}
+
+#admin-sidebar + main {
+  scrollbar-gutter: stable;
+}
+
+#admin-sidebar + main :is(button, a, select, input, textarea) {
+  transition:
+    background-color 160ms ease,
+    border-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+#admin-sidebar + main :is(button, select):not(:disabled):not([aria-disabled="true"]) {
+  cursor: pointer;
+}
+
+#admin-sidebar
+  + main
+  :is(input:not([type="checkbox"], [type="radio"]), select, textarea):focus-visible {
+  border-color: var(--color-brand-maroon);
+  outline: 2px solid var(--color-brand-maroon) !important;
+  outline-offset: 0 !important;
+}
+
+#admin-sidebar + main input::placeholder,
+#admin-sidebar + main textarea::placeholder {
+  color: var(--color-brand-placeholder);
+}
+
+.admin-page-header h1 {
+  text-wrap: balance;
+}
+
+.admin-card,
+.admin-table {
+  box-shadow: 0 2px 8px rgb(49 41 37 / 4%);
+}
+
+#admin-sidebar + main table th {
+  vertical-align: middle;
+}
+
+#admin-sidebar + main table thead th {
+  padding-block: 16px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.035em;
+}
+
+#admin-sidebar + main table tbody tr {
+  transition: background-color 140ms ease;
+}
+
+#admin-sidebar + main table tbody tr:hover {
+  background-color: var(--color-brand-paper);
+}
+
+#admin-sidebar + main table tbody tr:focus-within {
+  background-color: #fff7eb;
+}
+
+#admin-sidebar + main table tbody td {
+  line-height: 1.6;
+}
+
+#admin-sidebar + main table tfoot {
+  background: var(--color-brand-paper);
+}
+
+#admin-sidebar + main dialog {
+  border: 1px solid rgb(141 129 120 / 25%);
+  border-radius: 16px;
+  box-shadow: 0 24px 72px rgb(49 41 37 / 20%);
+}
+
+#admin-sidebar + main dialog[open] {
+  animation: admin-reveal 160ms ease-out;
+}
+
+#admin-sidebar + main dialog::backdrop {
+  background: rgb(31 20 18 / 50%);
+}
+
+@keyframes admin-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(-3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 768px) {
+  #admin-sidebar[class*="md:w-72"] {
+    width: 17rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #admin-sidebar,
+  #admin-sidebar *,
+  #admin-sidebar + main * {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+.admin-metrics article > p {
+  color: var(--color-brand-muted);
+}

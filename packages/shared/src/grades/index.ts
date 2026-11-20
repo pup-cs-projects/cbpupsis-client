@@ -9,3 +9,4 @@ export {
 } from "./student";
 
 export * from "./faculty";
+export { facultyGradesContract, incompleteReviewContract } from "./facultyContract";

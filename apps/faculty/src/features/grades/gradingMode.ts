@@ -51,16 +51,16 @@ export function gradeMarkLabel(mark: string): string {
   return mark === "PASS" ? "Pass" : mark === "FAIL" ? "Fail" : mark;
 }
 export function gradeDistribution(policy: GradePolicy, values: string[]) {
-  const labels = policy.mode === "PASS_FAIL" ? ["PASS", "FAIL"] : ["1", "2", "3", "4", "5", "INC"];
+  const labels = policy.mode === "PASS_FAIL" ? ["PASS", "FAIL"] : ["1", "2", "3", "5", "INC"];
   return labels.map((label) => ({
     label:
       policy.mode === "PASS_FAIL"
         ? gradeMarkLabel(label)
         : label === "INC"
           ? "Incomplete"
-          : label === "5"
-            ? "5.00"
-            : label + ".00–" + label + ".99",
+          : label === "5" || label === "3"
+            ? label + ".00"
+            : label + ".00–" + label + ".75",
     count: values.filter((value) => {
       const mark = policy.normalize(value);
       return policy.mode === "PASS_FAIL" || label === "INC"

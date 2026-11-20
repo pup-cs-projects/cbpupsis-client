@@ -17,6 +17,7 @@ export default defineConfig({
     environment: "jsdom",
     // Bound jsdom concurrency so coverage runs remain reliable on developer machines and CI.
     maxWorkers: 2,
+    fsModuleCache: false,
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     coverage: {

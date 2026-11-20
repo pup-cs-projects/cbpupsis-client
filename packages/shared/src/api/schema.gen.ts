@@ -4,104 +4,6 @@
  */
 
 export interface paths {
-    "/api/v1/auth/login": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Login
-         * @description Exchange email and password for an access/refresh token pair.
-         *
-         *     Rate limited against credential stuffing. ``request`` is unused by the
-         *     body but required: slowapi reads the limiter and the caller's key off it.
-         *
-         *     Three outcomes, and the difference between them is deliberate:
-         *
-         *     - **401** — unknown email, wrong password, or a disabled account, all with
-         *       one identical message so the endpoint cannot be used to discover which
-         *       addresses are registered.
-         *     - **401** with ``code: "AUTH_TEMPORARY_PASSWORD_EXPIRED"``: the password
-         *       was a correct temporary one past its expiry; a Superadmin must reissue.
-         *     - **403** with ``code: "email_not_verified"`` — the password was correct but
-         *       the address is unverified. Branch on the code, not the message, and send
-         *       the user to a resend-verification screen rather than back to login.
-         *     - **200** — a token pair.
-         *
-         *     Accounts with a role-specific sign-in (student, faculty, Admin,
-         *     Superadmin) get the same 401 here: they must use ``/auth/<role>/login``.
-         */
-        post: operations["login_api_v1_auth_login_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/refresh": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Refresh
-         * @description Exchange a refresh token for a new pair, invalidating the old token.
-         */
-        post: operations["refresh_api_v1_auth_refresh_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/logout": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Logout
-         * @description Revoke a refresh token. Idempotent: always succeeds.
-         */
-        post: operations["logout_api_v1_auth_logout_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/auth/whoami": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Whoami
-         * @description Return the authenticated principal — useful for verifying token wiring.
-         */
-        get: operations["whoami_api_v1_auth_whoami_get"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/auth/verify-email": {
         parameters: {
             query?: never;
@@ -154,6 +56,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/auth/password-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Password Policy
+         * @description Return password length and character-class rules for reset and change.
+         */
+        get: operations["get_password_policy_api_v1_auth_password_policy_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/forgot-password": {
         parameters: {
             query?: never;
@@ -165,12 +87,12 @@ export interface paths {
         put?: never;
         /**
          * Forgot Password
-         * @description Request a password-reset email.
+         * @description Request a password-reset email by email address or institutional ID.
          *
-         *     Always 202 Accepted. Returning 404 for an unknown address would make this endpoint a
-         *     membership oracle for any email list.
+         *     Always 202 Accepted. Returning 404 for an unknown identifier would make this
+         *     endpoint a membership oracle.
          *
-         *     A shared per-address allowance prevents inbox flooding; an outer IP limit
+         *     A shared per-account allowance prevents inbox flooding; an outer IP limit
          *     also guards abusive request volume. Earlier usable links remain valid.
          */
         post: operations["forgot_password_api_v1_auth_forgot_password_post"];
@@ -235,61 +157,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/users": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * List Users
-         * @description List user accounts, newest first. Requires ``ReadAllUser``.
-         *
-         *     Both filters are tri-state: omitting one returns accounts in either state,
-         *     which is what makes "everyone" and "only the unverified" the same endpoint.
-         */
-        get: operations["list_users_api_v1_users_get"];
-        put?: never;
-        /**
-         * Create User
-         * @description Create one account. Superadmin only.
-         *
-         *     The account is verified on creation and is mailed a temporary password,
-         *     which it must replace at first sign-in. 409 ``USER_ALREADY_EXISTS`` for a
-         *     taken email or institutional id; 422 for fields the role requires, or an
-         *     unknown program.
-         */
-        post: operations["create_user_api_v1_users_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/users/{user_id}/reissue-temporary-password": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reissue Temporary Password
-         * @description Mail a new temporary password and end every session. Superadmin only.
-         *
-         *     The way out of an expired or lost temporary password. 404 for a missing or
-         *     inactive account.
-         */
-        post: operations["reissue_temporary_password_api_v1_users__user_id__reissue_temporary_password_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/v1/users/me": {
         parameters: {
             query?: never;
@@ -299,7 +166,7 @@ export interface paths {
         };
         /**
          * Read Me
-         * @description Return the authenticated user's own profile.
+         * @description Return the authenticated user's own profile, group, and permissions.
          */
         get: operations["read_me_api_v1_users_me_get"];
         put?: never;
@@ -368,81 +235,6 @@ export interface paths {
          *     All refresh tokens are revoked, so every session ends immediately.
          */
         post: operations["deactivate_me_api_v1_users_me_deactivate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/users/{user_id}/deactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Deactivate User
-         * @description Suspend another user's account. Requires ``ManageUser``.
-         *
-         *     Reversible, and every session is revoked immediately. Deliberately not a
-         *     DELETE: account deletion stays self-service and password-confirmed, because
-         *     an administrator cannot supply the password that authorizes it.
-         *
-         *     422 if the caller aims it at themselves — see the service for why.
-         */
-        post: operations["deactivate_user_api_v1_users__user_id__deactivate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/users/{user_id}/reactivate": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /**
-         * Reactivate User
-         * @description Restore a suspended account. Requires ``ManageUser``.
-         *
-         *     422 on a deleted account: deletion scrubs the identity, so there is nothing
-         *     left to restore.
-         */
-        post: operations["reactivate_user_api_v1_users__user_id__reactivate_post"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/v1/users/{user_id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read User
-         * @description Return another user's profile.
-         *
-         *     Allowed when the caller holds ``ReadAllUser`` or is asking about themselves.
-         *     This object-level check cannot be expressed by ``require_permission`` alone,
-         *     which answers only "may they read users in general?" — see
-         *     ``cbpupsis_api_student.domains.items.service`` for the same pattern on owned
-         *     resources.
-         */
-        get: operations["read_user_api_v1_users__user_id__get"];
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -645,6 +437,241 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/student/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Student Profile
+         * @description Return the signed-in student's full profile and minimised emergency contacts.
+         */
+        get: operations["get_student_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Student Profile
+         * @description Update editable contact fields (phone, email, addresses).
+         *
+         *     Returns 403 PROFILE_FIELD_LOCKED if any locked master field is submitted.
+         *     Returns 422 VALIDATION_ERROR if phone or email format is invalid.
+         *     On success, includes a human-readable confirmation message.
+         */
+        patch: operations["update_student_profile"];
+        trace?: never;
+    };
+    "/api/v1/student/profile/avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload Student Avatar
+         * @description Upload a JPEG or PNG profile picture after magic-byte and malware checks.
+         *
+         *     Returns 413 FILE_TOO_LARGE if file exceeds 5 MB.
+         *     Returns 415 UNSUPPORTED_MEDIA_TYPE if content is not JPEG/PNG or is malicious.
+         *     On success, returns the avatar URL and a confirmation message.
+         */
+        post: operations["upload_student_avatar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/profile/avatar/{avatar_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Student Avatar Image
+         * @description Stream the student's own profile picture by avatar ID (see avatarUrl).
+         */
+        get: operations["get_student_avatar"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/profile/emergency-contacts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Emergency Contacts
+         * @description List emergency contacts with full details (including email and address).
+         */
+        get: operations["list_student_emergency_contacts"];
+        put?: never;
+        /**
+         * Create Emergency Contact
+         * @description Create a new emergency contact while maintaining one primary contact.
+         *
+         *     Returns 422 VALIDATION_ERROR if name, relationship, or phone format is invalid.
+         *     On success, returns the created contact and a confirmation message.
+         */
+        post: operations["create_student_emergency_contact"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/profile/emergency-contacts/{contact_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Emergency Contact
+         * @description Delete an emergency contact owned by the student.
+         *
+         *     Returns 404 RESOURCE_NOT_FOUND if not owned by the student.
+         */
+        delete: operations["delete_student_emergency_contact"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Emergency Contact
+         * @description Update an emergency contact owned by the student.
+         *
+         *     Returns 404 RESOURCE_NOT_FOUND if not owned by the student.
+         *     Returns 422 VALIDATION_ERROR if phone, email, or address format is invalid.
+         *     On success, returns the updated contact and a confirmation message.
+         */
+        patch: operations["update_student_emergency_contact"];
+        trace?: never;
+    };
+    "/api/v1/student/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Student Account
+         * @description Read the signed-in student's current-term shared assessment, per-line FHE coverage, forfeiture decision, payment status, and holds. Requires ReadAssessment. Money is returned as decimal strings. netPayable is the remaining balance after subsidy and recorded payments, including a non-covered PHP 100 fine once per term account after the due date if principal remains unpaid, floored at zero. Non-student sessions receive 404 RESOURCE_NOT_FOUND. Responses are private and must not be cached.
+         */
+        get: operations["read_account_api_v1_student_account_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/payments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Payment History
+         * @description Read only the signed-in student's payments across terms, newest first by payment date (creation date for unpaid transactions), then creation date and identifier for stable ties. Requires ReadPayment. Each item contains date, decimal-string amount, gateway reference, and status. An empty history is []. Non-student sessions receive 404 RESOURCE_NOT_FOUND. Responses are private and must not be cached.
+         */
+        get: operations["read_payments_api_v1_student_payments_get"];
+        put?: never;
+        /**
+         * Create Payment
+         * @description Create one hosted checkout; the student/key pair is the replay identity.
+         */
+        post: operations["create_payment_api_v1_student_payments_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Student Dashboard
+         * @description Return single aggregate dashboard for the authenticated student (US-101).
+         */
+        get: operations["get_student_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/me/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get My Student Dashboard
+         * @description Alias for /dashboard serving caller's landing view (US-101).
+         */
+        get: operations["get_my_student_dashboard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/{student_id}/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Student Dashboard By Id
+         * @description Return dashboard by student ID with strict ownership enforcement.
+         *
+         *     Enforces BR-AUTH-005 anti-probing rules.
+         */
+        get: operations["get_student_dashboard_by_id"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/items": {
         parameters: {
             query?: never;
@@ -703,6 +730,668 @@ export interface paths {
         patch: operations["update_item_api_v1_items__item_id__patch"];
         trace?: never;
     };
+    "/api/v1/student/grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Grades
+         * @description Read your finalized grades for one academic term (US-STU-004).
+         *
+         *     Requires a live **student Bearer session** and the **ReadGrade**
+         *     permission. The student is resolved from the access token; no student number
+         *     is needed. Other roles receive `404 RESOURCE_NOT_FOUND`.
+         *
+         *     Omit both filters for the latest term containing posted marks, not
+         *     necessarily the current academic term. To select history, supply
+         *     `year` and `semester` together, for example `year=2025-2026` and
+         *     `semester=first`. Labels must match the stored term exactly; blank
+         *     or unpaired filters return **422**.
+         *
+         *     Only finalized, locked, non-draft marks are visible. Each course has
+         *     its code, title, units, final mark, status, posted date and any stored
+         *     incomplete deadline. Decimal values are JSON **strings**. GWA is
+         *     unit-weighted, excludes NSTP and nonnumeric marks, includes numeric
+         *     failures and rounds half-up to two places. No eligible numeric units
+         *     means `gwa: null`.
+         *
+         *     No posted marks returns **200** with an explanatory empty state.
+         *     Standing is read from a stored evaluation, never calculated here;
+         *     missing evaluation leaves standing and `unitReduction` null. This
+         *     read does not submit/correct marks or convert expired incompletes.
+         *     Responses use `Cache-Control: private, no-store`.
+         */
+        get: operations["read_grades_api_v1_student_grades_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/transcript": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Transcript
+         * @description Read your academic history, paginated by term (US-STU-004).
+         *
+         *     Requires a live **student Bearer session** and **ReadTranscript**.
+         *     Terms containing finalized, non-draft marks are ordered newest first.
+         *     Pagination counts **terms**, not courses: `page` starts at 1 and
+         *     `limit` defaults to 20 with a maximum of 100. Invalid values return
+         *     **422**. `total` counts all available terms; `nextPage` is null when
+         *     no later page exists.
+         *
+         *     All eligible attempts, including repeated courses and numeric
+         *     failures, contribute to GWA. NSTP and nonnumeric marks do not.
+         *     Cumulative GWA uses completed terms: their end date must be before
+         *     today's Asia/Manila date. Ongoing terms remain visible but do not
+         *     contribute to cumulative GWA. Earned credits include posted passes,
+         *     including ongoing terms, and count each catalog course only once.
+         *
+         *     Top-level totals cover the **whole record**, independently of page
+         *     and limit. Each term's running totals cover history through that
+         *     term. Decimal values are strings; averages round half-up to two
+         *     places and are null when there are no eligible numeric units.
+         *     No posted marks returns **200** with empty terms and an explanation.
+         *
+         *     Use `/api/v1/student/transcript/export` for a complete printable
+         *     PDF, not just the current page. Responses are private and no-store.
+         */
+        get: operations["read_transcript_api_v1_student_transcript_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/transcript/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Transcript
+         * @description Download your complete unofficial transcript PDF (US-STU-004).
+         *
+         *     Requires a live **student Bearer session** and **ReadTranscript**.
+         *     The PDF includes the university header, your identity, all posted
+         *     term tables, GWA/earned-unit totals and page numbers. It is labeled
+         *     **Unofficial Transcript - Student Copy**, not an official registrar
+         *     certification. Table headings repeat when records span pages.
+         *
+         *     Export always includes the **complete record**, regardless of JSON
+         *     pagination. This endpoint has no page/limit parameters or term
+         *     filters; supplying them does not narrow the PDF. No posted marks
+         *     still returns a valid PDF with an explanatory empty state.
+         *
+         *     Success returns **200 application/pdf** with attachment filename
+         *     `unofficial-transcript.pdf`, `Cache-Control: private, no-store`, and
+         *     `X-Content-Type-Options: nosniff`. Use Scalar's response preview or
+         *     download control; opening the URL in a new unauthenticated browser
+         *     tab returns **401** because the Bearer token is not sent there.
+         *
+         *     Generation is in memory; no transcript file is stored by the API.
+         *     Rendering failure, timeout or inconsistent source data returns
+         *     `503 GRADE_RECORD_UNAVAILABLE`, never a partial academic record.
+         */
+        get: operations["export_transcript_api_v1_student_transcript_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/enrollment/waiver": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Own Waivers
+         * @description List the signed-in student's own waivers, newest first.
+         *
+         *     `state` is PENDING_CHAIR, PENDING_DEAN, PENDING_VPAA, APPROVED or REJECTED;
+         *     `reviewRemarks` carries the reviewer's remarks.
+         */
+        get: operations["list_student_waiver_requests"];
+        put?: never;
+        /**
+         * File Waiver
+         * @description File a session-owned unmet-edge waiver with CreateWaiverRequest.
+         */
+        post: operations["file_waiver_api_v1_student_enrollment_waiver_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/enrollment/overload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Overload Request */
+        post: operations["create_student_overload_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/enrollment/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit Enrollment */
+        post: operations["submit_student_enrollment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/enrollment/available-courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Available Courses */
+        get: operations["list_student_enrollment_available_courses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/enrollment/eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Enrollment Eligibility */
+        get: operations["get_student_enrollment_eligibility"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/enrollment/add-drop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Add Drop Requests */
+        get: operations["list_student_add_drop_requests"];
+        put?: never;
+        /** Create Add Drop Request */
+        post: operations["create_student_add_drop_request"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/enrollment/add-drop/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Add Drop Request */
+        get: operations["get_student_add_drop_request"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read My Course Schedule
+         * @description Read the signed-in student's officially enrolled courses, meeting times and weekly
+         *     contact-hour totals (US-STU-003).
+         *
+         *     **Authentication:** a live student bearer session and `ReadSchedule` permission
+         *     are required. Only the caller's records are accessible; this is not a staff or
+         *     read-all endpoint. Downloading a Certificate of Registration is not required.
+         *
+         *     **Term selection:** omit both `year` and `semester` for the current academic term,
+         *     or supply both, for example `year=2026-2027&semester=first`. Historical configured
+         *     terms are supported. Supplying just one selector or blank selectors returns 422.
+         *
+         *     **Filtering:** `q` searches course code, title and faculty name case-insensitively.
+         *     For example, `q=CS001` narrows the rows and their totals. Clear `q` to restore the
+         *     full list; searching does not modify enrollment.
+         *
+         *     **Response:** a direct snake_case JSON object, without a `status`/`data` wrapper.
+         *     Each course includes its section, rooms, faculty, credit units, enrollment status,
+         *     separate lecture/lab hours and every meeting. Contact hours are weekly durations
+         *     calculated from meetings, not credit conversions or term-wide totals. Decimal
+         *     quantities serialize as strings. Totals sum only the returned courses.
+         *
+         *     **Empty states still return 200:** `notEnrolled` means no official enrollment for
+         *     the selected term; `noMatches` means the filter matched no enrolled courses;
+         *     `termUnavailable` means the requested/current term configuration is unavailable.
+         *     These responses include an explanatory `message`, empty `courses` and zero totals.
+         *     Nonempty results have `state=ready`. Pending and dropped courses are excluded;
+         *     committed enrollment changes are reflected on subsequent reads.
+         *
+         *     Responses are private and use `Cache-Control: private, no-store`.
+         */
+        get: operations["read_schedule_api_v1_student_schedule_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/schedule/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export My Course Schedule
+         * @description Download the signed-in student's complete officially enrolled schedule as a PDF
+         *     or iCalendar attachment (US-STU-003). Requires a live student bearer session and
+         *     `ReadSchedule` permission, just like the schedule read endpoint.
+         *
+         *     **Choose a format:** `format=pdf` produces a university-headed printable document
+         *     with student identity, term, every course/meeting, credit units, separate weekly
+         *     lecture/lab hours and totals. `format=ics` produces an iCalendar file with one
+         *     recurring event series per meeting slot, preserving separate lecture/lab times.
+         *
+         *     **Select a term:** omit both `year` and `semester` for the current term, or supply
+         *     both, for example `year=2026-2027&semester=first`. Historical configured terms are
+         *     supported. The export always includes the complete selected term; the read
+         *     endpoint's `q` filter does not restrict downloads and is not an export parameter.
+         *     No enrollment produces an empty schedule document/calendar. Missing term
+         *     configuration produces an explanatory PDF or an empty calendar, not an ownership
+         *     404.
+         *
+         *     **Calendar behavior:** meeting times use Asia/Manila, weekly recurrences end at
+         *     the term boundary, and configured academic holidays are excluded. Stable opaque
+         *     UIDs and durable SEQUENCE revisions support unchanged re-exports, updates and
+         *     cancellation records for removed meetings. Import/re-import behavior depends on
+         *     the calendar client: downloading a file is not Google authorization or automatic
+         *     synchronization.
+         *
+         *     **Download and failures:** 200 returns the file bytes, not JSON, with attachment
+         *     filename `course-schedule.pdf` or `course-schedule.ics`. The entire file is
+         *     buffered before responding. Generation has a ten-second deadline; timeouts
+         *     return 503 `SERVICE_UNAVAILABLE` with `Retry-After: 30`, never a partial attachment.
+         *     Unexpected errors reach the global handler as an opaque 500.
+         *     Responses are private and use `Cache-Control: private, no-store`.
+         */
+        get: operations["export_schedule_api_v1_student_schedule_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/schedule/google-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Google Calendar Connection
+         * @description Inspect the signed-in student's Google connection without starting a sync.
+         *
+         *     **Access:** live SIS student bearer session and `ReadSchedule` permission.
+         *     Response is a direct snake_case object with `Cache-Control: private, no-store`.
+         *     No Google credentials, account identity or calendar IDs are returned.
+         *
+         *     ### Interpret the status
+         *     - `enabled: false`: this optional integration is disabled on the deployment.
+         *     - `connected`: a saved grant exists and is not marked `reconnectRequired`;
+         *       this alone does not prove successful delivery.
+         *     - `disconnecting`: Google token revocation is pending.
+         *     - `last_sync_at`: last successful worker reconciliation, including unchanged
+         *       checks. `next_sync_at` is a scheduled attempt, not a completion guarantee.
+         *     - `targets[].provisioned`: a calendar was assigned, not proof of event delivery.
+         *
+         *     Poll this endpoint after callback, sync or disconnect. Inspect `last_error`
+         *     and verify the actual schedule in Google Calendar. After explicit disconnect,
+         *     responses expose `targets: []`, even when private reconnect mappings remain.
+         */
+        get: operations["read_connection_api_v1_student_schedule_google_calendar_get"];
+        put?: never;
+        post?: never;
+        /**
+         * Disconnect Google Calendar
+         * @description Withdraw consent without deleting the student's Google calendar or events.
+         *
+         *     **Access:** a live SIS student bearer session. Unlike the other Google
+         *     operations, disconnect remains available after `ReadSchedule` is withdrawn.
+         *     No request body or Google account/calendar identifier is required.
+         *
+         *     ### Result and completion
+         *     202 stops local sync immediately: `connected: false` and `targets: []`.
+         *     `disconnecting: true` means token revocation is queued, not yet finished.
+         *     Keep the worker running and poll GET until `disconnecting: false` and
+         *     `next_sync_at: null`; inspect errors if revocation remains pending.
+         *     After disconnect, `/sync` returns 409 until a fresh connection is completed.
+         *
+         *     ### Retention and reconnect
+         *     Existing Google calendars/events remain visible. Only private non-credential
+         *     mappings are retained for same-account reuse and hidden from disconnected
+         *     responses. An already in-flight provider request may finish. Wait for pending
+         *     revocation, then start new authorization/consent with the same Google account
+         *     to reconnect. Repeating DELETE is safe: it does not delete calendars, create
+         *     a new grant or require the user to run PowerShell.
+         */
+        delete: operations["disconnect_calendar_api_v1_student_schedule_google_calendar_delete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/schedule/google-calendar/authorization": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Begin Google Calendar Authorization
+         * @description Create a short-lived Google consent attempt for the signed-in student.
+         *
+         *     **Access:** live SIS student bearer session and `ReadSchedule`. Google consent
+         *     connects a calendar; it does not replace the SIS login.
+         *
+         *     ### Request body
+         *     Send `{}` for the current configured term, or both selectors:
+         *     `{"year":"2026-2027","semester":"first"}`. Use the deployment's stored
+         *     values; do not send blank strings or only one selector.
+         *
+         *     ### Scalar and browser workflow
+         *     1. Send this request in Scalar with the student's `access_token`.
+         *     2. Open the returned `authorization_url` in a browser and select the requested
+         *        app-created Calendar permission. Scalar does not replace Google consent.
+         *     3. Google redirects to the configured frontend URI, **not** the backend POST
+         *        callback. Forward the new `state` and `code` to `/callback` using the
+         *        **same SIS session**, within `expires_in` (600 seconds).
+         *
+         *     PowerShell is not required. State is single-use, protected by PKCE/OIDC nonce,
+         *     and a new authorization supersedes the previous attempt. Never share the URL.
+         *     Existing connections or pending revocations return 409; use `/sync` to add a
+         *     term when connected. Operators must configure Google settings and run the
+         *     worker for background synchronization.
+         */
+        post: operations["begin_authorization_api_v1_student_schedule_google_calendar_authorization_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/schedule/google-calendar/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete Google Calendar Authorization
+         * @description Exchange a fresh Google browser redirect for an encrypted calendar grant.
+         *
+         *     **Access:** the same live SIS student bearer session that began authorization,
+         *     plus `ReadSchedule`. This is an authenticated POST, not Google's browser
+         *     redirect destination.
+         *
+         *     ### Scalar request
+         *     From the **new** redirect URL, extract `state` and `code`, URL-decoding each
+         *     value exactly once locally. Send `{"state":"...","code":"..."}`; do not
+         *     paste the whole URL or use an online decoder. A missing local frontend page
+         *     may show connection refused while its address bar still contains the values.
+         *     Complete within ten minutes; never expose codes/state in logs or screenshots.
+         *
+         *     ### Result and recovery
+         *     200 means the grant was saved and initial sync queued, **not** that events
+         *     arrived. Poll GET connection status, then inspect Google Calendar. The worker
+         *     must be running. Same-account reconnect reuses known app-created mappings;
+         *     a different verified Google account never receives the previous mappings.
+         *
+         *     Expired, replayed, superseded or foreign-session attempts return 400. Google
+         *     exchange/verification failures return 503. Start fresh authorization after
+         *     either failure; the consumed callback must not be replayed. Ensure the
+         *     requested Calendar permission was granted; no credentials are returned.
+         */
+        post: operations["complete_authorization_api_v1_student_schedule_google_calendar_callback_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/schedule/google-calendar/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request Google Calendar Synchronization
+         * @description Queue one-way reconciliation of a student's SIS timetable into Google.
+         *
+         *     **Access:** live SIS student bearer session, `ReadSchedule`, and a connected
+         *     Google account. Send `{}` for the current term, or both `year` and `semester`
+         *     using the stored identifiers. Up to ten terms may be pinned; no silent term
+         *     rollover overwrites a prior semester.
+         *
+         *     ### What is synchronized
+         *     Forces reconciliation of app-created calendar series with committed SIS
+         *     enrollment, meeting details, term bounds and configured holiday exclusions.
+         *     Managed Google fields may be overwritten; Google edits never change SIS.
+         *     No primary-calendar access, enrollment editing or approval APIs are involved.
+         *
+         *     ### Verify completion
+         *     202 means **queued**. The returned `last_sync_at` may refer to an earlier job,
+         *     and `last_error: null` alone is not proof of completion. Allow worker polling/
+         *     backlog, poll GET for a successful reconciliation, then inspect the calendar.
+         *     Repeating unchanged sync must not create duplicate calendars/meeting series.
+         *
+         *     Missing/revoking connections, active worker leases or the term limit return
+         *     409. Inspect GET status before retrying. There is no immediate-delivery SLA.
+         */
+        post: operations["request_synchronization_api_v1_student_schedule_google_calendar_sync_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/payments/{payment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read Payment
+         * @description Read only the signed-in student's payment; foreign IDs are hidden as 404.
+         */
+        get: operations["read_payment_api_v1_student_payments__payment_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/payments/{payment_id}/receipt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Payment Receipt
+         * @description Download a settled, card-data-free payment receipt PDF.
+         */
+        get: operations["payment_receipt_api_v1_student_payments__payment_id__receipt_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/payments/webhooks/xendit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Xendit Webhook
+         * @description Verify Xendit's token before parsing or touching payment state.
+         */
+        post: operations["xendit_webhook_api_v1_public_payments_webhooks_xendit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/schedule/cor": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read
+         * @description Read immutable issued content; never issue, assess or repair enrollment.
+         */
+        get: operations["read_api_v1_student_schedule_cor_get"];
+        put?: never;
+        /**
+         * Issue
+         * @description Atomically issue; retries preserve certificate identity/token and one audit.
+         */
+        post: operations["issue_api_v1_student_schedule_cor_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/student/assessment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Assessment
+         * @description Read stored shared assessment only. Every amount is a decimal string.
+         */
+        get: operations["assessment_api_v1_student_assessment_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/public/cor/verify/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify
+         * @description Anonymous, non-cacheable: five fields, no database IDs or assessment.
+         */
+        get: operations["verify_api_v1_public_cor_verify__token__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/faculty/login": {
         parameters: {
             query?: never;
@@ -714,7 +1403,7 @@ export interface paths {
         put?: never;
         /**
          * Faculty Login
-         * @description Verify employee id and password; returns only an MFA challenge.
+         * @description Require MFA, except with the explicit development-only skip setting.
          */
         post: operations["faculty_login"];
         delete?: never;
@@ -843,7 +1532,31 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sections": {
+    "/api/v1/faculty/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Faculty Profile
+         * @description Return the signed-in faculty member's profile and field editability flags.
+         */
+        get: operations["get_faculty_profile"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Faculty Profile
+         * @description Update editable faculty profile fields (title, location, hours, quals).
+         */
+        patch: operations["update_faculty_profile"];
+        trace?: never;
+    };
+    "/api/v1/faculty/sections": {
         parameters: {
             query?: never;
             header?: never;
@@ -854,7 +1567,7 @@ export interface paths {
          * List Sections
          * @description List the sections assigned to you.
          */
-        get: operations["list_sections_api_v1_sections_get"];
+        get: operations["list_sections_api_v1_faculty_sections_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -863,7 +1576,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/sections/{section_id}/roster": {
+    "/api/v1/faculty/sections/{section_id}/roster": {
         parameters: {
             query?: never;
             header?: never;
@@ -874,9 +1587,260 @@ export interface paths {
          * Section Roster
          * @description Return one of your sections with its roster; 404 for anyone else's.
          */
-        get: operations["section_roster_api_v1_sections__section_id__roster_get"];
+        get: operations["section_roster_api_v1_faculty_sections__section_id__roster_get"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/roster/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Section Roster
+         * @description Export every student matching the same roster filters.
+         */
+        get: operations["export_section_roster_api_v1_faculty_sections__section_id__roster_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/roster/{student_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Section Student
+         * @description Return the teaching-safe details of one student in the section.
+         */
+        get: operations["section_student_api_v1_faculty_sections__section_id__roster__student_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/roster/{student_id}/record": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Section Student Record
+         * @description Disclose course-scoped results and write the required audit row.
+         */
+        get: operations["section_student_record_api_v1_faculty_sections__section_id__roster__student_id__record_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Section Grades
+         * @description Return enrolled marks, grading mode, allowed marks, state, and deadline.
+         */
+        get: operations["get_faculty_section_grades"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/grade-deadline": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Section Grade Deadline
+         * @description Return the section's grade submission deadline and whether it has passed.
+         */
+        get: operations["get_faculty_section_grade_deadline"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/grades/draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Section Grade Draft
+         * @description Save draft marks for a section assigned to the caller.
+         */
+        put: operations["save_faculty_section_grade_draft"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/grades/finalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Finalize Section Grades
+         * @description Finalize and lock section grades once, notifying each enrolled student.
+         */
+        post: operations["finalize_faculty_section_grades"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/incompletes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Section Incompletes
+         * @description List finalized Incomplete (INC) grades and deadlines for one assigned section.
+         */
+        get: operations["list_faculty_section_incompletes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/sections/{section_id}/grade-corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** File Grade Correction */
+        post: operations["file_faculty_grade_correction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/grade-corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Grade Corrections */
+        get: operations["list_faculty_grade_corrections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/grade-corrections/{correction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Grade Correction */
+        get: operations["get_faculty_grade_correction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/incompletes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Faculty Incompletes
+         * @description List finalized Incomplete (INC) grades across all assigned sections.
+         */
+        get: operations["list_faculty_incompletes"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/faculty/incompletes/{inc_id}/completion": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * File Incomplete Completion
+         * @description File a passing completion mark (1.00 to 3.00) for Dean endorsement.
+         */
+        post: operations["file_faculty_incomplete_completion"];
         delete?: never;
         options?: never;
         head?: never;
@@ -894,7 +1858,7 @@ export interface paths {
         put?: never;
         /**
          * Login Admin
-         * @description Verify credentials and issue no session until MFA completes.
+         * @description Require MFA, except with the explicit development-only skip setting.
          */
         post: operations["login_admin_api_v1_auth_admin_login_post"];
         delete?: never;
@@ -1061,6 +2025,178 @@ export interface paths {
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/enrollment": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Enrollment Report
+         * @description Return enrollment counts grouped by field, filtered to caller's role scope.
+         */
+        get: operations["get_admin_enrollment_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/reports/enrollment/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Enrollment Report
+         * @description Export enrollment report numbers as a downloadable CSV or PDF file.
+         */
+        get: operations["export_admin_enrollment_report"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/overload-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Overload Requests */
+        get: operations["list_admin_overload_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/overload-requests/{overload_request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Decide Overload Request */
+        patch: operations["decide_admin_overload_request"];
+        trace?: never;
+    };
+    "/api/v1/admin/add-drop": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Add Drop Requests */
+        get: operations["list_admin_add_drop_requests"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/add-drop/{request_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Decide Add Drop Request */
+        patch: operations["decide_admin_add_drop_request"];
+        trace?: never;
+    };
+    "/api/v1/admin/fee-structures/{term_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Fee Structure
+         * @description Read fee structure configuration for the specified academic term.
+         */
+        get: operations["get_admin_fee_structure"];
+        /**
+         * Save Fee Structure
+         * @description Save and validate fee structure configuration for the specified term.
+         */
+        put: operations["save_admin_fee_structure"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/incomplete-completions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Incomplete Completions
+         * @description List incomplete completion filings within the Dean's own college.
+         */
+        get: operations["list_admin_incomplete_completions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/incomplete-completions/{completion_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Decide Incomplete Completion
+         * @description Endorse or reject an Incomplete completion within the Dean's own college.
+         */
+        patch: operations["decide_admin_incomplete_completion"];
         trace?: never;
     };
     "/api/v1/iam/permissions": {
@@ -1349,6 +2485,136 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Users
+         * @description List user accounts, newest first. Requires ``ReadAllUser``.
+         *
+         *     Both filters are tri-state: omitting one returns accounts in either state,
+         *     which is what makes "everyone" and "only the unverified" the same endpoint.
+         */
+        get: operations["list_users_api_v1_admin_users_get"];
+        put?: never;
+        /**
+         * Create User
+         * @description Create one account. Superadmin only.
+         *
+         *     The account is verified on creation and is mailed a temporary password,
+         *     which it must replace at first sign-in. 409 ``USER_ALREADY_EXISTS`` for a
+         *     taken email or institutional id; 422 for fields the role requires, or an
+         *     unknown program.
+         */
+        post: operations["create_user_api_v1_admin_users_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/reissue-temporary-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reissue Temporary Password
+         * @description Mail a new temporary password and end every session. Superadmin only.
+         *
+         *     The way out of an expired or lost temporary password. 404 for a missing or
+         *     inactive account.
+         */
+        post: operations["reissue_temporary_password_api_v1_admin_users__user_id__reissue_temporary_password_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Deactivate User
+         * @description Suspend another user's account. Requires ``ManageUser``.
+         *
+         *     Reversible, and every session is revoked immediately. Deliberately not a
+         *     DELETE: account deletion stays self-service and password-confirmed, because
+         *     an administrator cannot supply the password that authorizes it.
+         *
+         *     422 if the caller aims it at themselves — see the service for why.
+         */
+        post: operations["deactivate_user_api_v1_admin_users__user_id__deactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reactivate User
+         * @description Restore a suspended account. Requires ``ManageUser``.
+         *
+         *     422 on a deleted account: deletion scrubs the identity, so there is nothing
+         *     left to restore.
+         */
+        post: operations["reactivate_user_api_v1_admin_users__user_id__reactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read User
+         * @description Return another user's profile.
+         *
+         *     Allowed when the caller holds ``ReadAllUser`` or is asking about themselves.
+         *     This object-level check cannot be expressed by ``require_permission`` alone,
+         *     which answers only "may they read users in general?" — see
+         *     ``cbpupsis_api_student.domains.items.service`` for the same pattern on owned
+         *     resources.
+         */
+        get: operations["read_user_api_v1_admin_users__user_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/superadmin/login": {
         parameters: {
             query?: never;
@@ -1522,7 +2788,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/v1/users/import": {
+    "/api/v1/admin/users/import": {
         parameters: {
             query?: never;
             header?: never;
@@ -1540,11 +2806,247 @@ export interface paths {
          *     ``USER_IMPORT_TOO_LARGE`` past ``USER_IMPORT_MAX_BYTES``. Each created
          *     account is mailed its temporary password.
          */
-        post: operations["import_users_api_v1_users_import_post"];
+        post: operations["import_users_api_v1_admin_users_import_post"];
         delete?: never;
         options?: never;
         head?: never;
         patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/waiver-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Waivers
+         * @description Read MFA/permission-protected position-scoped waivers.
+         *
+         *     Chair: own department; Dean: own explicitly mapped college;
+         *     Registrar: institution-wide. Finance/other positions and students refused.
+         */
+        get: operations["list_waivers_api_v1_admin_waiver_requests_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/waiver-requests/{waiverRequestId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Decide Waiver
+         * @description Record one locked assigned-step decision, audit and durable student notice.
+         *
+         *     Requires a live MFA-completed Admin session and ApproveWaiverRequest.
+         *     Chair -> Dean -> Registrar; rejection is terminal at any pending step.
+         *     Final approval records an external VPAA reference, not a credential.
+         */
+        patch: operations["decide_waiver_api_v1_admin_waiver_requests__waiverRequestId__patch"];
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Catalog Courses */
+        get: operations["list_admin_catalog_courses"];
+        put?: never;
+        /** Create Catalog Course */
+        post: operations["create_admin_catalog_course"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/courses/{course_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Catalog Course */
+        patch: operations["update_admin_catalog_course"];
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/curricula/{program_code}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Publish Curriculum Version */
+        post: operations["publish_admin_curriculum_version"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/curricula/{program_code}/versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Curriculum Version */
+        delete: operations["delete_admin_curriculum_version"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/curricula/versions/{version_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Curriculum Version By Id */
+        delete: operations["delete_admin_curriculum_version_by_id"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/sections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create Catalog Section */
+        post: operations["create_admin_catalog_section"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/sections/{section_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Update Catalog Section */
+        patch: operations["update_admin_catalog_section"];
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/substitutions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve Course Substitution */
+        post: operations["approve_admin_course_substitution"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/catalog/students/{student_id}/degree-progress": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Student Degree Progress */
+        get: operations["get_admin_student_degree_progress"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grade-corrections": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Grade Corrections */
+        get: operations["list_admin_grade_corrections"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/grade-corrections/{correction_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Grade Correction */
+        get: operations["get_admin_grade_correction"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Decide Grade Correction */
+        patch: operations["decide_admin_grade_correction"];
         trace?: never;
     };
     "/health": {
@@ -1613,6 +3115,122 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AcademicBlock */
+        AcademicBlock: {
+            /** Rule */
+            rule: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Blockingmark */
+            blockingMark?: string | null;
+            /** Requiredrange */
+            requiredRange?: string | null;
+            /** Details */
+            details?: {
+                [key: string]: unknown;
+            };
+        };
+        /**
+         * AcademicEventRead
+         * @description An academic calendar event.
+         */
+        AcademicEventRead: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Starts At
+             * Format: date-time
+             */
+            starts_at: string;
+            /**
+             * Ends At
+             * Format: date-time
+             */
+            ends_at: string;
+            /**
+             * Is Multi Day
+             * @default false
+             */
+            is_multi_day: boolean;
+            /**
+             * Category
+             * @default ACADEMIC_CALENDAR
+             */
+            category: string;
+            /** Description */
+            description?: string | null;
+        };
+        /**
+         * AcademicPeriodRead
+         * @description An active or upcoming enrollment / adjustment period.
+         */
+        AcademicPeriodRead: {
+            /** Type */
+            type: string;
+            /** Label */
+            label: string;
+            /**
+             * Opens At
+             * Format: date-time
+             */
+            opens_at: string;
+            /**
+             * Closes At
+             * Format: date-time
+             */
+            closes_at: string;
+            /** Is Open */
+            is_open: boolean;
+            /** Days Remaining */
+            days_remaining: number;
+        };
+        /**
+         * AcademicStanding
+         * @enum {string}
+         */
+        AcademicStanding: "Good Standing" | "Warning Level 1" | "Warning Level 2" | "Probation" | "College Dropping" | "University Dismissal";
+        /**
+         * AcademicTermRead
+         * @description An academic term and its key enrollment and grading dates.
+         */
+        AcademicTermRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Academic Year */
+            academic_year: string;
+            /** Semester */
+            semester: string;
+            /** Term Type */
+            term_type?: string | null;
+            /**
+             * Is Current
+             * @default false
+             */
+            is_current: boolean;
+            /** Start Date */
+            start_date?: string | null;
+            /** End Date */
+            end_date?: string | null;
+            /** Early Enrollment Start */
+            early_enrollment_start?: string | null;
+            /** Early Enrollment End */
+            early_enrollment_end?: string | null;
+            /** Regular Enrollment Start */
+            regular_enrollment_start?: string | null;
+            /** Regular Enrollment End */
+            regular_enrollment_end?: string | null;
+            /** Late Enrollment End */
+            late_enrollment_end?: string | null;
+            /** Add Drop Deadline */
+            add_drop_deadline?: string | null;
+            /** Grade Submission Deadline */
+            grade_submission_deadline?: string | null;
+        };
         /**
          * AccountCreate
          * @description One account a Superadmin creates: a ``POST /users`` body or a CSV row.
@@ -1645,12 +3263,147 @@ export interface components {
             /** Year Level */
             year_level?: number | null;
         };
+        /** AccountLineRead */
+        AccountLineRead: {
+            /** Description */
+            description: string;
+            /** Amount */
+            amount: string;
+            /** Coveredbyfhe */
+            coveredByFhe: boolean;
+        };
+        /** AccountRead */
+        AccountRead: {
+            /** Amountassessed */
+            amountAssessed: string;
+            /** Subsidyapplied */
+            subsidyApplied: string;
+            /** Netpayable */
+            netPayable: string;
+            /**
+             * Paymentstatus
+             * @enum {string}
+             */
+            paymentStatus: "PAID" | "PARTIAL" | "DUE" | "OVERDUE";
+            /** Holds */
+            holds: components["schemas"]["HoldRead"][];
+            /** Lines */
+            lines: components["schemas"]["AccountLineRead"][];
+            /** Fhequalified */
+            fheQualified: boolean;
+            /** Fheforfeited */
+            fheForfeited: boolean;
+            /** Fheforfeiturereason */
+            fheForfeitureReason: string | null;
+        };
         /**
          * AccountRole
          * @description The ``role`` a Superadmin gives a new account, one per CSV row.
          * @enum {string}
          */
-        AccountRole: "student" | "faculty" | "admin_registrar" | "admin_finance" | "admin_chairperson" | "admin_dean";
+        AccountRole: "student" | "faculty" | "admin_registrar" | "admin_finance" | "admin_chairperson" | "admin_dean" | "admin_advisor";
+        /** AddDropCourseRead */
+        AddDropCourseRead: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Coursetitle */
+            courseTitle: string;
+            /** Units */
+            units: string;
+            /**
+             * Tag
+             * @enum {string}
+             */
+            tag: "PENDING_ADD" | "PENDING_DROP";
+            /** Reason */
+            reason?: string | null;
+        };
+        /** AddDropDecisionRequest */
+        AddDropDecisionRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "APPROVE" | "REJECT";
+            /** Remarks */
+            remarks?: string | null;
+            /** Version */
+            version: number;
+        };
+        /** AddDropRequestCreate */
+        AddDropRequestCreate: {
+            /** Add */
+            add?: components["schemas"]["AddSectionItem"][];
+            /** Drop */
+            drop?: components["schemas"]["DropSectionItem"][];
+            /** Comments */
+            comments?: string | null;
+        };
+        /** AddDropRequestRead */
+        AddDropRequestRead: {
+            /**
+             * Requestid
+             * Format: uuid
+             */
+            requestId: string;
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /**
+             * Academictermid
+             * Format: uuid
+             */
+            academicTermId: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "PENDING" | "APPROVED" | "REJECTED";
+            /** Unitsbefore */
+            unitsBefore: string;
+            /** Unitsafter */
+            unitsAfter: string;
+            /** Comments */
+            comments?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /** Courses */
+            courses?: components["schemas"]["AddDropCourseRead"][];
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Reviewedat */
+            reviewedAt?: string | null;
+            /** Reviewedby */
+            reviewedBy?: string | null;
+        };
+        /**
+         * AddDropStatus
+         * @enum {string}
+         */
+        AddDropStatus: "NONE" | "PENDING_ADD" | "PENDING_DROP" | "APPROVED_ADD" | "APPROVED_DROP";
+        /** AddSectionItem */
+        AddSectionItem: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+        };
         /**
          * AddUserToGroupRequest
          * @description Body for adding a user to a group.
@@ -1661,6 +3414,65 @@ export interface components {
              * @description Target user's UUID.
              */
             user_id: string;
+        };
+        /** AdminAddDropRequestRead */
+        AdminAddDropRequestRead: {
+            /**
+             * Requestid
+             * Format: uuid
+             */
+            requestId: string;
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /** Studentnumber */
+            studentNumber: string;
+            /** Studentname */
+            studentName: string;
+            /** Programcode */
+            programCode: string;
+            /** Department */
+            department: string;
+            /** College */
+            college: string | null;
+            /** Term */
+            term: string;
+            /**
+             * Academictermid
+             * Format: uuid
+             */
+            academicTermId: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "PENDING" | "APPROVED" | "REJECTED";
+            /** Unitsbefore */
+            unitsBefore: string;
+            /** Unitsafter */
+            unitsAfter: string;
+            /** Comments */
+            comments?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /**
+             * Version
+             * @default 1
+             */
+            version: number;
+            /** Courses */
+            courses?: components["schemas"]["AddDropCourseRead"][];
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Reviewedat */
+            reviewedAt?: string | null;
+            /** Reviewedby */
+            reviewedBy?: string | null;
         };
         /** AdminLoginChallenge */
         AdminLoginChallenge: {
@@ -1698,7 +3510,99 @@ export interface components {
          * @description The data-reach position carried by the single Admin role.
          * @enum {string}
          */
-        AdminPosition: "chairperson" | "dean" | "finance" | "registrar";
+        AdminPosition: "advisor" | "chairperson" | "dean" | "finance" | "registrar";
+        /**
+         * AdminSectionCreate
+         * @description Payload to create a course section in the caller's department.
+         */
+        AdminSectionCreate: {
+            /**
+             * Courseid
+             * Format: uuid
+             */
+            courseId: string;
+            /** Academictermid */
+            academicTermId?: string | null;
+            /**
+             * Sectionname
+             * @default 1-A
+             */
+            sectionName: string;
+            /** Facultyid */
+            facultyId?: string | null;
+            /** Capacity */
+            capacity: number;
+            /** Room */
+            room?: string | null;
+            /**
+             * Status
+             * @default open
+             */
+            status: string;
+            /** Meetings */
+            meetings?: components["schemas"]["SectionMeetingInput"][];
+        };
+        /**
+         * AdminSectionRead
+         * @description Course section representation returned by admin catalog endpoints.
+         */
+        AdminSectionRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Courseid
+             * Format: uuid
+             */
+            courseId: string;
+            /**
+             * Academictermid
+             * Format: uuid
+             */
+            academicTermId: string;
+            /** Facultyid */
+            facultyId?: string | null;
+            /** Sectionname */
+            sectionName: string;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Enrolled
+             * @default 0
+             */
+            enrolled: number;
+            /**
+             * Seatsleft
+             * @default 0
+             */
+            seatsLeft: number;
+            /** Room */
+            room?: string | null;
+            /** Status */
+            status: string;
+            /** Meetings */
+            meetings?: components["schemas"]["SectionMeetingRead"][];
+        };
+        /**
+         * AdminSectionUpdate
+         * @description Payload to edit an existing course section.
+         */
+        AdminSectionUpdate: {
+            /** Sectionname */
+            sectionName?: string | null;
+            /** Facultyid */
+            facultyId?: string | null;
+            /** Capacity */
+            capacity?: number | null;
+            /** Room */
+            room?: string | null;
+            /** Status */
+            status?: string | null;
+            /** Meetings */
+            meetings?: components["schemas"]["SectionMeetingInput"][] | null;
+        };
         /** AdminSessionRead */
         AdminSessionRead: {
             /**
@@ -1747,6 +3651,59 @@ export interface components {
             college_id?: string | null;
         };
         /**
+         * AnnouncementRead
+         * @description An institution-wide or academic announcement.
+         */
+        AnnouncementRead: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Body */
+            body: string;
+            /**
+             * Category
+             * @default ACADEMIC
+             */
+            category: string;
+            /**
+             * Published At
+             * Format: date-time
+             */
+            published_at: string;
+            /** Expires At */
+            expires_at?: string | null;
+            /**
+             * Is Pinned
+             * @default false
+             */
+            is_pinned: boolean;
+        };
+        /** AssessmentLine */
+        AssessmentLine: {
+            /** Code */
+            code: string;
+            /** Amount */
+            amount: string;
+        };
+        /** AssessmentRead */
+        AssessmentRead: {
+            /** Lines */
+            lines: components["schemas"]["AssessmentLine"][];
+            /** Amountassessed */
+            amountAssessed: string;
+            /** Subsidyapplied */
+            subsidyApplied: string;
+            /** Netpayable */
+            netPayable: string;
+            /** Fhequalified */
+            fheQualified: boolean;
+            /** Fheforfeited */
+            fheForfeited: boolean;
+            /** Fheforfeiturereason */
+            fheForfeitureReason: string | null;
+        };
+        /**
          * AttachPolicyRequest
          * @description Body for attaching a policy to a group.
          */
@@ -1787,13 +3744,408 @@ export interface components {
             /** Occurred At */
             occurred_at: string;
         };
-        /** Body_import_users_api_v1_users_import_post */
-        Body_import_users_api_v1_users_import_post: {
+        /**
+         * AuthorizationRead
+         * @description Browser consent instructions, not a connection or delivery confirmation.
+         */
+        AuthorizationRead: {
+            /**
+             * Authorization Url
+             * @description Open in a browser and approve the requested Calendar access. Contains private single-use state; never log/share it or fetch it as a Scalar API request. Google redirects to the configured frontend URI.
+             */
+            authorization_url: string;
+            /**
+             * Expires In
+             * @description Attempt lifetime, in seconds.
+             * @default 600
+             */
+            expires_in: number;
+        };
+        /**
+         * AvailableCourseRead
+         * @description One curriculum and term section the signed-in student may consider.
+         */
+        AvailableCourseRead: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Title */
+            title: string;
+            /** Units */
+            units: string;
+            /** Schedule */
+            schedule?: components["schemas"]["AvailableCourseScheduleRead"][];
+            /** Faculty */
+            faculty: string | null;
+            /** Capacity */
+            capacity: number;
+            /**
+             * Availableslots
+             * @description Advisory seat availability at read time; it can be stale by submit.
+             */
+            availableSlots: number;
+            /**
+             * Prerequisitessatisfied
+             * @default true
+             */
+            prerequisitesSatisfied: boolean;
+            /** Blockreason */
+            blockReason?: string | null;
+            /** Blocks */
+            blocks?: components["schemas"]["AcademicBlock"][];
+            /**
+             * Waiveravailable
+             * @default false
+             */
+            waiverAvailable: boolean;
+            /** Conflictswith */
+            conflictsWith?: string[];
+        };
+        /**
+         * AvailableCourseScheduleRead
+         * @description One weekly meeting for an available section.
+         */
+        AvailableCourseScheduleRead: {
+            /**
+             * Day
+             * @description Meeting day; Monday=0 and Sunday=6.
+             */
+            day: number;
+            /**
+             * Start
+             * Format: time
+             * @description Meeting start time in Asia/Manila.
+             */
+            start: string;
+            /**
+             * End
+             * Format: time
+             * @description Meeting end time in Asia/Manila.
+             */
+            end: string;
+            /**
+             * Room
+             * @description Assigned room, or null when unassigned.
+             */
+            room: string | null;
+        };
+        /**
+         * AvatarUploadRead
+         * @description Confirmation returned when a student uploads a valid profile picture.
+         */
+        AvatarUploadRead: {
+            /** Avatarurl */
+            avatarUrl: string;
+            /** Url */
+            url: string;
+            /** Contenttype */
+            contentType: string;
+            /** Sizebytes */
+            sizeBytes: number;
+            /**
+             * Message
+             * @default Profile picture uploaded successfully.
+             */
+            message: string;
+        };
+        /** Body_file_faculty_grade_correction */
+        Body_file_faculty_grade_correction: {
+            /**
+             * Student Id
+             * Format: uuid
+             */
+            student_id: string;
+            /** Proposed Mark */
+            proposed_mark: string;
+            /** Reason */
+            reason: string;
+            /** Grading Sheet */
+            grading_sheet: string;
+        };
+        /** Body_import_users_api_v1_admin_users_import_post */
+        Body_import_users_api_v1_admin_users_import_post: {
             /**
              * File
              * @description UTF-8 CSV with a header row
              */
             file: string;
+        };
+        /** Body_upload_student_avatar */
+        Body_upload_student_avatar: {
+            /**
+             * File
+             * @description JPEG or PNG profile picture up to 5 MB
+             */
+            file: string;
+        };
+        /**
+         * CalendarTargetRead
+         * @description One pinned academic term, with no Google calendar/event identifiers exposed.
+         */
+        CalendarTargetRead: {
+            /**
+             * Year
+             * @description Stored academic year selected for synchronization.
+             */
+            year: string;
+            /**
+             * Semester
+             * @description Stored semester selected for synchronization.
+             */
+            semester: string;
+            /**
+             * Provisioned
+             * @description An app-created calendar was assigned to this term. Does not prove all meetings were delivered; inspect sync status and Google.
+             */
+            provisioned: boolean;
+        };
+        /**
+         * CatalogCourseCreate
+         * @description Payload to create a course in the caller's department.
+         */
+        CatalogCourseCreate: {
+            /** Coursecode */
+            courseCode: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description?: string | null;
+            /**
+             * Lectureunits
+             * @default 3.0
+             */
+            lectureUnits: number | string;
+            /**
+             * Labunits
+             * @default 0.0
+             */
+            labUnits: number | string;
+            /** Lecturehours */
+            lectureHours?: number | null;
+            /** Labhours */
+            labHours?: number | null;
+            /**
+             * Gradingmode
+             * @default NUMERIC
+             */
+            gradingMode: string;
+            /**
+             * Isactive
+             * @default true
+             */
+            isActive: boolean;
+            /** Termoffered */
+            termOffered?: string | null;
+            /** College */
+            college?: string | null;
+            /** Prerequisiteids */
+            prerequisiteIds?: (string)[];
+            /** Corequisiteids */
+            corequisiteIds?: (string)[];
+        };
+        /**
+         * CatalogCourseRead
+         * @description Catalog course representation returned by admin catalog endpoints.
+         */
+        CatalogCourseRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Code
+             * @default
+             */
+            code: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description?: string | null;
+            /** Department */
+            department?: string | null;
+            /** College */
+            college?: string | null;
+            /**
+             * Units
+             * @default 0
+             */
+            units: string;
+            /** Lectureunits */
+            lectureUnits: string;
+            /** Labunits */
+            labUnits: string;
+            /**
+             * Lecturehours
+             * @default 0
+             */
+            lectureHours: number;
+            /**
+             * Labhours
+             * @default 0
+             */
+            labHours: number;
+            /** Totalunits */
+            totalUnits: string;
+            /**
+             * Gradingmode
+             * @default NUMERIC
+             */
+            gradingMode: string;
+            /** Termoffered */
+            termOffered?: string | null;
+            /**
+             * Isactive
+             * @default true
+             */
+            isActive: boolean;
+            /** Prerequisiteids */
+            prerequisiteIds?: string[];
+            /** Corequisiteids */
+            corequisiteIds?: string[];
+            /** Prerequisites */
+            prerequisites?: string[];
+            /** Corequisites */
+            corequisites?: string[];
+        };
+        /**
+         * CatalogCourseUpdate
+         * @description Payload to edit an existing course in the caller's department.
+         */
+        CatalogCourseUpdate: {
+            /** Coursecode */
+            courseCode?: string | null;
+            /** Title */
+            title?: string | null;
+            /** Description */
+            description?: string | null;
+            /** Lectureunits */
+            lectureUnits?: number | string | null;
+            /** Labunits */
+            labUnits?: number | string | null;
+            /** Lecturehours */
+            lectureHours?: number | null;
+            /** Labhours */
+            labHours?: number | null;
+            /** Gradingmode */
+            gradingMode?: string | null;
+            /** Isactive */
+            isActive?: boolean | null;
+            /** Termoffered */
+            termOffered?: string | null;
+            /** Prerequisiteids */
+            prerequisiteIds?: (string)[] | null;
+            /** Corequisiteids */
+            corequisiteIds?: (string)[] | null;
+        };
+        /** CertificateCourse */
+        CertificateCourse: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Code */
+            code: string;
+            /** Title */
+            title: string;
+            /** Section */
+            section: string;
+            /** Schedule */
+            schedule: components["schemas"]["CertificateMeeting"][];
+            /** Room */
+            room: string | null;
+            /** Faculty */
+            faculty: string | null;
+            /** Units */
+            units: string;
+        };
+        /** CertificateMeeting */
+        CertificateMeeting: {
+            /** Dayofweek */
+            dayOfWeek: number;
+            /**
+             * Starttime
+             * Format: time
+             */
+            startTime: string;
+            /**
+             * Endtime
+             * Format: time
+             */
+            endTime: string;
+            /** Room */
+            room: string | null;
+            /** Type */
+            type: string;
+        };
+        /** CertificateMetadata */
+        CertificateMetadata: {
+            /**
+             * Certificateid
+             * Format: uuid
+             */
+            certificateId: string;
+            /**
+             * Issuedat
+             * Format: date-time
+             */
+            issuedAt: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "CURRENT" | "SUPERSEDED";
+        };
+        /** CertificateRead */
+        CertificateRead: {
+            /**
+             * Certificateid
+             * Format: uuid
+             */
+            certificateId: string;
+            /**
+             * Issuedat
+             * Format: date-time
+             */
+            issuedAt: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "CURRENT" | "SUPERSEDED";
+            /** Name */
+            name: string;
+            /** Studentnumber */
+            studentNumber: string;
+            /** Program */
+            program: string;
+            term: components["schemas"]["CertificateTerm"];
+            /** Courses */
+            courses: components["schemas"]["CertificateCourse"][];
+            /** Totalunits */
+            totalUnits: string;
+            assessment: components["schemas"]["AssessmentRead"];
+            /** Verificationurl */
+            verificationUrl: string;
+        };
+        /** CertificateTerm */
+        CertificateTerm: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Year */
+            year: string;
+            /** Semester */
+            semester: string;
         };
         /** ChallengeRequest */
         ChallengeRequest: {
@@ -1825,6 +4177,146 @@ export interface components {
          */
         Channel: "email" | "in_app";
         /**
+         * ConnectionRead
+         * @description Direct private/no-store status; no status/data wrapper or Google credentials.
+         */
+        ConnectionRead: {
+            /**
+             * Enabled
+             * @description Deployment-level Google integration flag, not student consent. Manual SIS schedule/PDF/ICS access remains separate.
+             */
+            enabled: boolean;
+            /**
+             * Connected
+             * @description A refresh grant is saved and not marked reconnectRequired. Not proof of recent sync, current Google availability or event delivery.
+             * @default false
+             */
+            connected: boolean;
+            /**
+             * Disconnecting
+             * @description Google authorization revocation is pending. Keep the worker running and wait for false before beginning a fresh connection.
+             * @default false
+             */
+            disconnecting: boolean;
+            /**
+             * Last Sync At
+             * @description UTC timestamp of the last successful reconciliation, including unchanged checks. May predate the current queued request; null before the first successful reconciliation. Not a Google-write timestamp.
+             */
+            last_sync_at?: string | null;
+            /**
+             * Next Sync At
+             * @description UTC due time for a worker attempt or revocation retry, not a completion deadline. Null when no attempt is scheduled, including completed disconnect or a terminal sync error.
+             */
+            next_sync_at?: string | null;
+            /**
+             * Last Error
+             * @description Sanitized background error category, never Google payloads. reconnectRequired needs fresh consent; other terminal categories need operator review. Null alone does not prove a queued request completed.
+             */
+            last_error?: string | null;
+            /**
+             * Targets
+             * @description Pinned terms for this connection, up to ten. Empty after disconnect even when private same-account reconnect mappings remain. No Google calendar or event IDs are exposed.
+             */
+            targets?: components["schemas"]["CalendarTargetRead"][];
+        };
+        /** CorrectionDecision */
+        CorrectionDecision: {
+            /**
+             * Action
+             * @enum {string}
+             */
+            action: "ENDORSE" | "COMMIT" | "REJECT";
+            /** Version */
+            version: number;
+            /** Remarks */
+            remarks?: string | null;
+        };
+        /** CorrectionPage */
+        CorrectionPage: {
+            /** Items */
+            items: components["schemas"]["CorrectionRead"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /** CorrectionRead */
+        CorrectionRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Gradeid
+             * Format: uuid
+             */
+            gradeId: string;
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /**
+             * Facultyid
+             * Format: uuid
+             */
+            facultyId: string;
+            /** Currentmark */
+            currentMark: string;
+            /** Proposedmark */
+            proposedMark: string;
+            /** Reason */
+            reason: string;
+            /** Gradingsheetfileid */
+            gradingSheetFileId: string;
+            /** Gradingsheetcontenttype */
+            gradingSheetContentType: string | null;
+            /** Gradingsheetsize */
+            gradingSheetSize: number | null;
+            /** Gradingsheetsha256 */
+            gradingSheetSha256: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "PENDING_CHAIR" | "PENDING_DEAN" | "PENDING_REGISTRAR" | "COMMITTED" | "REJECTED";
+            /** Version */
+            version: number;
+            /** Windowclosedat */
+            windowClosedAt: string | null;
+            /** Chairapprovedby */
+            chairApprovedBy: string | null;
+            /** Chairapprovedat */
+            chairApprovedAt: string | null;
+            /** Deanapprovedby */
+            deanApprovedBy: string | null;
+            /** Deanapprovedat */
+            deanApprovedAt: string | null;
+            /** Registrarapprovedby */
+            registrarApprovedBy: string | null;
+            /** Registrarapprovedat */
+            registrarApprovedAt: string | null;
+            /** Rejectedby */
+            rejectedBy: string | null;
+            /** Rejectionremarks */
+            rejectionRemarks: string | null;
+            /** Resolvedat */
+            resolvedAt: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+        };
+        /**
          * CourseSectionRead
          * @description One course section assigned to the caller.
          */
@@ -1843,10 +4335,7 @@ export interface components {
         };
         /**
          * CourseSectionRosterRead
-         * @description A section with its roster.
-         *
-         *     The roster stays empty until the enrollment domain exists to fill it; the
-         *     endpoint already enforces who may see it.
+         * @description A filtered page of students in a section owned by the caller.
          */
         CourseSectionRosterRead: {
             /**
@@ -1860,27 +4349,159 @@ export interface components {
             capacity: number;
             /** Status */
             status: string;
-            /**
-             * Roster
-             * @default []
-             */
-            roster: components["schemas"]["RosterEntryRead"][];
+            /** Roster */
+            roster?: components["schemas"]["RosterEntryRead"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
         };
         /**
-         * CurrentUserRead
-         * @description The authenticated principal, as returned by /whoami.
+         * CreateIncompleteCompletionRequest
+         * @description Faculty filing of an Incomplete completion grade; validated in the service.
+         * @example {
+         *       "completionFormFileId": "form-inc-0001",
+         *       "proposedMark": "1.50",
+         *       "remarks": "Completed final project"
+         *     }
          */
-        CurrentUserRead: {
+        CreateIncompleteCompletionRequest: {
+            /**
+             * Proposedmark
+             * @description Passing completion grade mark from 1.00 to 3.00.
+             * @example 1.50
+             */
+            proposedMark?: string | number | null;
+            /**
+             * Completionformfileid
+             * @description Reference identifier of the uploaded completion form.
+             * @example form-inc-0001
+             */
+            completionFormFileId?: string | null;
+            /**
+             * Remarks
+             * @description Optional remarks accompanying the completion filing.
+             */
+            remarks?: string | null;
+        };
+        /** CurrentEnrollmentRead */
+        CurrentEnrollmentRead: {
+            /**
+             * Enrollmentid
+             * Format: uuid
+             * @description Same id as enrollmentId in the submit 201 response.
+             */
+            enrollmentId: string;
+            /**
+             * Status
+             * @description Stored term enrollment status: ENROLLED_PENDING after submit, OFFICIALLY_ENROLLED once the certificate is issued.
+             */
+            status: string;
+            /**
+             * Totalunits
+             * @description Units of the sections currently held (dropped ones excluded).
+             */
+            totalUnits: string;
+        };
+        /**
+         * CurriculumCourseInput
+         * @description One course mapping when publishing a curriculum version.
+         */
+        CurriculumCourseInput: {
+            /** Courseid */
+            courseId?: string | null;
+            /** Coursecode */
+            courseCode?: string | null;
+            /**
+             * Yearlevel
+             * @default 1
+             */
+            yearLevel: number;
+            /**
+             * Semester
+             * @default First Semester
+             */
+            semester: string;
+            /**
+             * Coursetype
+             * @default core
+             */
+            courseType: string;
+            /** Prerequisiteids */
+            prerequisiteIds?: (string)[];
+            /** Corequisiteids */
+            corequisiteIds?: (string)[];
+        };
+        /**
+         * CurriculumCourseItemRead
+         * @description One mapped course inside a curriculum version.
+         */
+        CurriculumCourseItemRead: {
+            /**
+             * Courseid
+             * Format: uuid
+             */
+            courseId: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Title */
+            title: string;
+            /** Units */
+            units: string;
+            /** Yearlevel */
+            yearLevel: number;
+            /** Semester */
+            semester: string;
+            /** Coursetype */
+            courseType: string;
+        };
+        /**
+         * CurriculumVersionCreate
+         * @description Payload to publish a curriculum version for a program.
+         */
+        CurriculumVersionCreate: {
+            /** Effectiveadmissionyear */
+            effectiveAdmissionYear: number;
+            /** Curriculumyear */
+            curriculumYear?: string | null;
+            /** Courses */
+            courses?: components["schemas"]["CurriculumCourseInput"][];
+        };
+        /**
+         * CurriculumVersionRead
+         * @description Published curriculum version returned by the admin catalog API.
+         */
+        CurriculumVersionRead: {
             /**
              * Id
              * Format: uuid
              */
             id: string;
             /**
-             * Email
-             * Format: email
+             * Programid
+             * Format: uuid
              */
-            email: string;
+            programId: string;
+            /** Programcode */
+            programCode: string;
+            /**
+             * Version
+             * @default
+             */
+            version: string;
+            /** Curriculumyear */
+            curriculumYear: string;
+            /** Effectiveadmissionyear */
+            effectiveAdmissionYear?: number | null;
+            /**
+             * Isactive
+             * @default true
+             */
+            isActive: boolean;
+            /** Courses */
+            courses?: components["schemas"]["CurriculumCourseItemRead"][];
         };
         /**
          * DeleteAccountRequest
@@ -1893,6 +4514,16 @@ export interface components {
         DeleteAccountRequest: {
             /** Password */
             password: string;
+        };
+        /** DropSectionItem */
+        DropSectionItem: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Reason */
+            reason: string;
         };
         /**
          * EffectivePermissionsRead
@@ -1913,6 +4544,285 @@ export interface components {
             from_groups: string[];
             /** From Direct */
             from_direct: string[];
+        };
+        /** EligibilityHoldRead */
+        EligibilityHoldRead: {
+            /** Office */
+            office: string;
+            /** Type */
+            type: string;
+            /** Amount */
+            amount: string;
+            /** Isblocking */
+            isBlocking: boolean;
+        };
+        /**
+         * EmergencyContactDetailRead
+         * @description Full emergency contact returned on the dedicated contact edit endpoints.
+         */
+        EmergencyContactDetailRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Relationship */
+            relationship: string;
+            /** Phone */
+            phone: string;
+            /** Email */
+            email?: string | null;
+            /** Address */
+            address?: string | null;
+            /** Isprimary */
+            isPrimary: boolean;
+            /** Message */
+            message?: string | null;
+        };
+        /**
+         * EmergencyContactSummaryRead
+         * @description Minimised emergency contact shown on the main profile read (BR-AUTH-007).
+         *
+         *     Deliberately omits ``address`` and ``email``: those are served only on the
+         *     dedicated emergency-contact edit endpoints.
+         */
+        EmergencyContactSummaryRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Relationship */
+            relationship: string;
+            /** Phone */
+            phone: string;
+            /** Isprimary */
+            isPrimary: boolean;
+        };
+        /**
+         * EmptyStatesRead
+         * @description Explanatory empty states for zero-history panels.
+         */
+        EmptyStatesRead: {
+            /** Announcements */
+            announcements?: string | null;
+            /** Events */
+            events?: string | null;
+            /** Recent Activity */
+            recent_activity?: string | null;
+        };
+        /** EnrollmentEligibilityRead */
+        EnrollmentEligibilityRead: {
+            /** Iseligible */
+            isEligible: boolean;
+            /**
+             * Term
+             * @description Display label of the current term, for example 2026-2027-First Semester. Display only: endpoints take academicTermId.
+             */
+            term: string;
+            /**
+             * Academictermid
+             * Format: uuid
+             * @description Current academic-term UUID. Send it as academicTermId to every student enrollment, certificate and assessment endpoint.
+             */
+            academicTermId: string;
+            /**
+             * Termtype
+             * @enum {string}
+             */
+            termType: "REGULAR" | "SUMMER";
+            /** Curriculumid */
+            curriculumId?: string | null;
+            /** Curriculumversion */
+            curriculumVersion?: string | null;
+            /** Prescribedload */
+            prescribedLoad: string;
+            /** Approvedoverloadunits */
+            approvedOverloadUnits: string;
+            /**
+             * Pendingoverloadunits
+             * @description Units in overload requests still waiting for the Dean this term. Not counted in effectiveCeiling until approved.
+             * @default 0
+             */
+            pendingOverloadUnits: string;
+            /** Standingreduction */
+            standingReduction: string;
+            /** Effectiveceiling */
+            effectiveCeiling: string;
+            /** Academicstanding */
+            academicStanding: string;
+            /** Overloadeligible */
+            overloadEligible: boolean;
+            /** Summersubjectcap */
+            summerSubjectCap: number | null;
+            /** Holds */
+            holds?: components["schemas"]["EligibilityHoldRead"][];
+            academicPeriod: components["schemas"]["EnrollmentPeriodRead"];
+            /** @description The student's enrollment for this term, or null when they have not submitted yet. When set, show the enrolled state, not the picker. */
+            currentEnrollment?: components["schemas"]["CurrentEnrollmentRead"] | null;
+            /** @description Window in which add and drop requests are accepted, or null when the term has no add and drop dates configured. */
+            addDropPeriod?: components["schemas"]["EnrollmentPeriodRead"] | null;
+            /** Reasons */
+            reasons?: components["schemas"]["EnrollmentEligibilityReason"][];
+        };
+        /** EnrollmentEligibilityReason */
+        EnrollmentEligibilityReason: {
+            /** Code */
+            code: string;
+            /** Message */
+            message: string;
+        };
+        /** EnrollmentPeriodRead */
+        EnrollmentPeriodRead: {
+            /**
+             * Start
+             * Format: date-time
+             */
+            start: string;
+            /**
+             * End
+             * Format: date-time
+             */
+            end: string;
+            /** Isopen */
+            isOpen: boolean;
+        };
+        /**
+         * EnrollmentReportRead
+         * @description Enrollment report counts by group and total.
+         */
+        EnrollmentReportRead: {
+            /** Rows */
+            rows: components["schemas"]["EnrollmentReportRow"][];
+            /** Total */
+            total: number;
+        };
+        /**
+         * EnrollmentReportRow
+         * @description An aggregated group count in the enrollment statistics report.
+         */
+        EnrollmentReportRow: {
+            /** Group */
+            group: string;
+            /** Count */
+            count: number;
+        };
+        /**
+         * EnrollmentStatus
+         * @enum {string}
+         */
+        EnrollmentStatus: "ENROLLED" | "DROPPED" | "WITHDRAWN";
+        /** EnrollmentSubmitRead */
+        EnrollmentSubmitRead: {
+            /**
+             * Enrollmentid
+             * Format: uuid
+             */
+            enrollmentId: string;
+            /**
+             * Status
+             * @constant
+             */
+            status: "ENROLLED_PENDING";
+            /** Totalunits */
+            totalUnits: string;
+            /** Sections */
+            sections: components["schemas"]["EnrollmentSubmitSectionRead"][];
+        };
+        /** EnrollmentSubmitRequest */
+        EnrollmentSubmitRequest: {
+            /**
+             * Academictermid
+             * Format: uuid
+             * @description Academic-term UUID, as returned by eligibility.
+             */
+            academicTermId: string;
+            /** Sectionids */
+            sectionIds: string[];
+            /**
+             * Confirmation
+             * @constant
+             */
+            confirmation: true;
+        };
+        /** EnrollmentSubmitSectionRead */
+        EnrollmentSubmitSectionRead: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Title */
+            title: string;
+            /** Units */
+            units: string;
+        };
+        /**
+         * EnrollmentSummaryRead
+         * @description Enrolled load, limits, and schedule link for a term.
+         */
+        EnrollmentSummaryRead: {
+            /** Enrolled Units */
+            enrolled_units: string;
+            /** Effective Ceiling */
+            effective_ceiling: string;
+            /** Unit Ceiling */
+            unit_ceiling?: string | null;
+            /** Prescribed Load */
+            prescribed_load: string;
+            /**
+             * Approved Overload Units
+             * @default 0
+             */
+            approved_overload_units: string;
+            /**
+             * Standing Reduction
+             * @default 0
+             */
+            standing_reduction: string;
+            /**
+             * Enrolled Course Count
+             * @default 0
+             */
+            enrolled_course_count: number;
+            /**
+             * Schedule Url
+             * @default /api/v1/student/schedule
+             */
+            schedule_url: string;
+        };
+        /**
+         * FacultyCourseAttemptRead
+         * @description One published attempt relevant to the section's course.
+         */
+        FacultyCourseAttemptRead: {
+            /**
+             * Enrollmentid
+             * Format: uuid
+             */
+            enrollmentId: string;
+            /**
+             * Academictermid
+             * Format: uuid
+             */
+            academicTermId: string;
+            /** Academicyear */
+            academicYear: string;
+            /** Semester */
+            semester: string;
+            /** Finalgrade */
+            finalGrade: string;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "PASSED" | "FAILED" | "INCOMPLETE" | "WITHDRAWN";
         };
         /**
          * FacultyEnrollmentResult
@@ -1984,6 +4894,42 @@ export interface components {
             recovery_code?: string | null;
         };
         /**
+         * FacultyPrerequisiteRecordRead
+         * @description Published outcomes for one prerequisite of the taught course.
+         */
+        FacultyPrerequisiteRecordRead: {
+            /**
+             * Courseid
+             * Format: uuid
+             */
+            courseId: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Title */
+            title: string;
+            /**
+             * Result
+             * @enum {string}
+             */
+            result: "PASSED" | "NOT_PASSED" | "NOT_TAKEN";
+            /** Attempts */
+            attempts?: components["schemas"]["FacultyCourseAttemptRead"][];
+        };
+        /**
+         * FacultyProfileRead
+         * @description Faculty profile response with per-field editability flags.
+         */
+        FacultyProfileRead: {
+            /** Petitionroute */
+            petitionRoute: string;
+            /** Fields */
+            fields: {
+                [key: string]: components["schemas"]["cbpupsis_api_faculty__domains__faculty_profile__schemas__ProfileFieldEntry"];
+            };
+            /** Message */
+            message?: string | null;
+        };
+        /**
          * FacultySessionRead
          * @description The signed-in faculty member, as returned by ``/auth/faculty/me``.
          */
@@ -2008,6 +4954,37 @@ export interface components {
             role: "faculty";
         };
         /**
+         * FacultyStudentRead
+         * @description Teaching and contact data; deliberately excludes private profile data.
+         */
+        FacultyStudentRead: {
+            /** Name */
+            name: string;
+            /** Studentnumber */
+            studentNumber: string;
+            /** Email */
+            email: string;
+            /** Program */
+            program: string;
+            /** Yearlevel */
+            yearLevel: number;
+        };
+        /**
+         * FacultyStudentRecordRead
+         * @description Course-scoped academic record disclosed to the teaching faculty member.
+         */
+        FacultyStudentRecordRead: {
+            /**
+             * Courseid
+             * Format: uuid
+             */
+            courseId: string;
+            /** Courseattempts */
+            courseAttempts?: components["schemas"]["FacultyCourseAttemptRead"][];
+            /** Prerequisites */
+            prerequisites?: components["schemas"]["FacultyPrerequisiteRecordRead"][];
+        };
+        /**
          * FacultyTokenPair
          * @description A faculty session's tokens. The refresh token is also set as a cookie.
          */
@@ -2030,16 +5007,120 @@ export interface components {
             /** Expires In */
             expires_in: number;
         };
+        /** FeeStructureRead */
+        FeeStructureRead: {
+            /**
+             * Academictermid
+             * Format: uuid
+             */
+            academicTermId: string;
+            /** Tuitionperunit */
+            tuitionPerUnit: string;
+            /** Programtuitionrates */
+            programTuitionRates?: components["schemas"]["ProgramTuitionRateRead"][];
+            /** Registrationfee */
+            registrationFee: string;
+            /** Labfee */
+            labFee: string;
+            /** Miscfee */
+            miscFee: string;
+            /** Latefeerate */
+            lateFeeRate: string;
+            /** Duedate */
+            dueDate?: string | null;
+            /** Subsidycoveredfees */
+            subsidyCoveredFees?: string[];
+            /** Installments */
+            installments?: components["schemas"]["InstallmentItemRead"][];
+        };
+        /** FeeStructureSaveRequest */
+        FeeStructureSaveRequest: {
+            /**
+             * Tuitionperunit
+             * @default 0.00
+             */
+            tuitionPerUnit: number | string;
+            /** Programtuitionrates */
+            programTuitionRates?: components["schemas"]["ProgramTuitionRate"][];
+            /**
+             * Registrationfee
+             * @default 0.00
+             */
+            registrationFee: number | string;
+            /**
+             * Labfee
+             * @default 0.00
+             */
+            labFee: number | string;
+            /**
+             * Miscfee
+             * @default 0.00
+             */
+            miscFee: number | string;
+            /**
+             * Latefeerate
+             * @default 0.00
+             */
+            lateFeeRate: number | string;
+            /** Duedate */
+            dueDate?: string | null;
+            /** Subsidycoveredfees */
+            subsidyCoveredFees?: string[];
+            /** Installments */
+            installments?: components["schemas"]["InstallmentItem"][];
+        };
+        /**
+         * FinalizeGradesRead
+         * @description Summary returned after finalizing and locking a section's grades.
+         */
+        FinalizeGradesRead: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /**
+             * State
+             * @constant
+             */
+            state: "FINAL";
+            /** Version */
+            version: number;
+            /** Recordscommitted */
+            recordsCommitted: number;
+            /** Notificationsqueued */
+            notificationsQueued: number;
+            /**
+             * Submittedat
+             * Format: date-time
+             */
+            submittedAt: string;
+        };
+        /**
+         * FinalizeGradesRequest
+         * @description Optional optimistic-lock version check when finalizing a section.
+         * @example {
+         *       "version": 0
+         *     }
+         */
+        FinalizeGradesRequest: {
+            /**
+             * Version
+             * @description Optional expected version of the grade sheet before finalizing.
+             * @example 0
+             */
+            version?: number | null;
+        };
         /**
          * ForgotPasswordRequest
          * @description Payload for requesting a password-reset email.
          */
         ForgotPasswordRequest: {
             /**
-             * Email
-             * Format: email
+             * Identifier
+             * @description Email address, student number, or employee ID.
              */
-            email: string;
+            identifier: string;
         };
         /**
          * ForgotPasswordResponse
@@ -2051,6 +5132,212 @@ export interface components {
              * @default If that address is registered, a reset link has been sent.
              */
             message: string;
+        };
+        /**
+         * GradeCourse
+         * @description One posted course attempt; draft marks are excluded.
+         */
+        GradeCourse: {
+            /**
+             * Course Id
+             * Format: uuid
+             * @description Catalog course ID used to deduplicate credits.
+             */
+            course_id: string;
+            /**
+             * Enrollment Id
+             * Format: uuid
+             * @description Course-enrollment ID for this attempt.
+             */
+            enrollment_id: string;
+            /**
+             * Code
+             * @description Catalog course code.
+             * @example COMP101
+             */
+            code: string;
+            /**
+             * Title
+             * @description Catalog course title.
+             */
+            title: string;
+            /**
+             * Units
+             * @description Lecture plus laboratory units, serialized as a Decimal string.
+             * @example 3.0
+             */
+            units: string;
+            /**
+             * Final Grade
+             * @description Published final mark. Numeric marks have two places; PASS/FAIL apply to Pass/Fail sections; Inc is incomplete, W is withdrawn.
+             * @example 1.25
+             * @example PASS
+             * @example FAIL
+             * @example Inc
+             * @example W
+             * @enum {string}
+             */
+            final_grade: "1.00" | "1.25" | "1.50" | "1.75" | "2.00" | "2.25" | "2.50" | "2.75" | "3.00" | "5.00" | "PASS" | "FAIL" | "Inc" | "W";
+            /**
+             * Status
+             * @description Readable outcome for this attempt; Inc is not a numeric failure.
+             * @enum {string}
+             */
+            status: "Passed" | "Failed" | "Incomplete" | "Withdrawn";
+            /**
+             * Posted At
+             * Format: date-time
+             * @description Stored final-submission timestamp in UTC.
+             */
+            posted_at: string;
+            /**
+             * Completion Deadline
+             * @description Stored UTC completion deadline for Inc; null for other marks. An expired deadline does not automatically change the mark on read.
+             */
+            completion_deadline?: string | null;
+        };
+        /**
+         * GradeDeadlineRead
+         * @description Grade submission deadline and whether it has passed.
+         */
+        GradeDeadlineRead: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /**
+             * Academictermid
+             * Format: uuid
+             */
+            academicTermId: string;
+            /**
+             * Deadline
+             * Format: date-time
+             */
+            deadline: string;
+            /** Passed */
+            passed: boolean;
+        };
+        /**
+         * GradeDraftItemInput
+         * @description One student's draft mark input; validated in the service layer.
+         * @example {
+         *       "enrollmentId": "00000000-0000-0000-0000-000000000001",
+         *       "finalGrade": "1.25",
+         *       "midtermGrade": "1.50",
+         *       "remarks": "Draft mark"
+         *     }
+         */
+        GradeDraftItemInput: {
+            /**
+             * Enrollmentid
+             * @description Enrolled student's course enrollment ID.
+             * @example 00000000-0000-0000-0000-000000000001
+             */
+            enrollmentId?: string | null;
+            /**
+             * Studentid
+             * @description Optional student user ID (omit when enrollmentId is provided).
+             */
+            studentId?: string | null;
+            /**
+             * Finalgrade
+             * @description Final grade mark (1.00 to 5.00 or INC for NUMERIC; PASS or FAIL for PASS_FAIL).
+             * @example 1.25
+             */
+            finalGrade?: string | number | null;
+            /**
+             * Rawscore
+             * @description Optional numeric raw score.
+             * @example 88.5
+             */
+            rawScore?: number | string | null;
+            /**
+             * Midtermgrade
+             * @description Optional midterm grade.
+             * @example 1.50
+             */
+            midtermGrade?: string | null;
+            /**
+             * Remarks
+             * @description Optional remarks for this grade entry.
+             * @example Draft mark
+             */
+            remarks?: string | null;
+        };
+        /**
+         * GradeStatus
+         * @enum {string}
+         */
+        GradeStatus: "PENDING" | "DRAFT" | "SUBMITTED" | "INC";
+        /**
+         * GradesRead
+         * @description One student's selected term, published marks and stored standing.
+         *
+         *     Decimal values are JSON strings. Averages use ROUND_HALF_UP to two
+         *     places. Empty or wholly nonnumeric/NSTP results have a null GWA,
+         *     never a fabricated zero. Standing is not inferred from these marks.
+         */
+        GradesRead: {
+            student: components["schemas"]["RecordIdentity"];
+            /** @description Selected term, or null when no matching term is found. */
+            term?: components["schemas"]["TermRead"] | null;
+            /**
+             * Courses
+             * @description Posted attempts, sorted by course code.
+             */
+            courses?: components["schemas"]["GradeCourse"][];
+            /**
+             * Gwa
+             * @description Unit-weighted term average as a two-place Decimal string. Excludes NSTP and nonnumeric marks, includes numeric failures; null when there are no eligible numeric units.
+             * @example 1.63
+             */
+            gwa?: string | null;
+            /**
+             * Units Earned
+             * @description Units of unique passed courses in this term, as a Decimal string. Failures, withdrawals and unresolved incompletes earn no units.
+             * @default 0.0
+             */
+            units_earned: string;
+            /** @description Stored selected-term evaluation, not recalculated from GWA. Null when not evaluated; Suspension is not an allowed standing. */
+            academic_standing?: components["schemas"]["AcademicStanding"] | null;
+            /**
+             * Unitreduction
+             * @description Standing-based unit reduction: 0 for Good Standing/Warning Level 1, 3 for Warning Level 2, 6 for Probation. Null when unevaluated or when dropping/dismissal requires the separate enrollment workflow.
+             */
+            unitReduction?: number | null;
+            /**
+             * Standing State
+             * @description Whether a stored term evaluation exists.
+             * @default not_evaluated
+             * @enum {string}
+             */
+            standing_state: "evaluated" | "not_evaluated";
+            /**
+             * Standing Message
+             * @description Explanation for unevaluated standing; null when evaluated.
+             * @default Academic standing has not yet been evaluated.
+             */
+            standing_message: string | null;
+            /**
+             * Standing Evaluated At
+             * @description Stored evaluation timestamp in UTC, or null.
+             */
+            standing_evaluated_at?: string | null;
+            /**
+             * State
+             * @description Whether the selection contains published marks.
+             * @default empty
+             * @enum {string}
+             */
+            state: "available" | "empty";
+            /**
+             * Message
+             * @description Empty-selection explanation; null when marks are available.
+             * @default No finalized marks are available for this selection.
+             */
+            message: string | null;
         };
         /**
          * GroupCreate
@@ -2084,6 +5371,287 @@ export interface components {
         HTTPValidationError: {
             /** Detail */
             detail?: components["schemas"]["ValidationError"][];
+        };
+        /**
+         * HoldRead
+         * @description A student administrative or financial hold.
+         */
+        HoldRead: {
+            /** Type */
+            type: string;
+            /** Office */
+            office: string;
+            /** Description */
+            description: string;
+            /** Amount Outstanding */
+            amount_outstanding: string;
+            /**
+             * Currency
+             * @default PHP
+             */
+            currency: string;
+            /**
+             * Is Blocking
+             * @default true
+             */
+            is_blocking: boolean;
+            /**
+             * Blocks Enrollment
+             * @default true
+             */
+            blocks_enrollment: boolean;
+            /** Blocks */
+            blocks?: string[];
+        };
+        /**
+         * IncompleteCompletionDecisionRequest
+         * @description College Dean endorsement or rejection of an Incomplete completion.
+         */
+        IncompleteCompletionDecisionRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "ENDORSE" | "REJECT";
+            /** Remarks */
+            remarks?: string | null;
+            /** Version */
+            version?: number | null;
+        };
+        /**
+         * IncompleteCompletionRead
+         * @description Full Incomplete completion record returned to faculty and College Deans.
+         */
+        IncompleteCompletionRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Completionid
+             * Format: uuid
+             */
+            completionId: string;
+            /**
+             * Incid
+             * Format: uuid
+             */
+            incId: string;
+            /**
+             * Gradeid
+             * Format: uuid
+             */
+            gradeId: string;
+            /**
+             * Enrollmentid
+             * Format: uuid
+             */
+            enrollmentId: string;
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Sectionname */
+            sectionName: string;
+            /**
+             * Courseid
+             * Format: uuid
+             */
+            courseId: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Coursetitle */
+            courseTitle: string;
+            /**
+             * Academictermid
+             * Format: uuid
+             */
+            academicTermId: string;
+            /** Academicyear */
+            academicYear: string;
+            /** Semester */
+            semester: string;
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /** Studentnumber */
+            studentNumber: string;
+            /** Studentname */
+            studentName: string;
+            /** College */
+            college?: string | null;
+            /** Proposedmark */
+            proposedMark: string;
+            /** Completionformfileid */
+            completionFormFileId: string;
+            /** Remarks */
+            remarks?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "PENDING_DEAN" | "ENDORSED" | "REJECTED" | "EXPIRED";
+            /** Version */
+            version: number;
+            /** Reviewedby */
+            reviewedBy?: string | null;
+            /** Reviewremarks */
+            reviewRemarks?: string | null;
+            /** Resolvedat */
+            resolvedAt?: string | null;
+            /** Completiondeadline */
+            completionDeadline?: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+        };
+        /**
+         * IncompleteCompletionSummaryRead
+         * @description Compact summary of an Incomplete completion filing attached to an Inc row.
+         */
+        IncompleteCompletionSummaryRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Gradeid
+             * Format: uuid
+             */
+            gradeId: string;
+            /** Proposedmark */
+            proposedMark: string;
+            /** Completionformfileid */
+            completionFormFileId: string;
+            /** Remarks */
+            remarks?: string | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "PENDING_DEAN" | "ENDORSED" | "REJECTED" | "EXPIRED";
+            /** Version */
+            version: number;
+            /** Reviewedby */
+            reviewedBy?: string | null;
+            /** Reviewremarks */
+            reviewRemarks?: string | null;
+            /** Resolvedat */
+            resolvedAt?: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+        };
+        /**
+         * IncompleteGradeRead
+         * @description One student's Incomplete grade record with deadline, days left, and state.
+         */
+        IncompleteGradeRead: {
+            /**
+             * Incid
+             * Format: uuid
+             */
+            incId: string;
+            /**
+             * Gradeid
+             * Format: uuid
+             */
+            gradeId: string;
+            /**
+             * Enrollmentid
+             * Format: uuid
+             */
+            enrollmentId: string;
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Sectionname */
+            sectionName: string;
+            /**
+             * Courseid
+             * Format: uuid
+             */
+            courseId: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Coursetitle */
+            courseTitle: string;
+            /**
+             * Academictermid
+             * Format: uuid
+             */
+            academicTermId: string;
+            /** Academicyear */
+            academicYear: string;
+            /** Semester */
+            semester: string;
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /** Studentnumber */
+            studentNumber: string;
+            /** Studentname */
+            studentName: string;
+            /** Finalgrade */
+            finalGrade: string;
+            /** Submittedat */
+            submittedAt?: string | null;
+            /** Completiondeadline */
+            completionDeadline?: string | null;
+            /** Daysleft */
+            daysLeft?: number | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "PENDING_COMPLETION" | "COMPLETED" | "EXPIRED";
+            latestCompletion?: components["schemas"]["IncompleteCompletionSummaryRead"] | null;
+        };
+        /** InstallmentItem */
+        InstallmentItem: {
+            /** Installmentnumber */
+            installmentNumber: number;
+            /** Percentage */
+            percentage: number | string;
+            /**
+             * Duedate
+             * Format: date
+             */
+            dueDate: string;
+        };
+        /** InstallmentItemRead */
+        InstallmentItemRead: {
+            /** Installmentnumber */
+            installmentNumber: number;
+            /** Percentage */
+            percentage: string;
+            /**
+             * Duedate
+             * Format: date
+             */
+            dueDate: string;
+        };
+        /** IssueCertificate */
+        IssueCertificate: {
+            /**
+             * Academictermid
+             * Format: uuid
+             * @description Academic-term UUID, as returned by eligibility.
+             */
+            academicTermId: string;
         };
         /**
          * ItemCreate
@@ -2187,19 +5755,6 @@ export interface components {
             /** Price */
             price?: number | string | null;
         };
-        /**
-         * LoginRequest
-         * @description Payload for exchanging credentials for tokens.
-         */
-        LoginRequest: {
-            /**
-             * Email
-             * Format: email
-             */
-            email: string;
-            /** Password */
-            password: string;
-        };
         /** MfaVerifyRequest */
         MfaVerifyRequest: {
             /** Challenge Token */
@@ -2267,6 +5822,109 @@ export interface components {
              */
             created_at: string;
         };
+        /**
+         * OAuthCallback
+         * @description Forward only the new redirect's decoded state/code using the same SIS session.
+         *
+         *     Each value must be URL-decoded once locally, not via an online decoder.
+         *     Do not paste the entire redirect URL. Attempts expire after ten minutes and
+         *     are single-use; never log, share or replay these values.
+         */
+        OAuthCallback: {
+            /**
+             * State
+             * Format: password
+             * @description Exact state from the new consent redirect, URL-decoded once. Bound to the student/session that called authorization; not a bearer token.
+             */
+            state: string;
+            /**
+             * Code
+             * Format: password
+             * @description Short-lived code from that same new Google redirect, decoded once. Not the whole URL or a SIS token. Never log, persist or replay it.
+             */
+            code: string;
+        };
+        /** OverloadDecisionRequest */
+        OverloadDecisionRequest: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "APPROVE" | "REJECT";
+            /** Remarks */
+            remarks?: string | null;
+        };
+        /** OverloadRequestCreate */
+        OverloadRequestCreate: {
+            /**
+             * Academictermid
+             * Format: uuid
+             * @description Academic-term UUID, as returned by eligibility.
+             */
+            academicTermId: string;
+            /** Requestedunits */
+            requestedUnits: number;
+            /** Justification */
+            justification: string;
+        };
+        /** OverloadRequestFiledRead */
+        OverloadRequestFiledRead: {
+            /**
+             * Overloadrequestid
+             * Format: uuid
+             */
+            overloadRequestId: string;
+            /**
+             * State
+             * @constant
+             */
+            state: "PENDING_DEAN";
+        };
+        /** OverloadRequestRead */
+        OverloadRequestRead: {
+            /**
+             * Overloadrequestid
+             * Format: uuid
+             */
+            overloadRequestId: string;
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /** Studentnumber */
+            studentNumber: string;
+            /** Studentname */
+            studentName: string;
+            /** Programcode */
+            programCode: string;
+            /** Department */
+            department: string;
+            /** College */
+            college: string | null;
+            /** Term */
+            term: string;
+            /** Requestedunits */
+            requestedUnits: number;
+            /** Justification */
+            justification: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "PENDING_DEAN" | "APPROVED" | "REJECTED";
+            /** Reviewedby */
+            reviewedBy?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
+            /** Reviewedat */
+            reviewedAt?: string | null;
+        };
         /** OverrideRequest */
         OverrideRequest: {
             /**
@@ -2300,6 +5958,17 @@ export interface components {
             /** Offset */
             offset: number;
         };
+        /** Page[CatalogCourseRead] */
+        Page_CatalogCourseRead_: {
+            /** Items */
+            items: components["schemas"]["CatalogCourseRead"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
         /** Page[CourseSectionRead] */
         Page_CourseSectionRead_: {
             /** Items */
@@ -2315,6 +5984,28 @@ export interface components {
         Page_GroupRead_: {
             /** Items */
             items: components["schemas"]["GroupRead"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /** Page[IncompleteCompletionRead] */
+        Page_IncompleteCompletionRead_: {
+            /** Items */
+            items: components["schemas"]["IncompleteCompletionRead"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /** Page[IncompleteGradeRead] */
+        Page_IncompleteGradeRead_: {
+            /** Items */
+            items: components["schemas"]["IncompleteGradeRead"][];
             /** Total */
             total: number;
             /** Limit */
@@ -2387,6 +6078,89 @@ export interface components {
             limit: number;
             /** Offset */
             offset: number;
+        };
+        /** Page[WaiverRead] */
+        Page_WaiverRead_: {
+            /** Items */
+            items: components["schemas"]["WaiverRead"][];
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+        };
+        /**
+         * PasswordPolicyResponse
+         * @description Password complexity requirements enforced by reset and password change.
+         */
+        PasswordPolicyResponse: {
+            /**
+             * Minimumlength
+             * @default 8
+             */
+            minimumLength: number;
+            /** Requiredrules */
+            requiredRules?: string[];
+        };
+        /** PaymentCreate */
+        PaymentCreate: {
+            /** Amount */
+            amount: number | string;
+        };
+        /** PaymentCreated */
+        PaymentCreated: {
+            /**
+             * Paymentid
+             * Format: uuid
+             */
+            paymentId: string;
+            /** State */
+            state: string;
+            /** Checkouturl */
+            checkoutUrl: string;
+        };
+        /** PaymentRead */
+        PaymentRead: {
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Amount */
+            amount: string;
+            /** Reference */
+            reference: string;
+            /** Status */
+            status: string;
+        };
+        /** PaymentStatusRead */
+        PaymentStatusRead: {
+            /**
+             * Paymentid
+             * Format: uuid
+             */
+            paymentId: string;
+            /** State */
+            state: string;
+            /** Amount */
+            amount: string;
+            /**
+             * Currency
+             * @default PHP
+             */
+            currency: string;
+            /** Gatewayreference */
+            gatewayReference?: string | null;
+            /** Receiptnumber */
+            receiptNumber?: string | null;
+            /** Paidat */
+            paidAt?: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
         };
         /**
          * PermissionCreate
@@ -2463,6 +6237,33 @@ export interface components {
             /** Permissions */
             permissions?: components["schemas"]["PermissionRead"][];
         };
+        /** ProgramTuitionRate */
+        ProgramTuitionRate: {
+            /**
+             * Programid
+             * Format: uuid
+             */
+            programId: string;
+            /** Tuitionperunit */
+            tuitionPerUnit: number | string;
+        };
+        /** ProgramTuitionRateRead */
+        ProgramTuitionRateRead: {
+            /**
+             * Programid
+             * Format: uuid
+             */
+            programId: string;
+            /** Tuitionperunit */
+            tuitionPerUnit: string;
+        };
+        /** RecordIdentity */
+        RecordIdentity: {
+            /** Student Number */
+            student_number: string;
+            /** Full Name */
+            full_name: string;
+        };
         /**
          * RefreshRequest
          * @description Payload for exchanging a refresh token for a new token pair.
@@ -2511,17 +6312,17 @@ export interface components {
          */
         ResetTokenVerificationResponse: {
             /**
-             * Valid
-             * @default true
-             */
-            valid: boolean;
-            /**
              * Minimumlength
              * @default 8
              */
             minimumLength: number;
             /** Requiredrules */
             requiredRules?: string[];
+            /**
+             * Valid
+             * @default true
+             */
+            valid: boolean;
         };
         /** RestoreRequestRead */
         RestoreRequestRead: {
@@ -2555,6 +6356,411 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+            /** Studentnumber */
+            studentNumber: string;
+            /** Name */
+            name: string;
+            /** Email */
+            email: string;
+            enrollmentStatus: components["schemas"]["EnrollmentStatus"];
+            gradeStatus: components["schemas"]["GradeStatus"];
+            addDropStatus: components["schemas"]["AddDropStatus"];
+        };
+        /**
+         * SaveGradeDraftRequest
+         * @description Versioned draft save payload for a section's grade sheet.
+         * @example {
+         *       "grades": [
+         *         {
+         *           "enrollmentId": "00000000-0000-0000-0000-000000000001",
+         *           "finalGrade": "1.25",
+         *           "midtermGrade": "1.50",
+         *           "remarks": "Draft mark"
+         *         }
+         *       ],
+         *       "version": 0
+         *     }
+         */
+        SaveGradeDraftRequest: {
+            /**
+             * Version
+             * @description Expected version of draft submission for optimistic locking.
+             * @example 0
+             */
+            version: number;
+            /** Grades */
+            grades: components["schemas"]["GradeDraftItemInput"][];
+        };
+        /**
+         * ScheduleCourse
+         * @description An officially enrolled course and its section's complete weekly timetable.
+         */
+        ScheduleCourse: {
+            /**
+             * Code
+             * @description Course code; searchable using q.
+             * @example CS001
+             */
+            code: string;
+            /**
+             * Title
+             * @description Course title; searchable using q.
+             * @example Algorithms
+             */
+            title: string;
+            /**
+             * Section
+             * @description Enrolled section name.
+             * @example BSCS 1-1
+             */
+            section: string;
+            /**
+             * Section Id
+             * Format: uuid
+             * @description Enrolled section identifier.
+             */
+            section_id: string;
+            /**
+             * Room
+             * @description Distinct meeting rooms joined by commas, or null.
+             */
+            room: string | null;
+            /**
+             * Faculty Name
+             * @description Assigned faculty name; searchable using q; null if unassigned.
+             */
+            faculty_name: string | null;
+            /**
+             * Units
+             * @description Credit units, serialized as a decimal string; not contact hours.
+             */
+            units: string;
+            /**
+             * Lecture Hours
+             * @description Weekly lecture hours from meeting durations, as a decimal string.
+             */
+            lecture_hours: string;
+            /**
+             * Lab Hours
+             * @description Weekly lab hours from meeting durations, as a decimal string.
+             */
+            lab_hours: string;
+            /**
+             * Status
+             * @description Official enrollment status; only enrolled courses are included.
+             * @example enrolled
+             */
+            status: string;
+            /**
+             * Meetings
+             * @description All weekly meeting slots, preserving individual times and rooms.
+             */
+            meetings: components["schemas"]["ScheduleMeeting"][];
+        };
+        /**
+         * ScheduleMeeting
+         * @description One weekly lecture or laboratory meeting, using Asia/Manila local times.
+         */
+        ScheduleMeeting: {
+            /**
+             * Id
+             * Format: uuid
+             * @description Distinct meeting identifier within the section.
+             */
+            id: string;
+            /**
+             * Day Of Week
+             * @description Monday=0, Sunday=6
+             */
+            day_of_week: number;
+            /**
+             * Start Time
+             * Format: time
+             * @description Meeting start time in Asia/Manila.
+             * @example 08:00:00
+             */
+            start_time: string;
+            /**
+             * End Time
+             * Format: time
+             * @description Meeting end time in Asia/Manila.
+             * @example 10:00:00
+             */
+            end_time: string;
+            /**
+             * Room
+             * @description Meeting-specific room, or null if unassigned.
+             * @example R101
+             */
+            room: string | null;
+            /**
+             * Type
+             * @description Contact-hour category for this meeting.
+             * @enum {string}
+             */
+            type: "lecture" | "laboratory";
+        };
+        /**
+         * ScheduleRead
+         * @description Direct snake_case schedule response; no status/data success envelope.
+         */
+        ScheduleRead: {
+            /**
+             * Student Name
+             * @description Signed-in student's full name.
+             */
+            student_name: string;
+            /**
+             * Student Number
+             * @description Signed-in student's institutional number.
+             * @example 2021-00123-MN-0
+             */
+            student_number: string;
+            /** @description Selected term, or null when configuration is unavailable. */
+            term: components["schemas"]["ScheduleTerm"] | null;
+            /**
+             * Courses
+             * @description Officially enrolled courses matching q; empty for empty states.
+             */
+            courses?: components["schemas"]["ScheduleCourse"][];
+            /**
+             * Total Credits
+             * @description Sum of returned course credit units, as a decimal string.
+             * @default 0
+             */
+            total_credits: string;
+            /**
+             * Total Lecture Hours
+             * @description Sum of returned weekly lecture hours, as a decimal string.
+             * @default 0
+             */
+            total_lecture_hours: string;
+            /**
+             * Total Lab Hours
+             * @description Sum of returned weekly laboratory hours, as a decimal string.
+             * @default 0
+             */
+            total_lab_hours: string;
+            /**
+             * State
+             * @description ready: courses returned; notEnrolled: no official enrollment; noMatches: filter matched none; termUnavailable: missing/ambiguous term configuration.
+             * @enum {string}
+             */
+            state: "ready" | "notEnrolled" | "noMatches" | "termUnavailable";
+            /**
+             * Message
+             * @description Human-readable explanation for an empty result; null when ready.
+             */
+            message?: string | null;
+        };
+        /**
+         * ScheduleTerm
+         * @description Configured academic term selected for this schedule.
+         */
+        ScheduleTerm: {
+            /**
+             * Id
+             * Format: uuid
+             * @description Academic term identifier.
+             */
+            id: string;
+            /**
+             * Year
+             * @description Stored academic-year string.
+             * @example 2026-2027
+             */
+            year: string;
+            /**
+             * Semester
+             * @description Stored semester identifier.
+             * @example first
+             */
+            semester: string;
+            /**
+             * Start Date
+             * Format: date
+             * @description Inclusive term start date.
+             */
+            start_date: string;
+            /**
+             * End Date
+             * Format: date
+             * @description Inclusive term end date and recurrence boundary.
+             */
+            end_date: string;
+        };
+        /**
+         * ScholasticStandingRead
+         * @description Scholastic standing evaluation and load impact.
+         */
+        ScholasticStandingRead: {
+            /** Value */
+            value: string;
+            /**
+             * Unit Reduction
+             * @default 0
+             */
+            unit_reduction: number;
+            /** Explanation */
+            explanation?: string | null;
+            /**
+             * Appeal Available
+             * @default false
+             */
+            appeal_available: boolean;
+        };
+        /**
+         * SectionGradeEntryRead
+         * @description One enrolled student's grade row for a section.
+         */
+        SectionGradeEntryRead: {
+            /**
+             * Enrollmentid
+             * Format: uuid
+             */
+            enrollmentId: string;
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /** Studentnumber */
+            studentNumber: string;
+            /** Studentname */
+            studentName: string;
+            /** Rawscore */
+            rawScore?: string | null;
+            /** Midtermgrade */
+            midtermGrade?: string | null;
+            /** Finalgrade */
+            finalGrade?: string | null;
+            /** Remarks */
+            remarks?: string | null;
+            /** Incexpiresat */
+            incExpiresAt?: string | null;
+            /** Completiondeadline */
+            completionDeadline?: string | null;
+            /**
+             * Isdraft
+             * @default true
+             */
+            isDraft: boolean;
+            /**
+             * Islocked
+             * @default false
+             */
+            isLocked: boolean;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "MISSING" | "DRAFT" | "FINAL";
+            /** Submittedat */
+            submittedAt?: string | null;
+        };
+        /**
+         * SectionGradesRead
+         * @description Section grade sheet with enrolled marks, workflow state, version, deadline.
+         */
+        SectionGradesRead: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Sectionname */
+            sectionName: string;
+            /** Coursecode */
+            courseCode?: string | null;
+            /** Coursetitle */
+            courseTitle?: string | null;
+            /**
+             * Gradingmode
+             * @description Section grading mode (NUMERIC or PASS_FAIL).
+             * @default NUMERIC
+             * @enum {string}
+             */
+            gradingMode: "NUMERIC" | "PASS_FAIL";
+            /**
+             * Allowedmarks
+             * @description Allowed marks for the section's grading mode.
+             */
+            allowedMarks?: string[];
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "DRAFT" | "FINAL";
+            /** Version */
+            version: number;
+            /**
+             * Deadline
+             * Format: date-time
+             */
+            deadline: string;
+            /** Deadlinepassed */
+            deadlinePassed: boolean;
+            /** Submittedat */
+            submittedAt?: string | null;
+            /** Grades */
+            grades?: components["schemas"]["SectionGradeEntryRead"][];
+        };
+        /**
+         * SectionMeetingInput
+         * @description One meeting slot in a section create or update request.
+         */
+        SectionMeetingInput: {
+            /**
+             * Dayofweek
+             * @default 0
+             */
+            dayOfWeek: number;
+            /**
+             * Starttime
+             * Format: time
+             * @default 08:00:00
+             */
+            startTime: string;
+            /**
+             * Endtime
+             * Format: time
+             * @default 10:00:00
+             */
+            endTime: string;
+            /** Room */
+            room?: string | null;
+            /**
+             * Scheduletype
+             * @default lecture
+             */
+            scheduleType: string;
+        };
+        /**
+         * SectionMeetingRead
+         * @description Weekly meeting slot returned by admin section endpoints.
+         */
+        SectionMeetingRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Dayofweek */
+            dayOfWeek: number;
+            /**
+             * Starttime
+             * Format: time
+             */
+            startTime: string;
+            /**
+             * Endtime
+             * Format: time
+             */
+            endTime: string;
+            /** Room */
+            room?: string | null;
+            /** Scheduletype */
+            scheduleType: string;
         };
         /**
          * SignInAttemptRead
@@ -2584,6 +6790,107 @@ export interface components {
             created_at: string;
         };
         /**
+         * StudentDashboardData
+         * @description Aggregated sections of the student landing dashboard.
+         */
+        StudentDashboardData: {
+            student: components["schemas"]["StudentIdentityRead"];
+            current_term: components["schemas"]["AcademicTermRead"];
+            /** Holds */
+            holds?: components["schemas"]["HoldRead"][];
+            standing: components["schemas"]["ScholasticStandingRead"];
+            enrollment: components["schemas"]["EnrollmentSummaryRead"];
+            /** Periods */
+            periods?: components["schemas"]["AcademicPeriodRead"][];
+            /** Announcements */
+            announcements?: components["schemas"]["AnnouncementRead"][];
+            /** Events */
+            events?: components["schemas"]["AcademicEventRead"][];
+            /** Recent Activity */
+            recent_activity?: components["schemas"]["StudentRecentActivityRead"][];
+            empty_states: components["schemas"]["EmptyStatesRead"];
+        };
+        /**
+         * StudentDashboardResponse
+         * @description Root response envelope for the dashboard.
+         */
+        StudentDashboardResponse: {
+            /**
+             * Status
+             * @default success
+             */
+            status: string;
+            data: components["schemas"]["StudentDashboardData"];
+        };
+        /**
+         * StudentDegreeCourseProgressRead
+         * @description Per-course degree progress status for a student.
+         */
+        StudentDegreeCourseProgressRead: {
+            /**
+             * Courseid
+             * Format: uuid
+             */
+            courseId: string;
+            /** Coursecode */
+            courseCode: string;
+            /** Title */
+            title: string;
+            /** Units */
+            units: string;
+            /** Completed */
+            completed: boolean;
+            /** Substitutedbycourseid */
+            substitutedByCourseId?: string | null;
+            /** Substitutedbycoursecode */
+            substitutedByCourseCode?: string | null;
+        };
+        /**
+         * StudentDegreeProgressRead
+         * @description A student's curriculum degree progress, accounting for approved substitutions.
+         */
+        StudentDegreeProgressRead: {
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /** Curriculumid */
+            curriculumId?: string | null;
+            /** Completedunits */
+            completedUnits: string;
+            /** Totalunitsrequired */
+            totalUnitsRequired: string;
+            /** Completedcourseids */
+            completedCourseIds?: string[];
+            /** Completedcoursecodes */
+            completedCourseCodes?: string[];
+            /** Substitutedcourseids */
+            substitutedCourseIds?: {
+                [key: string]: string;
+            };
+            /** Courses */
+            courses?: components["schemas"]["StudentDegreeCourseProgressRead"][];
+        };
+        /**
+         * StudentIdentityRead
+         * @description The authenticated student's identity block.
+         */
+        StudentIdentityRead: {
+            /** Student Number */
+            student_number: string;
+            /** Name */
+            name: string;
+            /** Programme */
+            programme: string;
+            /** Year Level */
+            year_level: number;
+            /** Enrollment Status */
+            enrollment_status: string;
+            /** Avatar Url */
+            avatar_url?: string | null;
+        };
+        /**
          * StudentLoginRequest
          * @description Student number, birthdate, and password.
          *
@@ -2605,6 +6912,42 @@ export interface components {
             birthdate?: string | null;
             /** Password */
             password: string;
+        };
+        /**
+         * StudentProfileRead
+         * @description Student profile response with per-field editability and minimised contacts.
+         */
+        StudentProfileRead: {
+            /** Studentid */
+            studentId: string;
+            /** Avatarurl */
+            avatarUrl?: string | null;
+            /** Petitionroute */
+            petitionRoute: string;
+            /** Fields */
+            fields: {
+                [key: string]: components["schemas"]["cbpupsis_api_student__domains__student_profile__schemas__ProfileFieldEntry"];
+            };
+            /** Emergencycontacts */
+            emergencyContacts: components["schemas"]["EmergencyContactSummaryRead"][];
+            /** Message */
+            message?: string | null;
+        };
+        /**
+         * StudentRecentActivityRead
+         * @description A recent sign-in or security audit event shown on the dashboard.
+         */
+        StudentRecentActivityRead: {
+            /** Id */
+            id: string;
+            /** Occurred At */
+            occurred_at: string;
+            /** Type */
+            type: string;
+            /** Severity */
+            severity: string;
+            /** Description */
+            description: string;
         };
         /**
          * StudentSessionRead
@@ -2650,6 +6993,44 @@ export interface components {
             role: "student";
             /** Expires In */
             expires_in: number;
+        };
+        /**
+         * SubstitutionApprovalRead
+         * @description Response returned when a course substitution is approved.
+         */
+        SubstitutionApprovalRead: {
+            /**
+             * Originalcourseid
+             * Format: uuid
+             */
+            originalCourseId: string;
+            /**
+             * Substitutecourseid
+             * Format: uuid
+             */
+            substituteCourseId: string;
+            /** Studentids */
+            studentIds: string[];
+            /** Degreeprogress */
+            degreeProgress?: components["schemas"]["StudentDegreeProgressRead"][];
+        };
+        /**
+         * SubstitutionApproveRequest
+         * @description Payload to approve a course substitution for one or more students.
+         */
+        SubstitutionApproveRequest: {
+            /**
+             * Originalcourseid
+             * Format: uuid
+             */
+            originalCourseId: string;
+            /**
+             * Substitutecourseid
+             * Format: uuid
+             */
+            substituteCourseId: string;
+            /** Studentids */
+            studentIds: string[];
         };
         /** SuperadminEnrollmentRead */
         SuperadminEnrollmentRead: {
@@ -2708,6 +7089,49 @@ export interface components {
              */
             role: "superadmin";
         };
+        /** TermRead */
+        TermRead: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Academic Year */
+            academic_year: string;
+            /** Semester */
+            semester: string;
+            /**
+             * Start Date
+             * Format: date
+             */
+            start_date: string;
+            /**
+             * End Date
+             * Format: date
+             */
+            end_date: string;
+        };
+        /**
+         * TermSelection
+         * @description Send {} for the current configured term, or provide both stored selectors.
+         *
+         *     Blank strings are invalid. This selects a term; it does not change SIS
+         *     enrollment, term configuration or the student's Google account.
+         */
+        TermSelection: {
+            /**
+             * Year
+             * @description Stored academic year, not a calendar date. Pair with semester or omit both for the current configured term; do not send an empty string.
+             * @example 2026-2027
+             */
+            year?: string | null;
+            /**
+             * Semester
+             * @description Stored semester identifier, such as first, not a numeric position. Supply with year or omit both; do not send an empty string.
+             * @example first
+             */
+            semester?: string | null;
+        };
         /**
          * TokenPair
          * @description An access/refresh token pair, as returned by login and refresh.
@@ -2741,6 +7165,101 @@ export interface components {
         TotpEnrollmentRequest: {
             /** Challenge Token */
             challenge_token: string;
+        };
+        /**
+         * TranscriptRead
+         * @description Paginated term history with whole-record totals.
+         *
+         *     Every finalized attempt remains visible. All eligible attempts count
+         *     toward GWA, but each passed catalog course earns cumulative credit
+         *     only once. Decimal values are strings, not floating-point numbers.
+         */
+        TranscriptRead: {
+            student: components["schemas"]["RecordIdentity"];
+            /**
+             * Terms
+             * @description This page's term blocks, newest first.
+             */
+            terms?: components["schemas"]["TranscriptTerm"][];
+            /**
+             * Cumulative Gwa
+             * @description Whole-record completed-term GWA as a two-place Decimal string. Null with no eligible numeric units; independent of the requested page.
+             * @example 2.21
+             */
+            cumulative_gwa?: string | null;
+            /**
+             * Total Units Earned
+             * @description Whole-record earned units as a Decimal string, counting each passed catalog course once. Includes passes in ongoing terms.
+             * @default 0.0
+             */
+            total_units_earned: string;
+            /**
+             * Page
+             * @description Requested one-based term page.
+             */
+            page: number;
+            /**
+             * Limit
+             * @description Requested term-page size, default 20 and maximum 100.
+             */
+            limit: number;
+            /**
+             * Total
+             * @description Number of terms with published marks across all pages.
+             */
+            total: number;
+            /**
+             * Nextpage
+             * @description Next term page number, or null when no later page exists.
+             */
+            nextPage?: number | null;
+            /**
+             * State
+             * @description Whole-record availability. Remains available for an out-of-range page when other pages contain marks.
+             * @default empty
+             * @enum {string}
+             */
+            state: "available" | "empty";
+            /**
+             * Message
+             * @description Explanation when no posted marks exist anywhere in the record.
+             * @default No finalized marks are available.
+             */
+            message: string | null;
+        };
+        /**
+         * TranscriptTerm
+         * @description One term's posted attempts and running totals through that term.
+         */
+        TranscriptTerm: {
+            term: components["schemas"]["TermRead"];
+            /** Courses */
+            courses: components["schemas"]["GradeCourse"][];
+            /**
+             * Gwa
+             * @description Term GWA using the same rules as grades.
+             */
+            gwa: string | null;
+            /**
+             * Units Earned
+             * @description Unique passed-course units within this term.
+             */
+            units_earned: string;
+            /**
+             * Cumulative Gwa
+             * @description GWA from eligible attempts in completed terms up to this term; computed from unrounded totals, independently of pagination.
+             */
+            cumulative_gwa: string | null;
+            /**
+             * Total Units Earned
+             * @description Running earned units through this term, counting each passed catalog course only once across history.
+             */
+            total_units_earned: string;
+            /**
+             * Completed
+             * @description True when the term end date is before today's Asia/Manila date. Ongoing terms are visible but excluded from cumulative GWA.
+             */
+            completed: boolean;
         };
         /**
          * UnreadCount
@@ -2804,6 +7323,12 @@ export interface components {
             locale?: string | null;
             /** Phone Number */
             phone_number?: string | null;
+            /** Group */
+            group?: string | null;
+            /** Permissions */
+            permissions?: string[];
+            /** Page Permissions */
+            page_permissions?: string[];
         };
         /**
          * UserUpdate
@@ -2844,6 +7369,31 @@ export interface components {
             /** Context */
             ctx?: Record<string, never>;
         };
+        /** VerificationRead */
+        VerificationRead: {
+            /** Name */
+            name: string;
+            /** Studentnumber */
+            studentNumber: string;
+            term: components["schemas"]["VerificationTerm"];
+            /**
+             * Issuedat
+             * Format: date-time
+             */
+            issuedAt: string;
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "CURRENT" | "SUPERSEDED";
+        };
+        /** VerificationTerm */
+        VerificationTerm: {
+            /** Year */
+            year: string;
+            /** Semester */
+            semester: string;
+        };
         /**
          * VerifyEmailRequest
          * @description Payload for redeeming an email-verification token.
@@ -2864,6 +7414,80 @@ export interface components {
              * @constant
              */
             verify_only: true;
+        };
+        /** WaiverDecision */
+        WaiverDecision: {
+            /**
+             * Decision
+             * @enum {string}
+             */
+            decision: "APPROVE" | "REJECT";
+            /** Remarks */
+            remarks?: string | null;
+            /** Vpaareference */
+            vpaaReference?: string | null;
+        };
+        /** WaiverFile */
+        WaiverFile: {
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Prerequisitecoursecode */
+            prerequisiteCourseCode: string;
+            /**
+             * Condition
+             * @enum {string}
+             */
+            condition: "REPEATED_PREREQUISITE" | "SUPERIOR_STANDING" | "GRADUATING";
+            /** Justification */
+            justification: string;
+        };
+        /** WaiverFiled */
+        WaiverFiled: {
+            /**
+             * Waiverrequestid
+             * Format: uuid
+             */
+            waiverRequestId: string;
+            /** State */
+            state: string;
+        };
+        /** WaiverRead */
+        WaiverRead: {
+            /**
+             * Waiverrequestid
+             * Format: uuid
+             */
+            waiverRequestId: string;
+            /** State */
+            state: string;
+            /**
+             * Studentid
+             * Format: uuid
+             */
+            studentId: string;
+            /**
+             * Sectionid
+             * Format: uuid
+             */
+            sectionId: string;
+            /** Prerequisitecoursecode */
+            prerequisiteCourseCode: string;
+            /** Condition */
+            condition: string;
+            /** Justification */
+            justification: string;
+            /** Reviewremarks */
+            reviewRemarks: string | null;
+            /** Vpaareference */
+            vpaaReference: string | null;
+            /**
+             * Createdat
+             * Format: date-time
+             */
+            createdAt: string;
         };
         /** WebAuthnEnrollmentConfirmRequest */
         WebAuthnEnrollmentConfirmRequest: {
@@ -2903,6 +7527,26 @@ export interface components {
             /** Provisioning Uri */
             provisioning_uri: string;
         };
+        /**
+         * ProfileFieldEntry
+         * @description One faculty profile field with its value and self-service editability flag.
+         */
+        cbpupsis_api_faculty__domains__faculty_profile__schemas__ProfileFieldEntry: {
+            /** Value */
+            value: string | null;
+            /** Editable */
+            editable: boolean;
+        };
+        /**
+         * ProfileFieldEntry
+         * @description One profile field with its value and self-service editability flag.
+         */
+        cbpupsis_api_student__domains__student_profile__schemas__ProfileFieldEntry: {
+            /** Value */
+            value: string | number | null;
+            /** Editable */
+            editable: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -2912,123 +7556,6 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
-    login_api_v1_auth_login_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["LoginRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenPair"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    refresh_api_v1_auth_refresh_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RefreshRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["TokenPair"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    logout_api_v1_auth_logout_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["RefreshRequest"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    whoami_api_v1_auth_whoami_get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["CurrentUserRead"];
-                };
-            };
-        };
-    };
     verify_email_api_v1_auth_verify_email_post: {
         parameters: {
             query?: never;
@@ -3087,6 +7614,26 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_password_policy_api_v1_auth_password_policy_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasswordPolicyResponse"];
                 };
             };
         };
@@ -3178,104 +7725,6 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["TokenPair"];
                 };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    list_users_api_v1_users_get: {
-        parameters: {
-            query?: {
-                /** @description Filter by account status. Omit for both. */
-                is_active?: boolean | null;
-                /** @description Filter by email verification. Omit for both. */
-                is_verified?: boolean | null;
-                limit?: number;
-                offset?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["Page_UserRead_"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    create_user_api_v1_users_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["AccountCreate"];
-            };
-        };
-        responses: {
-            /** @description Successful Response */
-            201: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reissue_temporary_password_api_v1_users__user_id__reissue_temporary_password_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            204: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
             };
             /** @description Validation Error */
             422: {
@@ -3407,99 +7856,6 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
-            };
-        };
-    };
-    deactivate_user_api_v1_users__user_id__deactivate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    reactivate_user_api_v1_users__user_id__reactivate_post: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    read_user_api_v1_users__user_id__get: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                user_id: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["UserRead"];
-                };
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
             };
         };
     };
@@ -3693,11 +8049,13 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
+            cookie?: {
+                refresh_token?: string | null;
+            };
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["RefreshRequest"];
+                "application/json": components["schemas"]["RefreshRequest"] | null;
             };
         };
         responses: {
@@ -3768,6 +8126,540 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["StudentSessionRead"];
+                };
+            };
+        };
+    };
+    get_student_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentProfileRead"];
+                };
+            };
+        };
+    };
+    update_student_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentProfileRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    upload_student_avatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_student_avatar"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvatarUploadRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_student_avatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                avatar_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Binary image stream of the profile picture. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                    "image/jpeg": unknown;
+                    "image/png": unknown;
+                };
+            };
+            /** @description Avatar not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_student_emergency_contacts: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmergencyContactDetailRead"][];
+                };
+            };
+        };
+    };
+    create_student_emergency_contact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmergencyContactDetailRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_student_emergency_contact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_student_emergency_contact: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                contact_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmergencyContactDetailRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_account_api_v1_student_account_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountRead"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED: the student session has expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The student lacks the operation's permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND: non-student session or no owned record. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description SERVICE_UNAVAILABLE: financial data cannot be verified or the computed account exceeds supported storage precision. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_payments_api_v1_student_payments_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentRead"][];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED: the student session has expired. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The student lacks the operation's permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND: non-student session or no owned record. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_payment_api_v1_student_payments_post: {
+        parameters: {
+            query?: never;
+            header: {
+                /** @description Unique retry key scoped to the signed-in student. */
+                "Idempotency-Key": string;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PaymentCreate"];
+            };
+        };
+        responses: {
+            /** @description Hosted Xendit checkout created exactly once. */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentCreated"];
+                };
+            };
+            /** @description IDEMPOTENCY_KEY_REQUIRED */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A live student session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The required payment permission is missing. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PAYMENT_IN_PROGRESS */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description AMOUNT_EXCEEDS_BALANCE */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PAYMENT_GATEWAY_ERROR */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description PAYMENT_GATEWAY_TIMEOUT */
+            504: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_student_dashboard: {
+        parameters: {
+            query?: {
+                /** @description Target semester name */
+                semester?: string | null;
+                /** @description Target academic year (YYYY-YYYY) */
+                year?: string | null;
+                announcementLimit?: number;
+                eventLimit?: number;
+                activityLimit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentDashboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_my_student_dashboard: {
+        parameters: {
+            query?: {
+                /** @description Target semester name */
+                semester?: string | null;
+                /** @description Target academic year (YYYY-YYYY) */
+                year?: string | null;
+                announcementLimit?: number;
+                eventLimit?: number;
+                activityLimit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentDashboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_student_dashboard_by_id: {
+        parameters: {
+            query?: {
+                /** @description Target semester name */
+                semester?: string | null;
+                /** @description Target academic year (YYYY-YYYY) */
+                year?: string | null;
+                announcementLimit?: number;
+                eventLimit?: number;
+                activityLimit?: number;
+            };
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentDashboardResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
@@ -3934,6 +8826,1379 @@ export interface operations {
             };
         };
     };
+    read_grades_api_v1_student_grades_get: {
+        parameters: {
+            query?: {
+                /** @description Academic-year label exactly as stored. Supply together with semester, or omit both to select the latest term with posted marks. */
+                year?: string | null;
+                /** @description Semester label exactly as stored, including letter case. Required when year is supplied; blank or unpaired filters return 422. */
+                semester?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradesRead"];
+                };
+            };
+            /** @description Missing or invalid access token, expired/revoked session, or inactive account. A live authenticated session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing the required read permission, or a temporary password must be changed (PASSWORD_CHANGE_REQUIRED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND: the session is not a student session or no student record is available. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description GRADE_RECORD_UNAVAILABLE: stored academic data cannot be safely read. No partial or fabricated record is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_transcript_api_v1_student_transcript_get: {
+        parameters: {
+            query?: {
+                /** @description One-based page of academic terms, newest first. A page beyond the last returns empty terms while preserving overall totals. */
+                page?: number;
+                /** @description Maximum term blocks per page, not courses. Defaults to 20 and accepts 1 through 100; never changes cumulative totals. */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TranscriptRead"];
+                };
+            };
+            /** @description Missing or invalid access token, expired/revoked session, or inactive account. A live authenticated session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing the required read permission, or a temporary password must be changed (PASSWORD_CHANGE_REQUIRED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND: the session is not a student session or no student record is available. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description GRADE_RECORD_UNAVAILABLE: stored academic data cannot be safely read. No partial or fabricated record is returned. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    export_transcript_api_v1_student_transcript_export_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete unofficial student transcript as a private PDF attachment, including an explanatory empty transcript if no finalized marks are available. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description Missing or invalid access token, expired/revoked session, or inactive account. A live authenticated session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing the required read permission, or a temporary password must be changed (PASSWORD_CHANGE_REQUIRED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND: the session is not a student session or no student record is available. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GRADE_RECORD_UNAVAILABLE: academic data is inconsistent, or PDF rendering failed or exceeded its time limit. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_student_waiver_requests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaiverRead"][];
+                };
+            };
+            /** @description A live student bearer session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ReadEnrollment permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    file_waiver_api_v1_student_enrollment_waiver_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaiverFile"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaiverFiled"];
+                };
+            };
+            /** @description ENROLL_PREREQUISITE_NOT_MET when the student meets none of the waiver conditions, or ENROLL_WAIVER_PENDING when a live waiver already exists for the section. Eligibility is verified server-side. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_student_overload_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverloadRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverloadRequestFiledRead"];
+                };
+            };
+            /** @description ENROLL_OVERLOAD_NOT_ELIGIBLE or ENROLL_OVERLOAD_CAP_EXCEEDED. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    submit_student_enrollment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EnrollmentSubmitRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentSubmitRead"];
+                };
+            };
+            /** @description A live student bearer session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CreateEnrollment permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The term or a selected section is not available to the signed-in student's curriculum. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The first failed enrollment check. Codes, in order: ENROLL_PERIOD_CLOSED, ENROLL_FINANCIAL_HOLD, ENROLL_HOLD_ACTIVE, ENROLL_STANDING_BLOCKED, ENROLL_UNIT_CEILING_EXCEEDED, ENROLL_OVERLOAD_CAP_EXCEEDED, ENROLL_SUMMER_SUBJECT_LIMIT, ENROLL_SCHEDULE_CONFLICT, ENROLL_PREREQUISITE_NOT_MET, ENROLL_THIRD_YEAR_GATE, ENROLL_PE_SEQUENCE, ENROLL_WAIVER_PENDING, ENROLL_ACADEMIC_DATA_UNAVAILABLE, ENROLL_DUPLICATE_COURSE, ENROLL_ASSESSMENT_UNAVAILABLE and ENROLL_SECTION_FULL. No enrollment or seat is written. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_student_enrollment_available_courses: {
+        parameters: {
+            query: {
+                /** @description Academic-term UUID, as returned by eligibility. */
+                academicTermId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AvailableCourseRead"][];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_student_enrollment_eligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentEligibilityRead"];
+                };
+            };
+        };
+    };
+    list_student_add_drop_requests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddDropRequestRead"][];
+                };
+            };
+            /** @description A live student bearer session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ReadAddDropRequest permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    create_student_add_drop_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddDropRequestCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddDropRequestRead"];
+                };
+            };
+            /** @description A live student bearer session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CreateAddDropRequest permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Filing refusal; no request is created. ENROLL_ADD_DROP_PERIOD_CLOSED (details periodStart, periodEnd), ENROLL_BELOW_MINIMUM_LOAD (details minimumLoad, unitsAfter), REQUEST_ALREADY_PENDING, or any submit check on an addition: ENROLL_FINANCIAL_HOLD, ENROLL_HOLD_ACTIVE, ENROLL_STANDING_BLOCKED, ENROLL_UNIT_CEILING_EXCEEDED, ENROLL_OVERLOAD_CAP_EXCEEDED, ENROLL_SUMMER_SUBJECT_LIMIT, ENROLL_SCHEDULE_CONFLICT, ENROLL_PREREQUISITE_NOT_MET, ENROLL_THIRD_YEAR_GATE, ENROLL_PE_SEQUENCE, ENROLL_WAIVER_PENDING, ENROLL_DUPLICATE_COURSE, ENROLL_SECTION_FULL. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_student_add_drop_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AddDropRequestRead"];
+                };
+            };
+            /** @description A live student bearer session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ReadAddDropRequest permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Resource not found. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_schedule_api_v1_student_schedule_get: {
+        parameters: {
+            query?: {
+                /** @description Stored academic-year string, not a calendar-year integer. Supply with semester, or omit both to use the current academic term. */
+                year?: string | null;
+                /** @description Semester identifier as stored for the academic term. Supply with year, or omit both for the current term; a single selector is rejected. */
+                semester?: string | null;
+                /** @description Case-insensitive substring search across course code, course title and faculty name. Blank or whitespace-only values restore all courses. Only returned rows and totals are filtered; enrollment is never changed. */
+                q?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Caller-owned courses and totals, or explained empty state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScheduleRead"];
+                };
+            };
+            /** @description Missing, invalid, expired or inactive student bearer session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller is not a student or lacks ReadSchedule permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND: no accessible student identity. Foreign and nonexistent student numbers receive indistinguishable ownership errors. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid query parameters: supply year and semester together with nonblank values, respect field lengths and use a supported export format. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description SERVICE_UNAVAILABLE: schedule data or generation unavailable. */
+            503: {
+                headers: {
+                    /** @description Wait 30 seconds before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    export_schedule_api_v1_student_schedule_export_get: {
+        parameters: {
+            query: {
+                /** @description Required download format: pdf for printing, ics for calendar import. */
+                format: "pdf" | "ics";
+                /** @description Stored academic-year string, not a calendar-year integer. Supply with semester, or omit both to use the current academic term. */
+                year?: string | null;
+                /** @description Semester identifier as stored for the academic term. Supply with year, or omit both for the current term; a single selector is rejected. */
+                semester?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Complete schedule file attachment in the requested format. */
+            200: {
+                headers: {
+                    /** @description Attachment named course-schedule.pdf or course-schedule.ics. */
+                    "Content-Disposition"?: string;
+                    /** @description Private document; must not be stored in caches. */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": string;
+                    "text/calendar": string;
+                };
+            };
+            /** @description Missing, invalid, expired or inactive student bearer session. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The caller is not a student or lacks ReadSchedule permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND: no accessible student identity. Foreign and nonexistent student numbers receive indistinguishable ownership errors. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid query parameters: supply year and semester together with nonblank values, respect field lengths and use a supported export format. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description SERVICE_UNAVAILABLE: schedule data or generation unavailable. */
+            503: {
+                headers: {
+                    /** @description Wait 30 seconds before retrying. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_connection_api_v1_student_schedule_google_calendar_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionRead"];
+                };
+            };
+            /** @description Invalid/incomplete term selectors, or GOOGLE_CALENDAR_INVALID_STATE for an expired, replayed, superseded or foreign-session OAuth attempt. Start fresh authorization. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, expired or invalid SIS student bearer session. Google credentials are not SIS access tokens. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A live student role is required. All operations except disconnect also require ReadSchedule permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GOOGLE_CALENDAR_CONFLICT: inspect connection status. Authorization conflicts with an existing connection/pending revocation; sync conflicts with a missing connection, active job or term limit. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GOOGLE_CALENDAR_UNAVAILABLE: integration is disabled, provider authorization/validation failed or the callback timed out. Retry-After: 30. A failed callback needs fresh authorization, not replay of the same code/state. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    disconnect_calendar_api_v1_student_schedule_google_calendar_delete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionRead"];
+                };
+            };
+            /** @description Invalid/incomplete term selectors, or GOOGLE_CALENDAR_INVALID_STATE for an expired, replayed, superseded or foreign-session OAuth attempt. Start fresh authorization. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, expired or invalid SIS student bearer session. Google credentials are not SIS access tokens. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A live student role is required. All operations except disconnect also require ReadSchedule permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GOOGLE_CALENDAR_CONFLICT: inspect connection status. Authorization conflicts with an existing connection/pending revocation; sync conflicts with a missing connection, active job or term limit. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GOOGLE_CALENDAR_UNAVAILABLE: integration is disabled, provider authorization/validation failed or the callback timed out. Retry-After: 30. A failed callback needs fresh authorization, not replay of the same code/state. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    begin_authorization_api_v1_student_schedule_google_calendar_authorization_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermSelection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthorizationRead"];
+                };
+            };
+            /** @description Invalid/incomplete term selectors, or GOOGLE_CALENDAR_INVALID_STATE for an expired, replayed, superseded or foreign-session OAuth attempt. Start fresh authorization. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, expired or invalid SIS student bearer session. Google credentials are not SIS access tokens. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A live student role is required. All operations except disconnect also require ReadSchedule permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GOOGLE_CALENDAR_CONFLICT: inspect connection status. Authorization conflicts with an existing connection/pending revocation; sync conflicts with a missing connection, active job or term limit. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description GOOGLE_CALENDAR_UNAVAILABLE: integration is disabled, provider authorization/validation failed or the callback timed out. Retry-After: 30. A failed callback needs fresh authorization, not replay of the same code/state. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    complete_authorization_api_v1_student_schedule_google_calendar_callback_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OAuthCallback"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionRead"];
+                };
+            };
+            /** @description Invalid/incomplete term selectors, or GOOGLE_CALENDAR_INVALID_STATE for an expired, replayed, superseded or foreign-session OAuth attempt. Start fresh authorization. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, expired or invalid SIS student bearer session. Google credentials are not SIS access tokens. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A live student role is required. All operations except disconnect also require ReadSchedule permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GOOGLE_CALENDAR_CONFLICT: inspect connection status. Authorization conflicts with an existing connection/pending revocation; sync conflicts with a missing connection, active job or term limit. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description GOOGLE_CALENDAR_UNAVAILABLE: integration is disabled, provider authorization/validation failed or the callback timed out. Retry-After: 30. A failed callback needs fresh authorization, not replay of the same code/state. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    request_synchronization_api_v1_student_schedule_google_calendar_sync_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TermSelection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionRead"];
+                };
+            };
+            /** @description Invalid/incomplete term selectors, or GOOGLE_CALENDAR_INVALID_STATE for an expired, replayed, superseded or foreign-session OAuth attempt. Start fresh authorization. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing, expired or invalid SIS student bearer session. Google credentials are not SIS access tokens. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A live student role is required. All operations except disconnect also require ReadSchedule permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GOOGLE_CALENDAR_CONFLICT: inspect connection status. Authorization conflicts with an existing connection/pending revocation; sync conflicts with a missing connection, active job or term limit. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description GOOGLE_CALENDAR_UNAVAILABLE: integration is disabled, provider authorization/validation failed or the callback timed out. Retry-After: 30. A failed callback needs fresh authorization, not replay of the same code/state. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    read_payment_api_v1_student_payments__payment_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PaymentStatusRead"];
+                };
+            };
+            /** @description A live student session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The required payment permission is missing. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    payment_receipt_api_v1_student_payments__payment_id__receipt_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                payment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/pdf": unknown;
+                };
+            };
+            /** @description A live student session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The required payment permission is missing. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    xendit_webhook_api_v1_public_payments_webhooks_xendit_post: {
+        parameters: {
+            query?: never;
+            header?: {
+                "x-callback-token"?: string | null;
+                "webhook-id"?: string | null;
+            };
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: boolean;
+                    };
+                };
+            };
+            /** @description WEBHOOK_SIGNATURE_INVALID */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_api_v1_student_schedule_cor_get: {
+        parameters: {
+            query: {
+                /** @description Academic-term UUID, as returned by eligibility. */
+                academicTermId: string;
+                format?: "pdf" | "json";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CertificateRead"];
+                    "application/pdf": string;
+                };
+            };
+            /** @description A live student bearer session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Student role and operation permission are required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description COR_NOT_ENROLLED, or COR_ENROLLMENT_NOT_FINAL with details.unmet: HOLD, PREREQUISITE_VIOLATION, NO_ASSESSMENT. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description SERVICE_UNAVAILABLE; no partial document. Includes unavailable dependency, encryption or renderer. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    issue_api_v1_student_schedule_cor_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IssueCertificate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CertificateMetadata"];
+                };
+            };
+            /** @description A live student bearer session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Student role and operation permission are required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description COR_NOT_ENROLLED, or COR_ENROLLMENT_NOT_FINAL with details.unmet: HOLD, PREREQUISITE_VIOLATION, NO_ASSESSMENT. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description SERVICE_UNAVAILABLE; no partial document. Includes unavailable dependency, encryption or renderer. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    assessment_api_v1_student_assessment_get: {
+        parameters: {
+            query: {
+                /** @description Academic-term UUID, as returned by eligibility. */
+                academicTermId: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssessmentRead"];
+                };
+            };
+            /** @description A live student bearer session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Student role and operation permission are required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description COR_NOT_ENROLLED, or COR_ENROLLMENT_NOT_FINAL with details.unmet: HOLD, PREREQUISITE_VIOLATION, NO_ASSESSMENT. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description SERVICE_UNAVAILABLE; no partial document. Includes unavailable dependency, encryption or renderer. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    verify_api_v1_public_cor_verify__token__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["VerificationRead"];
+                };
+            };
+            /** @description RESOURCE_NOT_FOUND: unknown or malformed token. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description rate_limited: at most ten checks/minute/IP across all tokens. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description SERVICE_UNAVAILABLE; no partial document. Includes unavailable dependency, encryption or renderer. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     faculty_login: {
         parameters: {
             query?: never;
@@ -4071,11 +10336,13 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
+            cookie?: {
+                refresh_token?: string | null;
+            };
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["RefreshRequest"];
+                "application/json": components["schemas"]["RefreshRequest"] | null;
             };
         };
         responses: {
@@ -4150,7 +10417,90 @@ export interface operations {
             };
         };
     };
-    list_sections_api_v1_sections_get: {
+    get_faculty_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacultyProfileRead"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong role (AUTH_INSUFFICIENT_ROLE), missing permission, or locked field (PROFILE_FIELD_LOCKED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    update_faculty_profile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": {
+                    [key: string]: unknown;
+                };
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacultyProfileRead"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong role (AUTH_INSUFFICIENT_ROLE), missing permission, or locked field (PROFILE_FIELD_LOCKED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_sections_api_v1_faculty_sections_get: {
         parameters: {
             query?: {
                 limit?: number;
@@ -4182,9 +10532,14 @@ export interface operations {
             };
         };
     };
-    section_roster_api_v1_sections__section_id__roster_get: {
+    section_roster_api_v1_faculty_sections__section_id__roster_get: {
         parameters: {
-            query?: never;
+            query?: {
+                enrollmentStatus?: components["schemas"]["EnrollmentStatus"] | null;
+                gradeStatus?: components["schemas"]["GradeStatus"] | null;
+                limit?: number;
+                offset?: number;
+            };
             header?: never;
             path: {
                 section_id: string;
@@ -4210,6 +10565,686 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    export_section_roster_api_v1_faculty_sections__section_id__roster_export_get: {
+        parameters: {
+            query?: {
+                format?: "csv";
+                enrollmentStatus?: components["schemas"]["EnrollmentStatus"] | null;
+                gradeStatus?: components["schemas"]["GradeStatus"] | null;
+            };
+            header?: never;
+            path: {
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    section_student_api_v1_faculty_sections__section_id__roster__student_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                section_id: string;
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacultyStudentRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    section_student_record_api_v1_faculty_sections__section_id__roster__student_id__record_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                section_id: string;
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FacultyStudentRecordRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_faculty_section_grades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Course section UUID assigned to the faculty member. */
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectionGradesRead"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong role (AUTH_INSUFFICIENT_ROLE), missing permission, or grade deadline passed (GRADE_DEADLINE_PASSED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when the section does not exist or is not assigned to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_faculty_section_grade_deadline: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Course section UUID assigned to the faculty member. */
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GradeDeadlineRead"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong role (AUTH_INSUFFICIENT_ROLE), missing permission, or grade deadline passed (GRADE_DEADLINE_PASSED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when the section does not exist or is not assigned to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_faculty_section_grade_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Course section UUID assigned to the faculty member. */
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveGradeDraftRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SectionGradesRead"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong role (AUTH_INSUFFICIENT_ROLE), missing permission, or grade deadline passed (GRADE_DEADLINE_PASSED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when the section does not exist or is not assigned to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GRADES_LOCKED if already finalized, or VERSION_CONFLICT if the draft version is stale. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GRADE_MODE_MISMATCH with gradingMode and allowedMarks when a mark does not fit the section's grading mode, or VALIDATION_ERROR naming offending student row(s) when marks are invalid. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    finalize_faculty_section_grades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Course section UUID assigned to the faculty member. */
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["FinalizeGradesRequest"] | null;
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FinalizeGradesRead"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GRADE_DEADLINE_PASSED with deadline when the submission deadline has passed. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when the section does not exist or is not assigned to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GRADES_LOCKED if already finalized, or VERSION_CONFLICT if a supplied version is stale. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GRADE_MODE_MISMATCH with gradingMode and allowedMarks when a mark does not fit the section's grading mode, or VALIDATION_ERROR naming student row(s) with missing or invalid marks; section stays DRAFT. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_faculty_section_incompletes: {
+        parameters: {
+            query?: {
+                state?: ("PENDING_COMPLETION" | "COMPLETED" | "EXPIRED") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path: {
+                /** @description Course section UUID assigned to the faculty member. */
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IncompleteGradeRead_"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong role (AUTH_INSUFFICIENT_ROLE), missing permission, or grade deadline passed (GRADE_DEADLINE_PASSED). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when the section does not exist or is not assigned to the caller. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    file_faculty_grade_correction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_file_faculty_grade_correction"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionRead"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED or AUTH_MFA_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description CORRECTION_WINDOW_CLOSED with windowClosedAt. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND for a missing or unowned resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description FILE_TOO_LARGE (maximum 10 MB). */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description UNSUPPORTED_MEDIA_TYPE; content must be PDF, JPEG or PNG. */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VALIDATION_ERROR for an invalid filing or nonfinal grade. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description GRADE_RECORD_UNAVAILABLE: missing calendar/catalog scope. */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_faculty_grade_corrections: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionPage"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED or AUTH_MFA_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description AUTH_INSUFFICIENT_ROLE or missing permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND for a missing or unowned resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_faculty_grade_correction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                correction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionRead"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED or AUTH_MFA_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description AUTH_INSUFFICIENT_ROLE or missing permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND for a missing or unowned resource. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_faculty_incompletes: {
+        parameters: {
+            query?: {
+                state?: ("PENDING_COMPLETION" | "COMPLETED" | "EXPIRED") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IncompleteGradeRead_"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong role (AUTH_INSUFFICIENT_ROLE) or missing permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when the Inc record does not exist or belongs to another faculty member's section. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    file_faculty_incomplete_completion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Identifier of the finalized Incomplete grade row. */
+                inc_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateIncompleteCompletionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncompleteCompletionRead"];
+                };
+            };
+            /** @description Session expired (AUTH_SESSION_EXPIRED) or MFA required (AUTH_MFA_REQUIRED). */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Wrong role (AUTH_INSUFFICIENT_ROLE) or missing permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when the Inc record does not exist or belongs to another faculty member's section. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description INC_COMPLETION_WINDOW_CLOSED if already expired to 5.00, INC_ALREADY_COMPLETED, or INC_COMPLETION_PENDING. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description VALIDATION_ERROR when proposed mark is outside 1.00 to 3.00 or completion form is missing. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -4416,11 +11451,13 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
+            cookie?: {
+                refresh_token?: string | null;
+            };
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["RefreshRequest"];
+                "application/json": components["schemas"]["RefreshRequest"] | null;
             };
         };
         responses: {
@@ -4492,6 +11529,411 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["AdminSessionRead"];
                 };
+            };
+        };
+    };
+    get_admin_enrollment_report: {
+        parameters: {
+            query?: {
+                termId?: string | null;
+                programCode?: string | null;
+                status?: string | null;
+                groupBy?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EnrollmentReportRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    export_admin_enrollment_report: {
+        parameters: {
+            query?: {
+                termId?: string | null;
+                programCode?: string | null;
+                status?: string | null;
+                groupBy?: string;
+                format?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_admin_overload_requests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverloadRequestRead"][];
+                };
+            };
+        };
+    };
+    decide_admin_overload_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                overload_request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OverloadDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OverloadRequestRead"];
+                };
+            };
+            /** @description RESOURCE_NOT_FOUND when outside the Dean's college. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description REQUEST_ALREADY_DECIDED. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DECISION_REMARKS_REQUIRED for a blank rejection. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_admin_add_drop_requests: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAddDropRequestRead"][];
+                };
+            };
+            /** @description An admin session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ReadAddDropRequest permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    decide_admin_add_drop_request: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                request_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AddDropDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAddDropRequestRead"];
+                };
+            };
+            /** @description An admin session is required. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ApproveAddDrop permission is required. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when outside the Chair's department or Dean's college. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description REQUEST_ALREADY_DECIDED, REQUEST_CONCURRENCY_CONFLICT, the submit check codes for additions, or COR_ENROLLMENT_NOT_FINAL when the assessment or certificate cannot be updated. Nothing changes on a refusal. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DECISION_REMARKS_REQUIRED for a blank rejection. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    get_admin_fee_structure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeeStructureRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    save_admin_fee_structure: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                term_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FeeStructureSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeeStructureRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_admin_incomplete_completions: {
+        parameters: {
+            query?: {
+                state?: ("PENDING_DEAN" | "ENDORSED" | "REJECTED" | "EXPIRED") | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_IncompleteCompletionRead_"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED or AUTH_MFA_REQUIRED when the Admin session is missing or unverified. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ApproveIncompleteCompletion permission is required (College Dean only). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_admin_incomplete_completion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                completion_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["IncompleteCompletionDecisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncompleteCompletionRead"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED or AUTH_MFA_REQUIRED when the Admin session is missing or unverified. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ApproveIncompleteCompletion permission is required (College Dean only). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND when the completion does not exist or belongs to another college. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description INC_COMPLETION_WINDOW_CLOSED if already expired to 5.00, REQUEST_ALREADY_DECIDED, or VERSION_CONFLICT. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DECISION_REMARKS_REQUIRED when rejecting without remarks. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -5010,6 +12452,197 @@ export interface operations {
             };
         };
     };
+    list_users_api_v1_admin_users_get: {
+        parameters: {
+            query?: {
+                /** @description Filter by account status. Omit for both. */
+                is_active?: boolean | null;
+                /** @description Filter by email verification. Omit for both. */
+                is_verified?: boolean | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_UserRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_user_api_v1_admin_users_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reissue_temporary_password_api_v1_admin_users__user_id__reissue_temporary_password_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    deactivate_user_api_v1_admin_users__user_id__deactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    reactivate_user_api_v1_admin_users__user_id__reactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    read_user_api_v1_admin_users__user_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     login_superadmin_api_v1_auth_superadmin_login_post: {
         parameters: {
             query?: never;
@@ -5147,11 +12780,13 @@ export interface operations {
             query?: never;
             header?: never;
             path?: never;
-            cookie?: never;
+            cookie?: {
+                refresh_token?: string | null;
+            };
         };
-        requestBody: {
+        requestBody?: {
             content: {
-                "application/json": components["schemas"]["RefreshRequest"];
+                "application/json": components["schemas"]["RefreshRequest"] | null;
             };
         };
         responses: {
@@ -5323,7 +12958,7 @@ export interface operations {
             };
         };
     };
-    import_users_api_v1_users_import_post: {
+    import_users_api_v1_admin_users_import_post: {
         parameters: {
             query?: never;
             header?: never;
@@ -5332,7 +12967,7 @@ export interface operations {
         };
         requestBody: {
             content: {
-                "multipart/form-data": components["schemas"]["Body_import_users_api_v1_users_import_post"];
+                "multipart/form-data": components["schemas"]["Body_import_users_api_v1_admin_users_import_post"];
             };
         };
         responses: {
@@ -5353,6 +12988,578 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    list_waivers_api_v1_admin_waiver_requests_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_WaiverRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_waiver_api_v1_admin_waiver_requests__waiverRequestId__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                waiverRequestId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WaiverDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WaiverRead"];
+                };
+            };
+            /** @description RESOURCE_NOT_FOUND, including outside-scope targets. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description ENROLL_WAIVER_STEP_MISMATCH or REQUEST_ALREADY_DECIDED. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DECISION_REMARKS_REQUIRED for rejection; VALIDATION_ERROR for final approval without vpaaReference. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    list_admin_catalog_courses: {
+        parameters: {
+            query?: {
+                search?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Page_CatalogCourseRead_"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_admin_catalog_course: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogCourseCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogCourseRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_admin_catalog_course: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                course_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CatalogCourseUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CatalogCourseRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    publish_admin_curriculum_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                program_code: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CurriculumVersionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CurriculumVersionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_admin_curriculum_version: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                program_code: string;
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    delete_admin_curriculum_version_by_id: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                version_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    create_admin_catalog_section: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSectionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSectionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    update_admin_catalog_section: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                section_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSectionRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    approve_admin_course_substitution: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SubstitutionApproveRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SubstitutionApprovalRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_student_degree_progress: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                student_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["StudentDegreeProgressRead"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    list_admin_grade_corrections: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionPage"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED or AUTH_MFA_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing permission, Finance denial or APPROVAL_SAME_ACTOR. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND for missing or out-of-scope corrections. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_admin_grade_correction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                correction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionRead"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED or AUTH_MFA_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing permission, Finance denial or APPROVAL_SAME_ACTOR. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND for missing or out-of-scope corrections. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    decide_admin_grade_correction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                correction_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CorrectionDecision"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CorrectionRead"];
+                };
+            };
+            /** @description AUTH_SESSION_EXPIRED or AUTH_MFA_REQUIRED. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Missing permission, Finance denial or APPROVAL_SAME_ACTOR. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description RESOURCE_NOT_FOUND for missing or out-of-scope corrections. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description APPROVAL_OUT_OF_ORDER or VERSION_CONFLICT; nothing changes. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description DECISION_REMARKS_REQUIRED when rejecting without remarks. */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
