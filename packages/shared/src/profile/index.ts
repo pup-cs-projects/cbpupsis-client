@@ -7,3 +7,4 @@ export {
   type StudentProfile,
   type StudentProfileApi,
 } from "./student";
+export * from "./faculty";

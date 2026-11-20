@@ -4,7 +4,7 @@ import { ApiError } from "@cbpupsis/shared/api";
 import type { Correction, CorrectionSource } from "@cbpupsis/shared/grades/corrections";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { createMemoryHistory, createRoute, RouterProvider } from "@tanstack/react-router";
-import { render, cleanup, screen, waitFor } from "@testing-library/react";
+import { act, render, cleanup, fireEvent, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, afterEach, it, expect, vi } from "vitest";
 import axe from "axe-core";
@@ -90,12 +90,17 @@ afterEach(async () => {
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
-function open(source = sourceFor(), role = "chairperson") {
+function open(
+  source = sourceFor(),
+  role = "chairperson",
+  apiRoutes?: Parameters<typeof mockApi>[0],
+) {
   signInDirectly();
-  mockApi({
+  const http = mockApi({
     "GET /admin/me": { status: 200, body: { ...me, position: role } },
     "GET /users/me": { status: 200, body: { full_name: "Reviewer", email: me.email } },
     "POST /auth/admin/logout": { status: 204 },
+    ...apiRoutes,
   });
   const router = createPortalRouter({
     config: account,
@@ -106,7 +111,7 @@ function open(source = sourceFor(), role = "chairperson") {
       createRoute({
         getParentRoute: () => root,
         path: "/grade-corrections",
-        component: () => <GradeCorrectionsPage dataSource={source} />,
+        component: () => <GradeCorrectionsPage dataSource={apiRoutes ? undefined : source} />,
       }),
     ],
   });
@@ -123,6 +128,7 @@ function open(source = sourceFor(), role = "chairperson") {
       </QueryClientProvider>,
     ),
     source,
+    ...http,
     user: userEvent.setup(),
   };
 }
@@ -222,3 +228,101 @@ it("has no axe violations", async () => {
     (await axe.run(container, { rules: { "color-contrast": { enabled: false } } })).violations,
   ).toEqual([]);
 });
+
+it("returns keyboard focus to the triggering row after an asynchronous details load", async () => {
+  const source = sourceFor();
+  let complete!: (value: Correction) => void;
+  vi.mocked(source.detail).mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const { user } = open(source);
+  const trigger = await screen.findByRole("button", { name: "View correction for Ana Santos" });
+  await user.click(trigger);
+  await waitFor(() => expect(trigger).toBeDisabled());
+  trigger.blur();
+  await act(async () => complete(record));
+  const dialog = await screen.findByRole("dialog");
+  // jsdom does not implement the native dialog cancel event produced by Escape.
+  fireEvent(dialog, new Event("cancel", { cancelable: true }));
+  await waitFor(() => expect(trigger).toHaveFocus());
+});
+
+it.each(["chairperson", "dean", "registrar", "finance"])(
+  "AC-FAC-002.2/.3: the published adapter uses admin-only records and decisions for %s",
+  async (role) => {
+    const state =
+      role === "dean"
+        ? "PENDING_DEAN"
+        : role === "registrar"
+          ? "PENDING_REGISTRAR"
+          : "PENDING_CHAIR";
+    const wire = {
+      id: "live-correction",
+      gradeId: "grade-1",
+      studentId: "student-1",
+      sectionId: "section-1",
+      facultyId: "faculty-author",
+      currentMark: "2.00",
+      proposedMark: "1.50",
+      reason: "Transcription error",
+      gradingSheetFileId: "private-file",
+      gradingSheetContentType: "application/pdf",
+      gradingSheetSize: 2048,
+      state,
+      version: 1,
+      chairApprovedBy: role === "dean" || role === "registrar" ? "other-chair" : null,
+      deanApprovedBy: role === "registrar" ? "other-dean" : null,
+      registrarApprovedBy: null,
+      rejectedBy: null,
+      rejectionRemarks: null,
+      windowClosedAt: "2027-05-01T00:00:00Z",
+      createdAt: "2026-11-19T01:00:00Z",
+    };
+    const updated = {
+      ...wire,
+      state:
+        role === "registrar" ? "COMMITTED" : role === "dean" ? "PENDING_REGISTRAR" : "PENDING_DEAN",
+      version: 2,
+      ...(role === "registrar"
+        ? { registrarApprovedBy: me.id }
+        : role === "dean"
+          ? { deanApprovedBy: me.id }
+          : { chairApprovedBy: me.id }),
+    };
+    const { user, called, calls } = open(sourceFor(), role, {
+      "GET /admin/grade-corrections": {
+        status: 200,
+        body: { items: [wire], total: 1, limit: 100, offset: 0 },
+      },
+      "GET /admin/grade-corrections/live-correction": { status: 200, body: wire },
+      "PATCH /admin/grade-corrections/live-correction": { status: 200, body: updated },
+    });
+    if (role === "finance") {
+      await screen.findByText("This page is not available to your role.");
+      expect(called("GET /admin/grade-corrections")).toHaveLength(0);
+      return;
+    }
+    await user.click(
+      await screen.findByRole("button", { name: "View correction for Student ID: student-1" }),
+    );
+    await screen.findByRole("dialog");
+    expect(screen.getByRole("dialog")).toHaveTextContent("Section ID: section-1");
+    expect(screen.queryByText("Ana Santos")).not.toBeInTheDocument();
+    await user.click(
+      screen.getByRole("button", { name: role === "registrar" ? "Commit correction" : "Endorse" }),
+    );
+    await screen.findByText(
+      role === "registrar"
+        ? /Correction committed\./
+        : /Correction endorsed for the next approval step\./,
+    );
+    expect(called("PATCH /admin/grade-corrections/live-correction")[0]?.body).toEqual({
+      action: role === "registrar" ? "COMMIT" : "ENDORSE",
+      version: 1,
+    });
+    expect(calls.some((call) => call.route.includes("/faculty/"))).toBe(false);
+  },
+);

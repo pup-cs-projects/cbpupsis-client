@@ -1,4 +1,3 @@
-import { SampleDataNotice } from "../../components/SampleDataNotice";
 import { gradingErrorMessage } from "@cbpupsis/shared/grades";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
@@ -6,6 +5,7 @@ import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { useMe } from "../sign-in/useFacultyAuth";
 import { facultyGradingDataSource, type FacultyGradingDataSource } from "./dataSource";
 import { gradeButton, gradeCard } from "./gradeStyles";
+import { CourseSectionHeading } from "../sections/CourseSectionHeading";
 
 export function GradeSectionsPage({
   dataSource = facultyGradingDataSource,
@@ -23,12 +23,11 @@ export function GradeSectionsPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
-        <SampleDataNotice />
         <header>
           <p className="text-brand-muted text-sm">Academics / Grades</p>
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Grade submission</h1>
           <p className="text-brand-muted mt-2 text-sm">
-            Select an assigned section to enter, review, and finalize its grades.
+            Select a course and section to enter, review, and finalize its grades.
           </p>
         </header>
         {error ? (
@@ -48,16 +47,20 @@ export function GradeSectionsPage({
             {sections.data.map((section) => (
               <article className={gradeCard} key={section.id}>
                 <p className="text-brand-muted text-xs font-semibold">{section.termLabel}</p>
-                <h2 className="mt-2 text-lg font-bold">
-                  {section.courseCode} · {section.courseTitle}
-                </h2>
-                <p className="text-brand-muted mt-2 text-sm">
-                  {section.sectionName} · {section.studentCount} students
-                </p>
+                <CourseSectionHeading
+                  section={section}
+                  ownerId={me.data?.id}
+                  headingId={`grading-course-${section.id}`}
+                  loadSheet={dataSource.sheet}
+                />
+                {section.studentCount !== null && (
+                  <p className="text-brand-muted mt-2 text-sm">{section.studentCount} students</p>
+                )}
                 <Link
                   to="/sections/$sectionId/grades"
                   params={{ sectionId: section.id }}
                   className={gradeButton + " mt-5"}
+                  aria-describedby={`grading-course-${section.id}`}
                 >
                   Enter grades
                   <span className="sr-only">

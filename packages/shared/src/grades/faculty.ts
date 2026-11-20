@@ -1,5 +1,6 @@
 import type { ApiClient } from "../api/client";
 import { ApiError } from "../api/errors";
+import { parsePage } from "../sections/faculty";
 
 /** Frontend models. The published backend codec is deliberately supplied separately. */
 export interface GradingSection {
@@ -8,7 +9,7 @@ export interface GradingSection {
   courseTitle: string;
   sectionName: string;
   termLabel: string;
-  studentCount: number;
+  studentCount: number | null;
 }
 export interface FacultyGradeRow {
   studentId: string;
@@ -24,6 +25,8 @@ export interface FacultyGradeSheet {
   savedAt: string | null;
   finalizedAt: string | null;
   rows: FacultyGradeRow[];
+  gradingMode?: "NUMERIC" | "PASS_FAIL";
+  allowedMarks?: readonly string[];
 }
 export interface GradeDeadline {
   deadline: string | null;
@@ -45,8 +48,8 @@ export interface FacultyIncomplete {
   studentName: string;
   studentNumber: string;
   section: GradingSection;
-  completionDeadline: string;
-  daysLeft: number;
+  completionDeadline: string | null;
+  daysLeft: number | null;
   state: "PENDING_COMPLETION" | "COMPLETED" | "EXPIRED";
   completionPending: boolean;
 }
@@ -67,7 +70,7 @@ export interface IncompleteCompletion {
   sectionName: string;
   proposedMark: string;
   filedAt: string;
-  state: "PENDING_DEAN" | "ENDORSED" | "REJECTED";
+  state: "PENDING_DEAN" | "ENDORSED" | "REJECTED" | "EXPIRED";
   formName: string;
   formUrl: string | null;
   remarks: string | null;
@@ -80,6 +83,7 @@ export interface CompletionDecision {
 
 /** A future codec maps the final OpenAPI wire fields to these stable UI models. */
 export interface FacultyGradesContract {
+  paginated?: boolean;
   normalizeError?(error: unknown): unknown;
   sections(body: unknown): GradingSection[];
   sheet(body: unknown): FacultyGradeSheet;
@@ -89,9 +93,11 @@ export interface FacultyGradesContract {
   completion(body: unknown): CompletionReceipt;
   draftBody(input: GradeDraftInput): unknown;
   finalizeBody(version: number): unknown;
-  completionBody(input: CompletionInput): FormData;
+  completionBody(input: CompletionInput): unknown;
 }
 export interface IncompleteReviewContract {
+  paginated?: boolean;
+  detailFromList?: boolean;
   normalizeError?(error: unknown): unknown;
   list(body: unknown): IncompleteCompletion[];
   detail(body: unknown): IncompleteCompletion;
@@ -118,6 +124,32 @@ function gradingRequest(
 }
 const sectionPath = (id: string) => `/faculty/sections/${encodeURIComponent(id)}`;
 
+/** List contracts use the shared Page envelope. Never silently truncate a faculty workload. */
+async function readAll(
+  request: ApiClient["request"],
+  path: string,
+  token: string,
+  signal?: AbortSignal,
+): Promise<unknown> {
+  const items: unknown[] = [];
+  let offset = 0;
+  for (;;) {
+    const page = parsePage(
+      await request(`${path}?limit=200&offset=${offset}`, {
+        method: "GET",
+        accessToken: token,
+        signal,
+      }),
+      (value) => value,
+    );
+    if (page.offset !== offset || (!page.items.length && offset < page.total))
+      throw new ApiError(0, "INVALID_RESPONSE");
+    items.push(...page.items);
+    if (offset + page.items.length >= page.total) return { items };
+    offset += page.items.length;
+  }
+}
+
 /** No legacy route fallback, speculative payloads, or automatic write retries. */
 export function createFacultyGradesApi(client: ApiClient, contract?: FacultyGradesContract) {
   const request = gradingRequest(client, contract);
@@ -125,7 +157,9 @@ export function createFacultyGradesApi(client: ApiClient, contract?: FacultyGrad
     async sections(token: string, signal?: AbortSignal) {
       const codec = configured(contract);
       return codec.sections(
-        await request("/faculty/sections", { method: "GET", accessToken: token, signal }),
+        codec.paginated
+          ? await readAll(request, "/faculty/sections", token, signal)
+          : await request("/faculty/sections", { method: "GET", accessToken: token, signal }),
       );
     },
     async sheet(token: string, id: string, signal?: AbortSignal) {
@@ -150,13 +184,14 @@ export function createFacultyGradesApi(client: ApiClient, contract?: FacultyGrad
     },
     async saveDraft(token: string, id: string, input: GradeDraftInput) {
       const codec = configured(contract);
-      return codec.sheet(
+      const saved = codec.sheet(
         await request(`${sectionPath(id)}/grades/draft`, {
           method: "PUT",
           accessToken: token,
           body: codec.draftBody(input),
         }),
       );
+      return { ...saved, savedAt: saved.savedAt ?? new Date().toISOString() };
     },
     async finalize(token: string, id: string, version: number) {
       const codec = configured(contract);
@@ -171,7 +206,9 @@ export function createFacultyGradesApi(client: ApiClient, contract?: FacultyGrad
     async incompletes(token: string, signal?: AbortSignal) {
       const codec = configured(contract);
       return codec.incompletes(
-        await request("/faculty/incompletes", { method: "GET", accessToken: token, signal }),
+        codec.paginated
+          ? await readAll(request, "/faculty/incompletes", token, signal)
+          : await request("/faculty/incompletes", { method: "GET", accessToken: token, signal }),
       );
     },
     async complete(token: string, id: string, input: CompletionInput) {
@@ -194,10 +231,21 @@ export function createIncompleteReviewApi(client: ApiClient, contract?: Incomple
   return {
     async list(token: string, signal?: AbortSignal) {
       const codec = configured(contract);
-      return codec.list(await request(root, { method: "GET", accessToken: token, signal }));
+      return codec.list(
+        codec.paginated
+          ? await readAll(request, root, token, signal)
+          : await request(root, { method: "GET", accessToken: token, signal }),
+      );
     },
     async detail(token: string, id: string, signal?: AbortSignal) {
       const codec = configured(contract);
+      if (codec.detailFromList) {
+        const item = codec
+          .list(await readAll(request, root, token, signal))
+          .find((row) => row.id === id);
+        if (!item) throw new ApiError(404, "RESOURCE_NOT_FOUND");
+        return item;
+      }
       return codec.detail(
         await request(`${root}/${encodeURIComponent(id)}`, {
           method: "GET",
@@ -234,7 +282,10 @@ export function normalizeGrade(value: string, completion = false): string | null
   if (!completion && mark === "INC") return "INC";
   if (!/^\d(?:\.\d{1,2})?$/.test(mark)) return null;
   const number = Number(mark);
-  return number >= 1 && number <= (completion ? 3 : 5) ? number.toFixed(2) : null;
+  return (number >= 1 && number <= 3 && Number.isInteger(number * 4)) ||
+    (!completion && number === 5)
+    ? number.toFixed(2)
+    : null;
 }
 
 export function gradingErrorMessage(error: unknown): string {
@@ -252,6 +303,10 @@ export function gradingErrorMessage(error: unknown): string {
         return "Enter remarks when rejecting a completion.";
       case "GRADING_NOT_CONFIGURED":
         return "Grade services are not available yet. Please try again later.";
+      case "INC_UPLOAD_UNAVAILABLE":
+        return "Completion filing is unavailable until completion-form uploads are enabled.";
+      case "REQUEST_ALREADY_DECIDED":
+        return "This request has already been decided. Refresh the record to continue.";
     }
     if (error.status === 401) return "Your session has ended. Sign in again to continue.";
     if (error.status === 403) return "This page is not available to your role.";
