@@ -1,15 +1,18 @@
 import type { ApiClient } from "../api/client";
 import { ApiError } from "../api/errors";
+import { normalizeGrade } from "./faculty";
+import { parsePage } from "../sections/faculty";
+import * as parse from "../api/parse";
 export type CorrectionState =
   "PENDING_CHAIR" | "PENDING_DEAN" | "PENDING_REGISTRAR" | "COMMITTED" | "REJECTED";
 export interface Correction {
   id: string;
   version: number;
   sectionId: string;
-  sectionLabel: string;
+  sectionLabel: string | null;
   studentId: string;
-  studentName: string;
-  studentNumber: string;
+  studentName: string | null;
+  studentNumber: string | null;
   oldMark: string;
   proposedMark: string;
   reason: string;
@@ -19,6 +22,10 @@ export interface Correction {
   actedBy: string[];
   sheetName: string;
   sheetUrl: string | null;
+  sheetContentType?: string | null;
+  sheetSize?: number | null;
+  createdAt?: string | null;
+  windowClosedAt?: string | null;
 }
 export interface CorrectionSection {
   id: string;
@@ -44,6 +51,7 @@ export interface CorrectionDecision {
 }
 /** Stable UI port; the published backend's response codec is supplied when available. */
 export interface CorrectionCodec {
+  paginated?: boolean;
   list(body: unknown): Correction[];
   detail(body: unknown): Correction;
   sections(body: unknown): CorrectionSection[];
@@ -84,21 +92,59 @@ export function createCorrectionApi(
     if (!codec) throw new ApiError(503, "CORRECTIONS_NOT_CONFIGURED");
     return codec;
   }
+  function facultyOnly() {
+    if (portal !== "faculty") throw new ApiError(403, "AUTH_INSUFFICIENT_ROLE");
+  }
+  async function pages<T>(
+    route: string,
+    token: string,
+    mapper: (body: unknown) => T,
+    signal?: AbortSignal,
+    limit = 100,
+  ): Promise<T> {
+    const items: unknown[] = [];
+    let offset = 0;
+    for (;;) {
+      signal?.throwIfAborted();
+      const page = await read(
+        `${route}?limit=${limit}&offset=${offset}`,
+        token,
+        (body) => parsePage(body, (row) => row),
+        signal,
+      );
+      if (page.offset !== offset || (!page.items.length && offset < page.total)) parse.invalid();
+      items.push(...page.items);
+      offset += page.items.length;
+      if (offset >= page.total) return mapper({ items });
+    }
+  }
   return {
-    list: async (token: string, signal?: AbortSignal) =>
-      read(base, token, configured().list, signal),
+    list: async (token: string, signal?: AbortSignal) => {
+      const codec = configured();
+      return codec.paginated
+        ? pages(base, token, codec.list, signal)
+        : read(base, token, codec.list, signal);
+    },
     detail: async (token: string, id: string, signal?: AbortSignal) =>
       read(base + "/" + encodeURIComponent(id), token, configured().detail, signal),
-    sections: async (token: string, signal?: AbortSignal) =>
-      read("/faculty/sections", token, configured().sections, signal),
-    students: async (token: string, id: string, signal?: AbortSignal) =>
-      read(
+    sections: async (token: string, signal?: AbortSignal) => {
+      facultyOnly();
+      const codec = configured();
+      return codec.paginated
+        ? pages("/faculty/sections", token, codec.sections, signal, 200)
+        : read("/faculty/sections", token, codec.sections, signal);
+    },
+    students: async (token: string, id: string, signal?: AbortSignal) => {
+      facultyOnly();
+      return read(
         "/faculty/sections/" + encodeURIComponent(id) + "/grades",
         token,
         configured().finalStudents,
         signal,
-      ),
+      );
+    },
     file: async (token: string, input: CorrectionInput) => {
+      facultyOnly();
       const c = configured();
       const body = new FormData();
       body.set("student_id", input.studentId);
@@ -114,15 +160,17 @@ export function createCorrectionApi(
         body,
       );
     },
-    decide: async (token: string, id: string, input: CorrectionDecision) =>
-      read(
+    decide: async (token: string, id: string, input: CorrectionDecision) => {
+      if (portal !== "admin") throw new ApiError(403, "AUTH_INSUFFICIENT_ROLE");
+      return read(
         base + "/" + encodeURIComponent(id),
         token,
         configured().detail,
         undefined,
         "PATCH",
         configured().decision(input),
-      ),
+      );
+    },
   };
 }
 export const correctionLabels: Record<CorrectionState, string> = {
@@ -133,9 +181,7 @@ export const correctionLabels: Record<CorrectionState, string> = {
   REJECTED: "Rejected",
 };
 export function correctionMark(value: string) {
-  const text = value.trim().toUpperCase();
-  if (text === "INC") return text;
-  return /^\d(?:\.\d{1,2})?$/.test(text) && +text >= 1 && +text <= 5 ? (+text).toFixed(2) : null;
+  return normalizeGrade(value);
 }
 export function canReviewCorrection(role: string, owner: string, item: Correction) {
   return (
@@ -169,12 +215,15 @@ export function correctionMessage(error: unknown) {
         return "This correction changed. Reload it before acting again.";
       case "CORRECTIONS_NOT_CONFIGURED":
         return "Correction services are not available yet. Please try again later.";
+      case "GRADE_RECORD_UNAVAILABLE":
+        return "The academic record is temporarily unavailable. Please try again later.";
     }
     if (error.status === 404) return "This correction is not available.";
     if (error.status === 403) return "This page is not available to your role.";
     if (error.status === 413) return "The grading sheet must be at most 10 MB.";
     if (error.status === 415) return "Upload a PDF, JPEG, or PNG grading sheet.";
     if (error.status === 401) return "Your session has ended. Sign in again.";
+    if (error.status === 422) return error.detail ?? "Check the correction fields and try again.";
   }
   return "The request could not be confirmed. Refresh before trying again.";
 }
