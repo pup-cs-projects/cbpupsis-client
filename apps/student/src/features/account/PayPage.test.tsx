@@ -187,6 +187,12 @@ describe("PayPage layout", () => {
       "mt-6",
     );
     expect(payButton()).toHaveClass("min-w-[180px]", "h-11", "bg-[#7B1113]");
+    // Pay (a button) and Cancel (a link) share one font: the `!` beats theme.css's unlayered
+    // `button { font: inherit }`, which would otherwise leave Pay at 16px regular.
+    const cancel = screen.getByRole("link", { name: "Cancel" });
+    for (const control of [payButton(), cancel]) {
+      expect(control).toHaveClass("text-sm!", "font-semibold!", "h-11");
+    }
     expect(
       inSummary.getByText(
         "Single-submission protection active. Your account updates automatically upon confirmation.",
@@ -811,6 +817,39 @@ describe("coming back from the gateway", () => {
     expect(payButton()).toBeEnabled();
     expect(sessionStorage.getItem(PENDING_KEY)).toBeNull();
     expect(api.called(PAYMENT_ROUTE)).toHaveLength(0);
+  });
+
+  it("/payments/cancel explains the amount stays reserved for about 5 minutes, so an immediate retry may be refused", async () => {
+    openReturn("/payments/cancel");
+
+    await loaded();
+
+    const note = screen.getByRole("alert");
+    expect(note).toHaveTextContent("stays reserved on your balance for about 5 minutes");
+    expect(note).toHaveTextContent("until the system reconciles it");
+    expect(note).toHaveTextContent("The payment amount exceeds the available balance.");
+    expect(note).toHaveTextContent("Wait a few minutes and try again.");
+  });
+
+  it("the reserved-amount note matches what the API then says: a retry for the full balance gets the 422 on the amount field", async () => {
+    const user = userEvent.setup();
+    openReturn("/payments/cancel", {
+      [PAY_ROUTE]: {
+        status: 422,
+        body: {
+          code: "AMOUNT_EXCEEDS_BALANCE",
+          detail: "The payment amount exceeds the available balance.",
+        },
+      },
+    });
+    await loaded();
+
+    await user.click(payButton());
+
+    await waitFor(() => expect(amountField()).toHaveAttribute("aria-invalid", "true"));
+    expect(amountField()).toHaveAccessibleDescription(
+      "The payment amount exceeds the available balance.",
+    );
   });
 
   it("on the success address with nothing remembered or named, says to check Billing & Payments before paying again", async () => {

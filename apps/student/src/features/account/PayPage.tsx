@@ -43,10 +43,14 @@ const PANEL = "bg-white border border-neutral-200 rounded-2xl p-6 shadow-sm";
 const ROW = "flex items-baseline justify-between gap-4 py-1.5";
 const ROW_LABEL = "text-sm text-neutral-600";
 const ROW_VALUE = "text-sm font-medium text-neutral-900 tabular-nums text-right";
+// The `!` on text-sm and font-semibold is deliberate: the shared theme.css sets
+// `button { font: inherit }` outside any CSS layer, which beats these utilities on a <button> but
+// not on a link. Without it Pay (a button) renders 16px regular beside Cancel (a link) at 14px
+// semibold.
 const PRIMARY_BUTTON =
-  "min-w-[180px] h-11 px-6 rounded-xl bg-[#7B1113] hover:bg-[#630e10] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold inline-flex items-center justify-center shadow-sm transition-colors";
+  "min-w-[180px] h-11 px-6 rounded-xl bg-[#7B1113] hover:bg-[#630e10] disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm! font-semibold! inline-flex items-center justify-center shadow-sm transition-colors";
 const SECONDARY_BUTTON =
-  "min-w-[160px] h-11 px-6 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-800 text-sm font-semibold inline-flex items-center justify-center transition-colors";
+  "min-w-[160px] h-11 px-6 rounded-xl border border-neutral-300 bg-white hover:bg-neutral-50 text-neutral-800 text-sm! font-semibold! inline-flex items-center justify-center transition-colors";
 const ACTIONS = "flex flex-col sm:flex-row items-stretch sm:items-center gap-3 mt-6";
 /** The summary's buttons: stacked in the narrow sticky column, side by side where it is wide. */
 const SUMMARY_ACTIONS =

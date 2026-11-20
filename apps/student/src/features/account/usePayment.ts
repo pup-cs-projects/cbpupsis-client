@@ -220,8 +220,11 @@ function startOf(entry: PayEntry): Attempt {
     case "cancelled":
       return {
         ...IDLE,
+        // The API keeps a PENDING payment's amount reserved on the balance until it reconciles it
+        // (PAYMENT_RECONCILIATION_PENDING_SECONDS, 300 by default), so an immediate retry for the
+        // full balance can be refused with AMOUNT_EXCEEDS_BALANCE.
         notice:
-          "You left the payment page before it finished. If you were not charged, you can try again.",
+          'You left the payment page before it finished. If you were not charged, the amount stays reserved on your balance for about 5 minutes, until the system reconciles it. If you try again right away, you may be told that "The payment amount exceeds the available balance." Wait a few minutes and try again.',
       };
   }
 }

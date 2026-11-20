@@ -1,7 +1,7 @@
+import { Link } from "@tanstack/react-router";
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
 
-import { ApiError } from "@cbpupsis/shared/api";
+import { ApiError, errorMessage } from "@cbpupsis/shared/api";
 
 import {
   isSettled,
@@ -16,6 +16,7 @@ import { formatPesoAmount, isPositiveAmount, isZeroAmount } from "../../lib/mone
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 // import { billingSample } from "./sampleData"; // demo data, commented out: see useAccount.ts
 import { useStudentAccount, useStudentPayments } from "./useAccount";
+import { livePaymentsClient, useReceiptDownload } from "./usePayment";
 
 // Every amount below is the API's text, shown through formatPesoAmount. Nothing is added,
 // subtracted, or compared as a number here (AC-FIN-001.10).
@@ -116,7 +117,6 @@ function GoodStanding() {
 }
 
 function AccountStatus({ account }: { account: StudentAccount }) {
-  const [payNotice, setPayNotice] = useState(false);
   const overdue = account.paymentStatus === PAYMENT_OVERDUE;
   const owes = isPositiveAmount(account.netPayable);
   // The API sends "0.00" when there is no subsidy (AC-FIN-001.6): then there is no line for it.
@@ -158,29 +158,23 @@ function AccountStatus({ account }: { account: StudentAccount }) {
 
         <div className="mt-6 flex flex-col items-stretch gap-3 sm:flex-row sm:items-center print:hidden">
           {owes && (
-            <button
-              type="button"
-              onClick={() => setPayNotice(true)}
+            // The Make Payment page (US-FIN-002): it takes the student to the gateway to pay.
+            <Link
+              to="/account/pay"
               className="inline-flex h-11 min-w-[180px] items-center justify-center rounded-xl bg-[#7B1113] px-6 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#630e10]"
             >
               Pay Now
-            </button>
+            </Link>
           )}
           {/* No invoice file exists yet; this prints the statement, which saves as a PDF. */}
           <button
             type="button"
             onClick={() => window.print()}
-            className="inline-flex h-11 min-w-[180px] items-center justify-center rounded-xl border border-neutral-300 bg-white px-6 text-sm font-semibold text-neutral-800 transition-colors hover:bg-neutral-50"
+            className="inline-flex h-11 min-w-[180px] items-center justify-center rounded-xl border border-neutral-300 bg-white px-6 text-sm! font-semibold! text-neutral-800 transition-colors hover:bg-neutral-50"
           >
             Download Invoice
           </button>
         </div>
-        {payNotice && (
-          <p role="status" className="mt-4 text-sm text-neutral-700">
-            Online payment is not available in the portal yet. Pay at the University cashier; your
-            balance updates once the payment is posted.
-          </p>
-        )}
       </div>
     </section>
   );
@@ -260,7 +254,15 @@ function StatusLabel({ status }: { status: string }) {
   );
 }
 
+// `!`: see PRIMARY_BUTTON in PayPage.tsx. theme.css resets a <button>'s font outside any layer.
+const RECEIPT_LINK = "text-sm! font-semibold! text-[#7B1113] hover:underline";
+
 function PaymentRow({ payment }: { payment: StudentPayment }) {
+  // The receipt is a PDF the student's own token fetches (AC-FIN-002.9), so it is a button.
+  const receipt = useReceiptDownload(livePaymentsClient);
+  const { paymentId } = payment;
+  const settled = isSettled(payment);
+
   return (
     <tr>
       <td className={`${CELL} whitespace-nowrap`}>{formatShortDate(payment.paidAt)}</td>
@@ -270,16 +272,37 @@ function PaymentRow({ payment }: { payment: StudentPayment }) {
         <StatusLabel status={payment.status} />
       </td>
       <td className={CELL}>
-        {isSettled(payment) && payment.receiptUrl !== null && (
-          <a
-            href={payment.receiptUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`Receipt for ${payment.reference}`}
-            className="text-sm font-semibold text-[#7B1113] hover:underline"
-          >
-            Receipt
-          </a>
+        {settled && paymentId !== null ? (
+          // Only a payment with a real UUID has a receipt to fetch: GET .../{payment_id}/receipt.
+          <>
+            <button
+              type="button"
+              onClick={() => receipt.mutate({ id: paymentId, receiptNumber: payment.reference })}
+              disabled={receipt.isPending}
+              aria-label={`Receipt for ${payment.reference}`}
+              className={`${RECEIPT_LINK} disabled:cursor-not-allowed disabled:opacity-50`}
+            >
+              {receipt.isPending ? "Preparing…" : "Receipt"}
+            </button>
+            {receipt.isError && (
+              <span role="alert" className="mt-1 block text-xs font-medium text-red-700">
+                We couldn&apos;t download this receipt. {errorMessage(receipt.error)}
+              </span>
+            )}
+          </>
+        ) : (
+          settled &&
+          payment.receiptUrl !== null && (
+            <a
+              href={payment.receiptUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Receipt for ${payment.reference}`}
+              className={RECEIPT_LINK}
+            >
+              Receipt
+            </a>
+          )
         )}
       </td>
     </tr>

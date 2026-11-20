@@ -57,6 +57,12 @@ export interface StudentPayment {
   /** "PAID", "PENDING", ... as the gateway reports it. */
   status: string;
   /**
+   * The payment's UUID, which GET /student/payments/{payment_id}/receipt needs. The history
+   * list does not send one today (only date, amount, reference, and status), so this is null
+   * until the API adds `paymentId`; a value that is not a UUID is never kept.
+   */
+  paymentId: string | null;
+  /**
    * Where the receipt is. The API does not send one yet, so this is null today; it is read
    * from `receiptUrl` if the API adds that field.
    */
@@ -108,6 +114,16 @@ export function parseStudentAccount(body: unknown): StudentAccount {
   };
 }
 
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** The payment's UUID from `paymentId` (or `id`), or null when there is none or it is not one. */
+function paymentUuid(payment: Record<string, unknown>): string | null {
+  for (const value of [payment.paymentId, payment.id]) {
+    if (typeof value === "string" && UUID.test(value)) return value;
+  }
+  return null;
+}
+
 function parsePayment(value: unknown): StudentPayment {
   const payment = parse.record(value);
   const reference = parse.string(payment.reference);
@@ -117,6 +133,7 @@ function parsePayment(value: unknown): StudentPayment {
     amount: amount(payment.amount),
     reference,
     status: parse.string(payment.status),
+    paymentId: paymentUuid(payment),
     receiptUrl: parse.optionalString(payment.receiptUrl),
   };
 }

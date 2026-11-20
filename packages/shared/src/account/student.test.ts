@@ -122,6 +122,7 @@ describe("student account API boundary", () => {
         amount: "500.00",
         reference: "REF-1",
         status: "PAID",
+        paymentId: null,
         receiptUrl: null,
       },
       {
@@ -130,9 +131,49 @@ describe("student account API boundary", () => {
         amount: "100.00",
         reference: "REF-2",
         status: "PENDING",
+        paymentId: null,
         receiptUrl: null,
       },
     ]);
+  });
+
+  it("reads the payment's UUID from paymentId or id when the API sends one, so its receipt can be fetched", async () => {
+    const ID = "2b9d4a3e-6f1c-4a8e-9a57-3f0c8e1d7b11";
+    const OTHER = "9c1e7b52-0d4a-4c3f-8b6e-1a2f3d4e5f60";
+    reply([
+      {
+        date: "2026-06-10T02:00:00Z",
+        amount: "1.00",
+        reference: "A",
+        status: "PAID",
+        paymentId: ID,
+      },
+      { date: "2026-06-09T02:00:00Z", amount: "1.00", reference: "B", status: "PAID", id: OTHER },
+    ]);
+    const api = createStudentAccountApi(createApiClient(root));
+
+    const result = await api.payments("t");
+
+    expect(result.map((payment) => payment.paymentId)).toEqual([ID, OTHER]);
+  });
+
+  it("never keeps a payment id that is not a UUID: the reference is not one", async () => {
+    reply([
+      { date: "2026-06-10T02:00:00Z", amount: "1.00", reference: "xnd-pay-1", status: "PAID" },
+      {
+        date: "2026-06-09T02:00:00Z",
+        amount: "1.00",
+        reference: "cbp-123",
+        status: "PAID",
+        paymentId: "../../account",
+        id: 42,
+      },
+    ]);
+    const api = createStudentAccountApi(createApiClient(root));
+
+    const result = await api.payments("t");
+
+    expect(result.map((payment) => payment.paymentId)).toEqual([null, null]);
   });
 
   it("an empty payment history is an empty array", async () => {

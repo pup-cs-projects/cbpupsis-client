@@ -307,7 +307,7 @@ describe("AccountPage (US-FIN-001)", () => {
     await loaded();
 
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Pay Now" })).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Pay Now" })).toBeInTheDocument();
   });
 
   it("shows the late fine as a line the student pays", async () => {
@@ -342,7 +342,7 @@ describe("AccountPage (US-FIN-001)", () => {
     expect(banner).not.toHaveTextContent("CoR");
     expect(banner.querySelector("svg.lucide-circle-check")).toBeInTheDocument();
     expect(figure("Net Payable")).toHaveTextContent("₱0.00");
-    expect(screen.queryByRole("button", { name: "Pay Now" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Pay Now" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Download Invoice" })).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   });
@@ -355,15 +355,29 @@ describe("AccountPage (US-FIN-001)", () => {
     await loaded();
 
     expect(screen.queryByText(/No Outstanding Balance/)).not.toBeInTheDocument();
-    const pay = screen.getByRole("button", { name: "Pay Now" });
+    const pay = screen.getByRole("link", { name: "Pay Now" });
     expect(pay.parentElement).toHaveClass("flex-col", "sm:flex-row", "gap-3");
     expect(pay).toHaveClass("min-w-[180px]", "h-11");
 
     await user.click(screen.getByRole("button", { name: "Download Invoice" }));
     expect(print).toHaveBeenCalledTimes(1);
 
+    // Pay Now (a link) and Download Invoice (a button) read as one pair. theme.css resets a
+    // button's font outside any layer, so the button must force the size and weight the link gets.
+    const invoice = screen.getByRole("button", { name: "Download Invoice" });
+    for (const control of [pay, invoice]) {
+      expect(control).toHaveClass("h-11", "min-w-[180px]", "px-6", "rounded-xl");
+    }
+    expect(pay).toHaveClass("text-sm", "font-semibold");
+    expect(invoice).toHaveClass("text-sm!", "font-semibold!");
+
+    // It opens the Make Payment page.
+    expect(pay).toHaveAttribute("href", "/account/pay");
     await user.click(pay);
-    expect(screen.getByRole("status")).toHaveTextContent("Online payment is not available");
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Make Payment" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Online payment is not available/)).not.toBeInTheDocument();
   });
 
   it("AC-FIN-001.8: payment history lists date, amount, reference, and status, newest first", async () => {
@@ -473,8 +487,8 @@ describe("AccountPage (US-FIN-001)", () => {
     expect(receipts[0]).toHaveTextContent("Receipt");
     expect(receipts[0]).toHaveAttribute("href", RECEIPT_URL);
     expect(receipts[0]).toHaveClass(
-      "text-sm",
-      "font-semibold",
+      "text-sm!",
+      "font-semibold!",
       "text-[#7B1113]",
       "hover:underline",
     );
@@ -495,6 +509,117 @@ describe("AccountPage (US-FIN-001)", () => {
     const row = screen.getByText("REF-0001").closest("tr") as HTMLElement;
     expect(within(row).getByText("Paid")).toBeInTheDocument();
     expect(within(row).queryByRole("link")).not.toBeInTheDocument();
+  });
+
+  describe("AC-FIN-002.9: receipts from the payment history", () => {
+    const PAYMENT_ID = "2b9d4a3e-6f1c-4a8e-9a57-3f0c8e1d7b11";
+    const RECEIPT_ROUTE = `GET /student/payments/${PAYMENT_ID}/receipt`;
+
+    it("a PAID payment with a UUID downloads its PDF from GET /student/payments/{payment_id}/receipt", async () => {
+      const user = userEvent.setup();
+      const createObjectURL = vi.fn(() => "blob:receipt");
+      const revokeObjectURL = vi.fn();
+      vi.stubGlobal("URL", Object.assign(URL, { createObjectURL, revokeObjectURL }));
+      const click = vi.spyOn(HTMLAnchorElement.prototype, "click").mockImplementation(() => {});
+      const api = openAccount({
+        [PAYMENTS_ROUTE]: {
+          status: 200,
+          body: [payment({ reference: "REF-PAID", paymentId: PAYMENT_ID })],
+        },
+        [RECEIPT_ROUTE]: { status: 200, body: { receipt: true } },
+      });
+      await loaded();
+
+      const receipt = screen.getByRole("button", { name: "Receipt for REF-PAID" });
+      expect(receipt).toHaveTextContent("Receipt");
+      expect(receipt).toHaveClass(
+        "text-sm!",
+        "font-semibold!",
+        "text-[#7B1113]",
+        "hover:underline",
+      );
+      expectPlainText(receipt);
+      await user.click(receipt);
+
+      await waitFor(() => expect(click).toHaveBeenCalledTimes(1));
+      expect(api.called(RECEIPT_ROUTE)).toHaveLength(1);
+      expect(api.called(RECEIPT_ROUTE)[0].authorization).toBe("Bearer access-1");
+      expect(createObjectURL).toHaveBeenCalledTimes(1);
+      expect(revokeObjectURL).toHaveBeenCalledWith("blob:receipt");
+      click.mockRestore();
+    });
+
+    it("also reads the UUID from id", async () => {
+      openAccount({
+        [PAYMENTS_ROUTE]: { status: 200, body: [payment({ id: PAYMENT_ID })] },
+      });
+      await loaded();
+
+      expect(screen.getByRole("button", { name: "Receipt for REF-0001" })).toBeInTheDocument();
+    });
+
+    it("shows no Receipt button for a PAID payment the API sends without a UUID, as it does today", async () => {
+      openAccount({ [PAYMENTS_ROUTE]: { status: 200, body: [payment()] } });
+      await loaded();
+
+      const row = screen.getByText("REF-0001").closest("tr") as HTMLElement;
+      expect(within(row).getByText("Paid")).toBeInTheDocument();
+      expect(within(row).queryByRole("button")).not.toBeInTheDocument();
+      expect(within(row).queryByRole("link")).not.toBeInTheDocument();
+    });
+
+    it("shows no Receipt button when the id is not a UUID, and never requests such a receipt", async () => {
+      const api = openAccount({
+        [PAYMENTS_ROUTE]: {
+          status: 200,
+          body: [payment({ paymentId: "../../account", id: "xnd-pay-1" })],
+        },
+      });
+      await loaded();
+
+      expect(screen.queryByRole("button", { name: /receipt/i })).not.toBeInTheDocument();
+      expect(api.calls.filter((call) => call.route.endsWith("/receipt"))).toEqual([]);
+    });
+
+    it("shows no Receipt button for a payment that is not PAID, even with a UUID", async () => {
+      openAccount({
+        [PAYMENTS_ROUTE]: {
+          status: 200,
+          body: [payment({ status: "PENDING", paymentId: PAYMENT_ID })],
+        },
+      });
+      await loaded();
+
+      expect(screen.queryByRole("button", { name: /receipt/i })).not.toBeInTheDocument();
+    });
+
+    it("says so on the row, and keeps the button, when the receipt cannot be downloaded", async () => {
+      const user = userEvent.setup();
+      openAccount({
+        [PAYMENTS_ROUTE]: { status: 200, body: [payment({ paymentId: PAYMENT_ID })] },
+        [RECEIPT_ROUTE]: {
+          status: 409,
+          body: { detail: "A receipt is available only after payment settlement." },
+        },
+      });
+      await loaded();
+
+      await user.click(screen.getByRole("button", { name: "Receipt for REF-0001" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "A receipt is available only after payment settlement.",
+      );
+      expect(screen.getByRole("button", { name: "Receipt for REF-0001" })).toBeEnabled();
+    });
+
+    it("has no accessibility violations with a Receipt button", async () => {
+      openAccount({
+        [PAYMENTS_ROUTE]: { status: 200, body: [payment({ paymentId: PAYMENT_ID })] },
+      });
+      await loaded();
+
+      await expectNoA11yViolations(screen.getByRole("main"));
+    });
   });
 
   it("AC-FIN-001.8: shows 'No payment history yet.' when there are no payments", async () => {
@@ -562,7 +687,7 @@ describe("AccountPage (US-FIN-001)", () => {
 
     expect(screen.getByText("No billing statement for this semester yet.")).toBeInTheDocument();
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Pay Now" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "Pay Now" })).not.toBeInTheDocument();
     expect(screen.getByText("REF-0001")).toBeInTheDocument();
   });
 
