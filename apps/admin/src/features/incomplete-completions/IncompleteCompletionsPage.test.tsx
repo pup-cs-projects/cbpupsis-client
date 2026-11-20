@@ -43,16 +43,19 @@ afterEach(async () => {
   await session.signOut();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 function openPage(
   position = "dean",
   source: IncompleteReviewDataSource = createReviewFixtureSource(),
+  apiRoutes?: Parameters<typeof mockApi>[0],
 ) {
   signInDirectly();
-  mockApi({
+  const http = mockApi({
     "GET /admin/me": { status: 200, body: { ...me, position, college_id: "college-1" } },
     "GET /users/me": { status: 200, body: { full_name: "Dean Maria Santos", email: me.email } },
     "POST /auth/admin/logout": { status: 204 },
+    ...apiRoutes,
   });
   const router = createPortalRouter({
     config: account,
@@ -63,7 +66,7 @@ function openPage(
       createRoute({
         getParentRoute: () => root,
         path: "/incomplete-completions",
-        component: () => <IncompleteCompletionsPage dataSource={source} />,
+        component: () => <IncompleteCompletionsPage dataSource={apiRoutes ? undefined : source} />,
       }),
     ],
   });
@@ -77,6 +80,7 @@ function openPage(
       </QueryClientProvider>,
     ),
     source,
+    ...http,
     user: userEvent.setup(),
   };
 }
@@ -88,6 +92,56 @@ async function openReview(source = createReviewFixtureSource()) {
 }
 
 describe("Dean Inc completions (US-FAC-001)", () => {
+  it.each(["dean", "chairperson", "registrar", "finance"])(
+    "AC-FAC-001.5: published INC review integration enforces %s access and versioned decisions",
+    async (role) => {
+      vi.stubEnv("VITE_FEATURE_MOCKS", "true");
+      const wire = {
+        completionId: "completion-1",
+        version: 7,
+        studentName: "Carlo Cruz",
+        studentNumber: "S-1",
+        courseCode: "COMP 001",
+        sectionName: "BSCS 2-1",
+        proposedMark: "1.50",
+        createdAt: "2026-11-19T01:00:00Z",
+        state: "PENDING_DEAN",
+        reviewRemarks: null,
+      };
+      const updated = { ...wire, version: 8, state: "ENDORSED", reviewRemarks: "" };
+      const page = (item: typeof wire | typeof updated) => ({
+        items: [item],
+        total: 1,
+        limit: 200,
+        offset: 0,
+      });
+      const { user, called, calls } = openPage(role, createReviewFixtureSource(), {
+        "GET /admin/incomplete-completions": [
+          { status: 200, body: page(wire) },
+          { status: 200, body: page(wire) },
+          { status: 200, body: page(updated) },
+        ],
+        "PATCH /admin/incomplete-completions/completion-1": { status: 200, body: updated },
+      });
+      if (role !== "dean") {
+        await screen.findByText("This page is not available to your role.");
+        expect(called("GET /admin/incomplete-completions")).toHaveLength(0);
+        return;
+      }
+      await user.click(await screen.findByRole("button", { name: /Review completion for Carlo/ }));
+      await screen.findByLabelText("Review remarks");
+      await user.click(screen.getByRole("button", { name: "Endorse completion" }));
+      await screen.findByText(/Completion endorsed/);
+      expect(called("PATCH /admin/incomplete-completions/completion-1")[0]?.body).toEqual({
+        version: 7,
+        decision: "ENDORSE",
+        remarks: "",
+      });
+      expect(
+        calls.some((call) => call.route === "GET /admin/incomplete-completions/completion-1"),
+      ).toBe(false);
+    },
+  );
   it.each(["chairperson", "registrar", "finance"])(
     "does not load completion records for %s",
     async (role) => {
@@ -97,7 +151,7 @@ describe("Dean Inc completions (US-FAC-001)", () => {
       await screen.findByText("This page is not available to your role.");
       expect(list).not.toHaveBeenCalled();
       expect(screen.queryByText("Carlo Cruz")).not.toBeInTheDocument();
-      expect(screen.queryByRole("link", { name: "Inc completions" })).not.toBeInTheDocument();
+      expect(screen.queryByRole("link", { name: "INC completions" })).not.toBeInTheDocument();
     },
   );
   it("AC-FAC-001.5: endorses only after review and sends the loaded version", async () => {

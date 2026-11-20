@@ -1,4 +1,3 @@
-import { SampleDataNotice } from "../../components/SampleDataNotice";
 import { CorrectionWorkspace } from "@cbpupsis/ui/corrections";
 import type { CorrectionSource } from "@cbpupsis/shared/grades/corrections";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
@@ -13,11 +12,10 @@ export function GradeCorrectionsPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
-        <SampleDataNotice />
         <header>
           <p className="text-brand-muted text-sm">Academics / Grades</p>
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Correction of Entry</h1>
-          <p className="text-brand-muted mt-2 max-w-2xl text-sm">
+          <p className="text-brand-muted mt-2 max-w-2xl text-sm leading-relaxed">
             Review corrections in your scope. Chair, Dean, and Registrar act in sequence.
           </p>
         </header>
