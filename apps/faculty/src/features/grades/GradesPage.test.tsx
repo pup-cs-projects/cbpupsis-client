@@ -9,6 +9,7 @@ import { createGradingFixtureSource, gradingSheet } from "../../test/gradingFixt
 import { installGradingDialogDom, renderGrading } from "../../test/renderGrading";
 import { GradesPage } from "./GradesPage";
 import type { FacultyGradeSheet as ModeGradeSheet, GradingMode } from "./gradingMode";
+import { renderFaculty } from "../../test/renderFaculty";
 
 let restore: () => void;
 beforeEach(() => {
@@ -21,6 +22,7 @@ afterEach(async () => {
   await session.signOut();
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
+  vi.unstubAllEnvs();
 });
 async function openPage(source = createGradingFixtureSource()) {
   const view = renderGrading(<GradesPage sectionId="section-1" dataSource={source} />);
@@ -306,6 +308,121 @@ function modeSource(mode: GradingMode, complete = false) {
 }
 
 describe("Pass/Fail grading (US-FAC-003)", () => {
+  it("AC-FAC-003.1/.6: the default live adapter loads, saves and finalizes the published Pass/Fail contract", async () => {
+    vi.stubEnv("VITE_FEATURE_MOCKS", "true");
+    const wire = {
+      sectionId: "section-1",
+      sectionName: "BSCS 2-1",
+      courseCode: "NSTP 002",
+      courseTitle: "Civic Welfare Training",
+      gradingMode: "PASS_FAIL",
+      allowedMarks: ["PASS", "FAIL"],
+      state: "DRAFT",
+      version: 1,
+      submittedAt: null,
+      grades: [
+        {
+          studentId: "student-1",
+          studentNumber: "S-1",
+          studentName: "Ana Santos",
+          finalGrade: null,
+          completionDeadline: null,
+        },
+      ],
+    };
+    const saved = { ...wire, version: 2, grades: [{ ...wire.grades[0], finalGrade: "PASS" }] };
+    const { called } = renderFaculty("/sections/section-1/grades", {
+      "GET /faculty/sections/section-1/grades": { status: 200, body: wire },
+      "GET /faculty/sections/section-1/grade-deadline": {
+        status: 200,
+        body: { deadline: "2027-01-01T00:00:00Z", passed: false },
+      },
+      "PUT /faculty/sections/section-1/grades/draft": { status: 200, body: saved },
+      "POST /faculty/sections/section-1/grades/finalize": {
+        status: 200,
+        body: {
+          state: "FINAL",
+          version: 3,
+          submittedAt: "2026-11-19T01:00:00Z",
+          recordsCommitted: 1,
+          notificationsQueued: 1,
+        },
+      },
+    });
+    const user = userEvent.setup();
+    const field = await screen.findByRole("combobox", { name: /Grade for Ana/ });
+    expect(field.tagName).toBe("SELECT");
+    expect(screen.getByText(/This section is graded Pass or Fail/)).toBeInTheDocument();
+    await user.selectOptions(field, "PASS");
+    await user.click(screen.getByRole("button", { name: "Save draft" }));
+    await screen.findByText(/Draft saved at/);
+    expect(called("PUT /faculty/sections/section-1/grades/draft")[0]?.body).toEqual({
+      version: 1,
+      grades: [{ studentId: "student-1", finalGrade: "PASS" }],
+    });
+    await user.click(screen.getByRole("button", { name: "Submit final grades" }));
+    await user.click(screen.getByRole("button", { name: "Confirm final submission" }));
+    await screen.findByText(/Grades submitted successfully/);
+    expect(called("POST /faculty/sections/section-1/grades/finalize")[0]?.body).toEqual({
+      version: 2,
+    });
+    expect(field).toBeDisabled();
+  });
+
+  it.each(["NUMERIC", "PASS_FAIL"] as const)(
+    "AC-FAC-003.2/.3: a live %s mismatch reloads server choices without replaying the write",
+    async (mode) => {
+      const initialMarks =
+        mode === "PASS_FAIL" ? ["PASS", "FAIL"] : ["1.00", "2.00", "5.00", "INC"];
+      const nextMode = mode === "PASS_FAIL" ? "NUMERIC" : "PASS_FAIL";
+      const nextMarks =
+        nextMode === "PASS_FAIL" ? ["PASS", "FAIL"] : ["1.00", "2.00", "5.00", "INC"];
+      const wire = {
+        sectionId: "section-1",
+        sectionName: "BSCS 2-1",
+        gradingMode: mode,
+        allowedMarks: initialMarks,
+        state: "DRAFT",
+        version: 1,
+        submittedAt: null,
+        grades: [
+          {
+            studentId: "student-1",
+            studentNumber: "S-1",
+            studentName: "Ana Santos",
+            finalGrade: null,
+            completionDeadline: null,
+          },
+        ],
+      };
+      const { called } = renderFaculty("/sections/section-1/grades", {
+        "GET /faculty/sections/section-1/grades": [
+          { status: 200, body: wire },
+          { status: 200, body: { ...wire, gradingMode: nextMode, allowedMarks: nextMarks } },
+        ],
+        "GET /faculty/sections/section-1/grade-deadline": {
+          status: 200,
+          body: { deadline: "2027-01-01T00:00:00Z", passed: false },
+        },
+        "PUT /faculty/sections/section-1/grades/draft": {
+          status: 422,
+          body: { code: "GRADE_MODE_MISMATCH", gradingMode: nextMode, allowedMarks: nextMarks },
+        },
+      });
+      const user = userEvent.setup();
+      const field = await screen.findByRole("combobox", { name: /Grade for Ana/ });
+      if (mode === "PASS_FAIL") await user.selectOptions(field, "PASS");
+      else await user.type(field, "2.00");
+      await user.click(screen.getByRole("button", { name: "Save draft" }));
+      await screen.findByText(/The latest allowed marks have been loaded/);
+      expect(screen.getByRole("combobox", { name: /Grade for Ana/ }).tagName).toBe(
+        nextMode === "PASS_FAIL" ? "SELECT" : "INPUT",
+      );
+      expect(called("GET /faculty/sections/section-1/grades")).toHaveLength(2);
+      expect(called("PUT /faculty/sections/section-1/grades/draft")).toHaveLength(1);
+      expect(screen.getByRole("button", { name: "Save draft" })).toBeDisabled();
+    },
+  );
   it("AC-FAC-003.1: offers only Pass and Fail, names the mode, labels each student, and supports keyboard focus", async () => {
     const { user } = await openPage(modeSource("PASS_FAIL"));
     expect(screen.getByText(/This section is graded Pass or Fail/)).toBeInTheDocument();
