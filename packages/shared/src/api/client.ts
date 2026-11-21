@@ -8,6 +8,8 @@ export interface RequestOptions {
   accessToken?: string;
   /** Cancels the call; it then rejects with the signal's reason, not an `ApiError`. */
   signal?: AbortSignal;
+  /** Override the default 20-second deadline for documented long-running requests. */
+  timeoutMs?: number;
 }
 
 export interface ApiClient {
@@ -34,7 +36,7 @@ export function createApiClient(baseUrl: string): ApiClient {
 
   async function send(
     path: string,
-    { method = "POST", body, accessToken, signal }: RequestOptions,
+    { method = "POST", body, accessToken, signal, timeoutMs = TIMEOUT_MS }: RequestOptions,
     accept: string,
   ): Promise<Response> {
     const isForm = body instanceof FormData;
@@ -53,8 +55,8 @@ export function createApiClient(baseUrl: string): ApiClient {
         credentials: "include",
         cache: "no-store",
         signal: signal
-          ? AbortSignal.any([signal, AbortSignal.timeout(TIMEOUT_MS)])
-          : AbortSignal.timeout(TIMEOUT_MS),
+          ? AbortSignal.any([signal, AbortSignal.timeout(timeoutMs)])
+          : AbortSignal.timeout(timeoutMs),
       });
     } catch {
       // A caller's cancellation is not a network failure; only a real one reaches the screen.
@@ -112,7 +114,18 @@ function toApiError(response: Response, data: unknown): ApiError {
     Number.isFinite(retrySeconds) && retrySeconds >= 0
       ? Date.now() + retrySeconds * 1000
       : undefined;
-  const details = isRecord(envelope.details) ? envelope.details : undefined;
+  const details = {
+    ...(isRecord(envelope.details) ? envelope.details : {}),
+    ...(Array.isArray(envelope.unmet_rules) ? { unmet_rules: envelope.unmet_rules } : {}),
+    ...(code === "GRADE_MODE_MISMATCH" && typeof envelope.gradingMode === "string"
+      ? { gradingMode: envelope.gradingMode }
+      : {}),
+    ...(code === "GRADE_MODE_MISMATCH" &&
+    Array.isArray(envelope.allowedMarks) &&
+    envelope.allowedMarks.every((mark) => typeof mark === "string")
+      ? { allowedMarks: envelope.allowedMarks }
+      : {}),
+  };
   return new ApiError(response.status, code, {
     detail: detailOf(envelope),
     requestId,

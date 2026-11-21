@@ -73,7 +73,7 @@ describe("Enrollment requests source", () => {
 
     await screen.findByText("Requests could not be loaded");
 
-    expect(screen.getByRole("button", { name: /retry|try again/i })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInTheDocument();
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
 

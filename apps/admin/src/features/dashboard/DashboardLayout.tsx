@@ -28,20 +28,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         </Link>
       )}
       navigation={[
-        {
-          label: "Home",
-          icon: <DashboardIcon name="home" />,
-          children: [
-            {
-              label: "Overview",
-              content: (
-                <Link to="/dashboard" className={settingsLink}>
-                  Overview
-                </Link>
-              ),
-            },
-          ],
-        },
+        // The shared layout already renders the "Dashboard" link above these sections, as the
+        // student and faculty sidebars do; a separate Home section would duplicate it.
         {
           label: "Users",
           icon: <DashboardIcon name="users" />,
@@ -53,6 +41,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           children: [
             { label: "Calendar" },
             { label: "Courses" },
+            ...(me.data?.position === "dean"
+              ? [
+                  {
+                    label: "Inc completions",
+                    content: (
+                      <Link to="/incomplete-completions" className={settingsLink}>
+                        Inc completions
+                      </Link>
+                    ),
+                  },
+                ]
+              : []),
             ...(isReviewerRole(me.data?.position)
               ? [
                   {
@@ -80,6 +80,24 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             { label: "System Health" },
           ],
         },
+        ...(["chairperson", "dean", "registrar"].includes(me.data?.position ?? "")
+          ? [
+              {
+                label: "Grade corrections",
+                icon: <DashboardIcon name="briefcase" />,
+                children: [
+                  {
+                    label: "Correction of Entry",
+                    content: (
+                      <Link to="/grade-corrections" className={settingsLink}>
+                        Correction of Entry
+                      </Link>
+                    ),
+                  },
+                ],
+              },
+            ]
+          : []),
         {
           label: "Settings",
           icon: <DashboardIcon name="settings" />,

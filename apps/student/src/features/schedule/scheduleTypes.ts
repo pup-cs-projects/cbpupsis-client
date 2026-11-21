@@ -1,3 +1,5 @@
+import type { ScheduleTerm } from "@cbpupsis/shared/schedule";
+
 // What the Course Schedule page (US-STU-003) shows. useCourseSchedule.ts maps the API's
 // schedule (packages/shared/schedule) into these shapes.
 
@@ -39,6 +41,7 @@ export interface ScheduleSummary {
 
 /** The signed-in student's current term. */
 export interface StudentSchedule {
+  term: ScheduleTerm;
   summary: ScheduleSummary;
   courses: CourseItem[];
 }
@@ -47,9 +50,4 @@ export interface StudentSchedule {
 export interface ExportFile {
   blob: Blob;
   filename: string;
-}
-
-/** Where to send the student to grant calendar access (Google's OAuth consent screen). */
-export interface CalendarConnectStart {
-  authorizationUrl: string;
 }

@@ -551,12 +551,15 @@ function UserMenu() {
     if (!open) return;
     function onPointerDown(event: PointerEvent) {
       const target = event.target as Element;
+      // A portalled confirmation makes this menu inert; keep its owner mounted.
+      if (container.current?.closest("[inert]")) return;
       // The sign-out confirmation is portaled to <body>; a click in it is not outside
       // the menu, and closing here would unmount it before the sign-out runs.
       if (target.closest?.('[role="alertdialog"]')) return;
       if (!container.current?.contains(target)) setOpen(false);
     }
     function onKeyDown(event: KeyboardEvent) {
+      if (container.current?.closest("[inert]")) return;
       if (event.key !== "Escape") return;
       setOpen(false);
       trigger.current?.focus();
