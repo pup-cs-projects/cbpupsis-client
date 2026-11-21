@@ -1,0 +1,17 @@
+{
+  "name": "@cbpupsis/shared",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "Framework-free code every CBPUPSIS client app uses: the API client, error envelope, session store, and generated API types.",
+  "exports": {
+    "./api": "./src/api/index.ts",
+    "./auth": "./src/auth/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
+    "gen:api": "npx --yes openapi-typescript@7.13.0 http://localhost:8000/openapi.json -o src/api/schema.gen.ts"
+  }
+}
