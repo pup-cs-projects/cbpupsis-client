@@ -30,6 +30,34 @@ afterEach(() => {
 });
 
 describe("createApiClient", () => {
+  it("keeps the envelope's top-level reason, which a payment gateway refusal carries", async () => {
+    respond(502, {
+      code: "PAYMENT_GATEWAY_ERROR",
+      detail: "Rejected.",
+      reason: " Insufficient Funds ",
+    });
+
+    const error = await rejection(client.request("/student/payments"));
+
+    expect(error.status).toBe(502);
+    expect(error.reason).toBe("Insufficient Funds");
+  });
+
+  it("sends extra headers, but never lets them replace the client's own", async () => {
+    const fetchMock = respond(200, { ok: true });
+
+    await client.request("/student/payments", {
+      accessToken: "abc",
+      body: { amount: "1.00" },
+      headers: { "Idempotency-Key": "k-1", Authorization: "Bearer other", Accept: "text/plain" },
+    });
+
+    const headers = new Headers((fetchMock.mock.calls[0] as [string, RequestInit])[1].headers);
+    expect(headers.get("Idempotency-Key")).toBe("k-1");
+    expect(headers.get("Authorization")).toBe("Bearer abc");
+    expect(headers.get("Accept")).toBe("application/json");
+  });
+
   it("joins the path to the base URL and sends the access token as a bearer token", async () => {
     const fetchMock = respond(200, { ok: true });
 
