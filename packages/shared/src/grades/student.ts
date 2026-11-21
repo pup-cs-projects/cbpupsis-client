@@ -21,7 +21,7 @@ export interface GradeTerm {
   semester: string;
 }
 
-/** GET /students/me/grades: one term's marks and its stored standing. */
+/** GET /student/grades: one term's marks and its stored standing. */
 export interface TermStanding {
   term: GradeTerm | null;
   /** "Good Standing", "Warning Level 1", ... or null when not evaluated. */
@@ -36,7 +36,7 @@ export interface TranscriptTerm {
   completed: boolean;
 }
 
-/** GET /students/me/transcript: every term with posted marks, newest first. */
+/** GET /student/transcript: every term with posted marks, newest first. */
 export interface Transcript {
   studentNumber: string;
   terms: TranscriptTerm[];
@@ -50,7 +50,7 @@ export function createStudentGradesApi(client: ApiClient) {
     /** The whole record: the API caps a page at 100 terms, more than any student has. */
     async transcript(accessToken: string): Promise<Transcript> {
       const body = parse.record(
-        await client.request("/students/me/transcript?limit=100", { method: "GET", accessToken }),
+        await client.request("/student/transcript?limit=100", { method: "GET", accessToken }),
       );
       const student = parse.record(body.student);
       return {
@@ -67,7 +67,7 @@ export function createStudentGradesApi(client: ApiClient) {
         ? `?year=${encodeURIComponent(selected.academicYear)}&semester=${encodeURIComponent(selected.semester)}`
         : "";
       const body = parse.record(
-        await client.request(`/students/me/grades${query}`, { method: "GET", accessToken }),
+        await client.request(`/student/grades${query}`, { method: "GET", accessToken }),
       );
       return {
         term: body.term === null || body.term === undefined ? null : parseTerm(body.term),
