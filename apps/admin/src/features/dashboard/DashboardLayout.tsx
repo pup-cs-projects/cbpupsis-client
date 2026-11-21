@@ -8,6 +8,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
 import { useMe } from "../sign-in/useAdminAuth";
+import { isReviewerRole } from "../enrollment-requests/reviewRules";
 import { useProfile } from "./queries";
 
 /** Portal navigation and account wiring, separate from the dashboard page like student. */
@@ -49,7 +50,25 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         {
           label: "Academics",
           icon: <DashboardIcon name="mail" />,
-          children: [{ label: "Calendar" }, { label: "Courses" }],
+          children: [
+            { label: "Calendar" },
+            { label: "Courses" },
+            ...(isReviewerRole(me.data?.position)
+              ? [
+                  {
+                    label: "Enrollment requests",
+                    content: (
+                      <Link
+                        to="/enrollment-requests"
+                        className={settingsLink + " aria-[current=page]:bg-white/15"}
+                      >
+                        Enrollment requests
+                      </Link>
+                    ),
+                  },
+                ]
+              : []),
+          ],
         },
         {
           label: "Reports",
