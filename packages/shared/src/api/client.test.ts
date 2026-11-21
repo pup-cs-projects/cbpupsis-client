@@ -40,6 +40,15 @@ describe("createApiClient", () => {
     expect(new Headers(init.headers).get("Authorization")).toBe("Bearer abc");
   });
 
+  it("rejects with the caller's abort reason instead of a network error", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new DOMException("Aborted", "AbortError")));
+    const controller = new AbortController();
+    const reason = new Error("left the page");
+    controller.abort(reason);
+
+    await expect(client.request("/items", { signal: controller.signal })).rejects.toBe(reason);
+  });
+
   it("returns undefined for 204 No Content", async () => {
     respond(204);
 
