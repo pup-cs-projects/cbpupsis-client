@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@import "@cbpupsis/ui/theme.css";
+@source "../../../packages/ui/src";
+@source "../../../packages/account/src";

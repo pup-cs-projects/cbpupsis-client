@@ -1,0 +1,25 @@
+{
+  "name": "@cbpupsis/account",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "The account flows every CBPUPSIS portal shares: the sign-in layout, password reset and change, and the idle sign-out.",
+  "exports": {
+    ".": "./src/index.ts",
+    "./styles.css": "./src/layout/auth.css",
+    "./testing": "./src/testing/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cbpupsis/shared": "*",
+    "@cbpupsis/ui": "*"
+  },
+  "peerDependencies": {
+    "@tanstack/react-query": "^5.102.8",
+    "@tanstack/react-router": "^1.170.36",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8"
+  }
+}

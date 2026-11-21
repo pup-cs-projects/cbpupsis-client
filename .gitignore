@@ -141,3 +141,34 @@ dist
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 .vite/
+
+# --- cbpupsis-client ---------------------------------------------------------
+# Local overrides of .env.example. Vite inlines VITE_* values into the bundle,
+# so these hold configuration, never secrets, but they are still per-machine.
+*.local
+
+# --- AI assistant configuration: local only, never committed -----------------
+.claude/
+CLAUDE.md
+CLAUDE.local.md
+.mcp.json
+AGENTS.md
+GEMINI.md
+.gemini/
+.codex/
+.cursor/
+.cursorrules
+.cursorignore
+.windsurf/
+.windsurfrules
+.clinerules
+.clinerules/
+.roo/
+.roomodes
+.kiro/
+.aider*
+.continue/
+.github/copilot-instructions.md
+.github/instructions/
+.github/prompts/
+.github/chatmodes/
