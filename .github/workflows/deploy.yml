@@ -116,7 +116,7 @@ jobs:
           VITE_API_BASE_URL: /api/v1
         run: npm run build -w "apps/$APP"
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - uses: aws-actions/configure-aws-credentials@v6
         with:
           role-to-assume: ${{ needs.target.outputs.role }}
           aws-region: ${{ env.AWS_REGION }}
