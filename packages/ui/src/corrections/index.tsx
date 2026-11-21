@@ -17,29 +17,41 @@ const primary =
 const field =
   "focus-visible:outline-offset-0! border-brand-input-border mt-2 min-h-11 w-full min-w-0 rounded-lg border bg-white px-3 py-2 text-sm";
 const card = "border-brand-border/25 min-w-0 rounded-2xl border bg-white p-5 shadow-sm sm:p-6";
+const studentLabel = (item: Correction) => item.studentName ?? `Student ID: ${item.studentId}`;
+const sectionLabel = (item: Correction) => item.sectionLabel ?? `Section ID: ${item.sectionId}`;
+const correctionDate = (date: string) =>
+  new Intl.DateTimeFormat("en-PH", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Manila",
+  }).format(new Date(date));
 function Dialog({
   title,
   onClose,
   busy,
   children,
+  returnFocus,
 }: {
   title: string;
   onClose: () => void;
   busy: boolean;
   children: React.ReactNode;
+  returnFocus?: HTMLElement | null;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
   const id = useId();
   useEffect(() => {
     const node = ref.current!;
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const previous =
+      returnFocus ??
+      (document.activeElement instanceof HTMLElement ? document.activeElement : null);
     node.showModal();
     node.querySelector<HTMLElement>("[data-first]")?.focus();
     return () => {
       node.close();
       if (previous?.isConnected) previous.focus();
     };
-  }, []);
+  }, [returnFocus]);
   return (
     <dialog
       ref={ref}
@@ -78,6 +90,7 @@ export function CorrectionWorkspace({
   const [refresh, setRefresh] = useState(0);
   const [creating, setCreating] = useState(false);
   const [selected, setSelected] = useState<Correction | null>(null);
+  const [detailTrigger, setDetailTrigger] = useState<HTMLElement | null>(null);
   const [detailPending, setDetailPending] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -148,6 +161,10 @@ export function CorrectionWorkspace({
       setRemarkError("Remarks are required when rejecting a correction.");
       return;
     }
+    if (remarks.trim().length > 4000) {
+      setRemarkError("Enter at most 4000 characters.");
+      return;
+    }
     running.current = true;
     setBusy(true);
     setError(null);
@@ -202,7 +219,14 @@ export function CorrectionWorkspace({
   const rows = load.rows.filter(
     (item) =>
       (filter === "all" || item.state === filter) &&
-      [item.studentName, item.studentNumber, item.sectionLabel]
+      [
+        item.studentName,
+        item.studentNumber,
+        item.sectionLabel,
+        item.studentId,
+        item.sectionId,
+        item.id,
+      ]
         .join(" ")
         .toLowerCase()
         .includes(search.trim().toLowerCase()),
@@ -281,12 +305,14 @@ export function CorrectionWorkspace({
                 {rows.map((item) => (
                   <tr key={item.id} className="border-brand-border/25 border-b">
                     <th scope="row" className="px-4 py-4">
-                      {item.studentName}
-                      <span className="text-brand-muted mt-1 block text-xs font-normal">
-                        {item.studentNumber}
-                      </span>
+                      <span className="block max-w-xs break-words">{studentLabel(item)}</span>
+                      {item.studentNumber && (
+                        <span className="text-brand-muted mt-1 block text-xs font-normal">
+                          {item.studentNumber}
+                        </span>
+                      )}
                     </th>
-                    <td className="px-4 py-4">{item.sectionLabel}</td>
+                    <td className="max-w-xs px-4 py-4 break-words">{sectionLabel(item)}</td>
                     <td className="px-4 py-4">
                       {item.oldMark} → {item.proposedMark}
                     </td>
@@ -300,10 +326,13 @@ export function CorrectionWorkspace({
                     </td>
                     <td className="px-4 py-4">
                       <button
-                        aria-label={"View correction for " + item.studentName}
+                        aria-label={"View correction for " + studentLabel(item)}
                         className={button}
                         disabled={detailPending}
-                        onClick={() => void details(item.id)}
+                        onClick={(event) => {
+                          setDetailTrigger(event.currentTarget);
+                          void details(item.id);
+                        }}
                       >
                         View correction
                       </button>
@@ -335,17 +364,23 @@ export function CorrectionWorkspace({
         />
       )}
       {selected && (
-        <Dialog title="Correction details" busy={busy} onClose={() => setSelected(null)}>
+        <Dialog
+          title="Correction details"
+          busy={busy}
+          returnFocus={detailTrigger}
+          onClose={() => setSelected(null)}
+        >
           <dl className="mt-4 space-y-3 text-sm">
             <div>
               <dt className="text-brand-muted">Student</dt>
-              <dd>
-                {selected.studentName} · {selected.studentNumber}
+              <dd className="break-words">
+                {studentLabel(selected)}
+                {selected.studentNumber ? ` · ${selected.studentNumber}` : ""}
               </dd>
             </div>
             <div>
               <dt className="text-brand-muted">Section</dt>
-              <dd>{selected.sectionLabel}</dd>
+              <dd className="break-words">{sectionLabel(selected)}</dd>
             </div>
             <div>
               <dt className="text-brand-muted">Requested change</dt>
@@ -361,6 +396,28 @@ export function CorrectionWorkspace({
               <dt className="text-brand-muted">Reason</dt>
               <dd className="break-words whitespace-pre-wrap">{selected.reason}</dd>
             </div>
+            <div>
+              <dt className="text-brand-muted">Correction ID</dt>
+              <dd className="break-words">{selected.id}</dd>
+            </div>
+            {selected.createdAt && (
+              <div>
+                <dt className="text-brand-muted">Filed (Manila)</dt>
+                <dd>
+                  <time dateTime={selected.createdAt}>{correctionDate(selected.createdAt)}</time>
+                </dd>
+              </div>
+            )}
+            {selected.windowClosedAt && (
+              <div>
+                <dt className="text-brand-muted">Filing window ends (Manila)</dt>
+                <dd>
+                  <time dateTime={selected.windowClosedAt}>
+                    {correctionDate(selected.windowClosedAt)}
+                  </time>
+                </dd>
+              </div>
+            )}
             <div>
               <dt className="text-brand-muted">Grading sheet</dt>
               <dd className="break-words">
@@ -378,6 +435,19 @@ export function CorrectionWorkspace({
                   selected.sheetName
                 )}
               </dd>
+              {selected.sheetContentType && (
+                <dd className="text-brand-muted mt-1 text-xs">
+                  {selected.sheetContentType}
+                  {selected.sheetSize != null
+                    ? ` · ${selected.sheetSize.toLocaleString("en-PH")} bytes`
+                    : ""}
+                </dd>
+              )}
+              {selected.createdAt && !selected.sheetUrl && (
+                <dd className="text-brand-muted mt-1 text-xs">
+                  Document download is currently unavailable.
+                </dd>
+              )}
             </div>
             {selected.remarks && (
               <div>
@@ -410,6 +480,7 @@ export function CorrectionWorkspace({
                       setRemarkError(null);
                     }}
                     disabled={busy}
+                    maxLength={4000}
                     aria-invalid={!!remarkError}
                     aria-describedby="correction-remarks-error"
                   />
@@ -430,6 +501,11 @@ export function CorrectionWorkspace({
             </p>
           )}
           <div className="mt-6 flex flex-wrap justify-end gap-3">
+            {blocked && (
+              <button className={button} disabled={busy} onClick={() => void details(selected.id)}>
+                Reload correction
+              </button>
+            )}
             <button data-first className={button} disabled={busy} onClick={() => setSelected(null)}>
               Close correction
             </button>
@@ -563,12 +639,11 @@ function FilingForm({
     const errors: Record<string, string> = {};
     if (!section) errors.section = "Choose an assigned section.";
     if (!student) errors.student = "Choose a student with a final grade.";
-    if (!proposed) errors.mark = "Enter 1.00–5.00 or INC.";
+    if (!proposed) errors.mark = "Enter 1.00–3.00 in 0.25 steps, 5.00, or INC.";
     if (!reason.trim()) errors.reason = "Enter the reason for this correction.";
+    else if (reason.trim().length > 4000) errors.reason = "Enter at most 4000 characters.";
     if (!file?.size) errors.file = "Attach the grading sheet.";
     else if (file.size > 10 * 1024 * 1024) errors.file = "The grading sheet must be at most 10 MB.";
-    else if (!["application/pdf", "image/jpeg", "image/png"].includes(file.type))
-      errors.file = "Upload a PDF, JPEG, or PNG grading sheet.";
     setFields(errors);
     if (Object.keys(errors).length || !file || !proposed) {
       event.currentTarget
@@ -587,7 +662,16 @@ function FilingForm({
         reason: reason.trim(),
         gradingSheet: file,
       });
-      if (alive.current) onFiled(item);
+      if (alive.current) {
+        const selectedStudent = students.find((row) => row.id === student);
+        const selectedSection = sections.find((row) => row.id === section);
+        onFiled({
+          ...item,
+          studentName: selectedStudent?.name ?? item.studentName,
+          studentNumber: selectedStudent?.studentNumber ?? item.studentNumber,
+          sectionLabel: selectedSection?.label ?? item.sectionLabel,
+        });
+      }
     } catch (failure) {
       if (!alive.current) return;
       const text = correctionMessage(failure);
@@ -680,6 +764,9 @@ function FilingForm({
             aria-invalid={!!fields.mark}
             aria-describedby="correction-mark-error"
           />
+          <span className="text-brand-muted mt-1 block text-xs">
+            1.00–3.00 in 0.25 steps, 5.00, or INC.
+          </span>
           {errorFor("mark")}
         </label>
         <label className="block text-sm font-medium">
@@ -692,6 +779,7 @@ function FilingForm({
             onChange={(e) => setReason(e.target.value)}
             aria-invalid={!!fields.reason}
             aria-describedby="correction-reason-error"
+            maxLength={4000}
           />
           {errorFor("reason")}
         </label>
@@ -702,7 +790,7 @@ function FilingForm({
             name="file"
             type="file"
             className={field}
-            accept="application/pdf,image/jpeg,image/png"
+            accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png"
             disabled={busy}
             onChange={(e) => {
               setFile(e.target.files?.[0] ?? null);

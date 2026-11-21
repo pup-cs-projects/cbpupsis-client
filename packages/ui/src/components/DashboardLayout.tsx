@@ -6,6 +6,7 @@ type NavigationItem = {
   label: string;
   icon: ReactNode;
   children: { label: string; content?: ReactNode }[];
+  href?: string;
 };
 
 /** The student dashboard's frame, with portal-specific navigation and account slots. */
@@ -15,16 +16,40 @@ export function DashboardLayout({
   navigation,
   account,
   homeLink,
+  headerNavigation,
+  headerTools,
+  activeSection,
+  profileLink,
+  notificationsLink,
 }: {
   children: ReactNode;
   portal: string;
+  headerNavigation?: ReactNode;
+  headerTools?: ReactNode;
+  activeSection?: string;
   navigation: NavigationItem[];
   account: ReactNode | ((expanded: boolean) => ReactNode);
   homeLink: (className: string, children: ReactNode) => ReactNode;
+  profileLink?: (className: string, children: ReactNode) => ReactNode;
+  notificationsLink?: (className: string, children: ReactNode) => ReactNode;
 }) {
-  const [isExpanded, setIsExpanded] = useState(false);
+  const [isExpanded, setIsExpanded] = useState(() => {
+    try {
+      return localStorage.getItem(portal.toLowerCase() + "-sidebar-expanded") !== "false";
+    } catch {
+      return true;
+    }
+  });
+  function persistExpanded(value: boolean) {
+    setIsExpanded(value);
+    try {
+      localStorage.setItem(portal.toLowerCase() + "-sidebar-expanded", String(value));
+    } catch {
+      /* The navigation still works when storage is unavailable. */
+    }
+  }
   const [drawerOpen, setDrawerOpen] = useState(false);
-  const [openSection, setOpenSection] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<string | null>(activeSection ?? null);
   const menuButton = useRef<HTMLButtonElement>(null);
   const sidebar = useRef<HTMLElement>(null);
   const expanded = isExpanded || drawerOpen;
@@ -68,7 +93,7 @@ export function DashboardLayout({
   }
 
   const navItem =
-    "flex min-h-11 w-full items-center py-3 text-white/90 transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-brand-gold! focus-visible:-outline-offset-2!";
+    "flex min-h-11 w-full items-center py-3 text-white/90 cursor-pointer transition-colors hover:bg-white/10 hover:text-white focus-visible:outline-brand-gold! focus-visible:-outline-offset-2!";
 
   return (
     <div className="text-brand-ink flex h-dvh flex-col overflow-hidden print:block print:h-auto print:overflow-visible">
@@ -78,7 +103,7 @@ export function DashboardLayout({
       >
         Skip to content
       </a>
-      <header className="border-brand-border/30 z-20 flex h-[72px] shrink-0 items-center justify-between gap-4 border-b bg-white px-4 md:px-8">
+      <header className="border-brand-border/30 relative z-20 flex h-[72px] shrink-0 items-center justify-between gap-2 border-b bg-white px-4 md:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <button
             ref={menuButton}
@@ -101,33 +126,50 @@ export function DashboardLayout({
                 height="48"
                 className="size-10 shrink-0 md:size-12"
               />
-              <span className="text-brand-maroon leading-snug">
+              <span className="text-brand-maroon sr-only leading-snug min-[440px]:not-sr-only">
                 <span className="block text-[22px] leading-none font-bold tracking-tight">
                   CBPUPSIS
                 </span>
-                <span className="block text-xs leading-tight font-medium">PUP Academic Portal</span>
+                <span className="hidden text-xs leading-tight font-medium sm:block">
+                  PUP Academic Portal
+                </span>
               </span>
             </>,
           )}
         </div>
-        <nav aria-label="Main" className="hidden items-center gap-12 sm:flex print:hidden">
-          {homeLink(
-            "text-brand-maroon inline-flex min-h-11 items-center text-sm font-medium",
-            "Home",
-          )}
-          {["Profile", "Notifications"].map((label) => (
-            <span
-              key={label}
-              role="link"
-              aria-disabled="true"
-              title="Coming soon"
-              className="inline-flex min-h-11 cursor-default items-center text-sm font-medium"
-            >
-              {label}
-              <span className="sr-only">, coming soon</span>
-            </span>
-          ))}
-        </nav>
+        {headerTools ?? (
+          <nav aria-label="Main" className="hidden items-center gap-12 sm:flex print:hidden">
+            {homeLink(
+              "text-brand-maroon inline-flex min-h-11 items-center text-sm font-medium",
+              "Home",
+            )}
+            {headerNavigation ??
+              ["Profile", "Notifications"].map((label) => {
+                const renderLink = label === "Profile" ? profileLink : notificationsLink;
+                if (renderLink)
+                  return (
+                    <span key={label}>
+                      {renderLink(
+                        "inline-flex min-h-11 items-center text-sm font-medium hover:text-brand-maroon",
+                        label,
+                      )}
+                    </span>
+                  );
+                return (
+                  <span
+                    key={label}
+                    role="link"
+                    aria-disabled="true"
+                    title="Coming soon"
+                    className="inline-flex min-h-11 cursor-default items-center text-sm font-medium"
+                  >
+                    {label}
+                    <span className="sr-only">, coming soon</span>
+                  </span>
+                );
+              })}
+          </nav>
+        )}
       </header>
       <div className="relative flex min-h-0 flex-1 overflow-hidden print:block print:overflow-visible">
         {drawerOpen && (
@@ -148,7 +190,11 @@ export function DashboardLayout({
         >
           <nav
             aria-label={`${portal} modules`}
-            className="flex-1 overflow-x-hidden overflow-y-auto py-2"
+            className="flex-1 [scrollbar-width:none] overflow-x-hidden overflow-y-auto py-2 [&::-webkit-scrollbar]:hidden"
+            onClickCapture={(event) => {
+              if (drawerOpen && event.target instanceof Element && event.target.closest("a[href]"))
+                closeDrawer();
+            }}
           >
             <button
               type="button"
@@ -156,11 +202,20 @@ export function DashboardLayout({
               aria-label={expanded ? "Collapse menu" : "Expand menu"}
               aria-expanded={expanded}
               aria-controls={sidebarId}
-              onClick={() => (drawerOpen ? closeDrawer() : setIsExpanded((value) => !value))}
+              onClick={() => (drawerOpen ? closeDrawer() : persistExpanded(!isExpanded))}
             >
               <DashboardIcon name="menu" />
-              {expanded && <span className="text-sm font-semibold">Dashboard</span>}
             </button>
+            <div className="mx-3 my-1.5 border-t border-white/15" />
+            {homeLink(
+              navItem +
+                (expanded ? " gap-3 px-[18px]" : " justify-center") +
+                " aria-[current=page]:bg-white/20",
+              <>
+                <DashboardIcon name="home" />
+                <span className={expanded ? "text-sm font-semibold" : "sr-only"}>Dashboard</span>
+              </>,
+            )}
             <div className="mx-3 my-1.5 border-t border-white/15" />
             <ul>
               {navigation.map((section) => {
@@ -168,29 +223,40 @@ export function DashboardLayout({
                 const submenuId = `${sidebarId}-${section.label.toLowerCase().replaceAll(" ", "-")}`;
                 return (
                   <li key={section.label}>
-                    <button
-                      type="button"
-                      className={`${navItem} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${open ? "bg-white/10" : ""}`}
-                      aria-label={section.label}
-                      aria-expanded={open}
-                      aria-controls={submenuId}
-                      onClick={() => {
-                        setIsExpanded(true);
-                        setOpenSection(open ? null : section.label);
-                      }}
-                    >
-                      {section.icon}
-                      {expanded && (
-                        <>
-                          <span className="flex-1 text-left text-sm font-medium">
-                            {section.label}
-                          </span>
-                          <span className={open ? "rotate-180" : ""}>
-                            <DashboardIcon name="chevron" className="size-3.5" />
-                          </span>
-                        </>
-                      )}
-                    </button>
+                    {section.href ? (
+                      <a
+                        href={section.href}
+                        className={navItem + (expanded ? " gap-3 px-[18px]" : " justify-center")}
+                        aria-label={section.label}
+                      >
+                        {section.icon}
+                        {expanded && <span className="text-sm font-medium">{section.label}</span>}
+                      </a>
+                    ) : (
+                      <button
+                        type="button"
+                        className={`${navItem} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${open || section.label === activeSection ? "bg-white/10" : ""}`}
+                        aria-label={section.label}
+                        aria-expanded={open}
+                        aria-controls={submenuId}
+                        onClick={() => {
+                          persistExpanded(true);
+                          setOpenSection(open ? null : section.label);
+                        }}
+                      >
+                        {section.icon}
+                        {expanded && (
+                          <>
+                            <span className="flex-1 text-left text-sm font-medium">
+                              {section.label}
+                            </span>
+                            <span className={open ? "rotate-180" : ""}>
+                              <DashboardIcon name="chevron" className="size-3.5" />
+                            </span>
+                          </>
+                        )}
+                      </button>
+                    )}
                     {open && (
                       <ul id={submenuId} className="bg-black/15">
                         {section.children.map((item) => (

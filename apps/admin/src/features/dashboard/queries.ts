@@ -2,6 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { profileApi, session } from "../../lib/auth";
 import { dashboardApi } from "./api";
+import { useMe } from "../sign-in/useAdminAuth";
 
 export const dashboardKeys = {
   all: ["admin-dashboard"] as const,
@@ -10,7 +11,20 @@ export const dashboardKeys = {
 };
 
 export function useDashboard() {
-  return useQuery({ queryKey: dashboardKeys.overview(), queryFn: () => dashboardApi.overview() });
+  const me = useMe();
+  return useQuery({
+    queryKey: [
+      ...dashboardKeys.overview(),
+      me.data?.id,
+      me.data?.position,
+      me.data?.departmentId,
+      me.data?.collegeId,
+    ],
+    queryFn: ({ signal }) => dashboardApi.overview(me.data!.position, signal),
+    enabled: me.isSuccess && session.isSignedIn(),
+    retry: false,
+    refetchOnWindowFocus: true,
+  });
 }
 
 export function useProfile(enabled: boolean) {

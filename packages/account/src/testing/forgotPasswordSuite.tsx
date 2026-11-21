@@ -48,7 +48,7 @@ export function forgotPasswordSuite({
       await user.type(emailField(), "  ana@pup.edu.ph{Enter}");
 
       expect(await screen.findByRole("heading", { name: "Check your email" })).toHaveFocus();
-      expect(api.called(ROUTE)[0].body).toEqual({ email: "ana@pup.edu.ph" });
+      expect(api.called(ROUTE)[0].body).toEqual({ identifier: "ana@pup.edu.ph" });
       expect(screen.getByText("ana@pup.edu.ph")).toBeInTheDocument();
     });
 
