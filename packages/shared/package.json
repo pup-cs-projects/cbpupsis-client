@@ -5,13 +5,18 @@
   "type": "module",
   "description": "Framework-free code every CBPUPSIS client app uses: the API client, error envelope, session store, and generated API types.",
   "exports": {
+    "./account": "./src/account/index.ts",
     "./api": "./src/api/index.ts",
     "./auth": "./src/auth/index.ts",
     "./dashboard": "./src/dashboard/index.ts",
     "./grades": "./src/grades/index.ts",
     "./profile": "./src/profile/index.ts",
     "./schedule": "./src/schedule/index.ts",
-    "./enrollment": "./src/enrollment/index.ts"
+    "./enrollment": "./src/enrollment/index.ts",
+    "./grades/corrections": "./src/grades/corrections.ts",
+    "./grades/correction-samples": "./src/grades/correctionSamples.ts",
+    "./sections/faculty": "./src/sections/faculty.ts",
+    "./grades/correction-contract": "./src/grades/correctionContract.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

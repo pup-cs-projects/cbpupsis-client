@@ -70,6 +70,20 @@ afterEach(async () => {
 });
 
 describe("admin sign-in (US-103)", () => {
+  it("enters the portal without MFA when the development API returns tokens", async () => {
+    const api = mockApi({
+      "POST /auth/admin/login": { status: 200, body: tokens },
+      "GET /admin/me": { status: 200, body: me },
+    });
+    const router = renderApp("/");
+    await submitPassword();
+    await waitFor(() => expect(session.isSignedIn()).toBe(true));
+    await waitFor(() => expect(api.called("GET /admin/me").length).toBeGreaterThan(0));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
+    expect(screen.queryByRole("heading", { name: "Two-step verification" })).toBeNull();
+    expect(api.calls.some((call) => call.route.includes("/mfa/"))).toBe(false);
+  });
+
   it("validates required fields before contacting the API", async () => {
     const api = mockApi({});
     renderApp("/");
@@ -310,23 +324,28 @@ describe("admin sign-in (US-103)", () => {
     expect(alert).toHaveTextContent("req-9");
   });
 
-  it("goes from the second factor straight to the password change while a temporary password is pending", async () => {
-    mockApi({
-      "POST /auth/admin/login": { status: 200, body: challenge(false) },
-      "POST /auth/admin/mfa/verify": { status: 200, body: tokens },
-      "GET /admin/me": {
-        status: 403,
-        body: { detail: "Change it", code: "PASSWORD_CHANGE_REQUIRED" },
-      },
-    });
-    const router = renderApp("/");
+  it.each([false, true])(
+    "requires temporary-password change (development skip: %s)",
+    async (skip) => {
+      mockApi({
+        "POST /auth/admin/login": { status: 200, body: skip ? tokens : challenge(false) },
+        "POST /auth/admin/mfa/verify": { status: 200, body: tokens },
+        "GET /admin/me": {
+          status: 403,
+          body: { detail: "Change it", code: "PASSWORD_CHANGE_REQUIRED" },
+        },
+      });
+      const router = renderApp("/");
 
-    await submitPassword();
-    await enterCode();
+      await submitPassword();
+      if (!skip) await enterCode();
 
-    expect(await screen.findByRole("heading", { name: "Choose your own password" })).toHaveFocus();
-    expect(router.state.location.pathname).toBe("/change-password");
-  });
+      expect(
+        await screen.findByRole("heading", { name: "Choose your own password" }),
+      ).toHaveFocus();
+      expect(router.state.location.pathname).toBe("/change-password");
+    },
+  );
 
   it("returns to sign-in with the API's reason when the session ends right after the code", async () => {
     mockApi({

@@ -1,6 +1,7 @@
+// Scrollable table regions need keyboard focus at narrow viewport widths.
+/* eslint jsx-a11y/no-noninteractive-tabindex: ["error", { "roles": ["region"] }] */
 import { NOTICES, type AdminPosition } from "@cbpupsis/shared/auth";
 import {
-  DashboardCalendar,
   DashboardEmpty,
   DashboardLoading,
   DashboardMetric,
@@ -14,6 +15,7 @@ import "@cbpupsis/account/styles.css";
 import { useMe } from "../sign-in/useAdminAuth";
 import { DashboardLayout } from "./DashboardLayout";
 import { useDashboard } from "./queries";
+import { STATE_LABELS } from "../enrollment-requests/reviewRules";
 
 const POSITION_LABELS: Record<AdminPosition, string> = {
   chairperson: "Chairperson",
@@ -54,17 +56,27 @@ export function AdminDashboard() {
                 : "Administrative dashboard"}
             </p>
           </div>
-          {me.isPending && (
-            <p role="status" className="sr-only">
-              Loading your account
-            </p>
-          )}
-          {me.isSuccess && (
-            <p className="sr-only">
-              Signed in as {me.data.email} ({POSITION_LABELS[me.data.position]}).
-            </p>
+          {data && (
+            <button
+              type="button"
+              className="border-brand-maroon text-brand-maroon hover:bg-brand-maroon/5 inline-flex min-h-11 cursor-pointer items-center rounded-lg border px-4 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-60"
+              disabled={dashboard.isFetching}
+              onClick={() => void dashboard.refetch()}
+            >
+              {dashboard.isFetching ? "Refreshing…" : "Refresh overview"}
+            </button>
           )}
         </section>
+        {me.isPending && (
+          <p role="status" className="sr-only">
+            Loading your account
+          </p>
+        )}
+        {me.isSuccess && (
+          <p className="sr-only">
+            Signed in as {me.data.email} ({POSITION_LABELS[me.data.position]}).
+          </p>
+        )}
         {me.isError && <ErrorAlert error={me.error} onRetry={() => void me.refetch()} />}
         {dashboard.isPending && <DashboardLoading label="Loading admin dashboard" />}
         {dashboard.isError && (
@@ -72,17 +84,13 @@ export function AdminDashboard() {
         )}
         {data && (
           <>
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-              {(data.metrics.length
-                ? data.metrics
-                : [
-                    "Active Students",
-                    "Active Courses",
-                    "Active Faculty",
-                    "Active Users",
-                    "Pending Grades",
-                  ].map((label) => ({ label, value: "Unavailable", detail: undefined }))
-              ).map((metric) => (
+            {data.issues?.map((issue) => (
+              <p key={issue} className="text-brand-muted text-sm">
+                {issue}
+              </p>
+            ))}
+            <div className="grid gap-4 sm:grid-cols-2">
+              {data.metrics.map((metric) => (
                 <DashboardMetric
                   key={metric.label}
                   {...metric}
@@ -90,18 +98,28 @@ export function AdminDashboard() {
                 />
               ))}
             </div>
-            <DashboardSection title="Security and Activity Feed">
+            <DashboardSection title="Enrollment request activity">
               {data.activity.length === 0 ? (
-                <DashboardEmpty>No recent activity available.</DashboardEmpty>
+                <DashboardEmpty>
+                  {data.activityAvailable
+                    ? "No enrollment-request activity is available yet."
+                    : "Enrollment-request activity is not available to this account."}
+                </DashboardEmpty>
               ) : (
-                <div className="border-brand-border/25 overflow-x-auto rounded-xl border bg-white shadow-sm">
+                <div
+                  role="region"
+                  aria-label="Enrollment request records"
+                  tabIndex={0}
+                  className="border-brand-border/25 focus-visible:outline-brand-maroon overflow-x-auto rounded-xl border bg-white shadow-sm focus-visible:outline-2 focus-visible:outline-offset-0"
+                >
                   <table className="w-full text-left text-sm">
                     <caption className="sr-only">
-                      Security and system activity. Times shown in Asia/Manila.
+                      Add/drop, overload, and waiver filings in your scope. Times shown in
+                      Asia/Manila.
                     </caption>
                     <thead className="bg-brand-maroon text-xs text-white uppercase">
                       <tr>
-                        {["Timestamp", "Category", "Event", "Status"].map((heading) => (
+                        {["Filed on", "Request", "Activity", "Current status"].map((heading) => (
                           <th key={heading} scope="col" className="px-4 py-4 font-semibold">
                             {heading}
                           </th>
@@ -122,9 +140,9 @@ export function AdminDashboard() {
                           <td className="min-w-48 px-4 py-5">{item.event}</td>
                           <td className="px-4 py-5">
                             <span
-                              className={`inline-block rounded border px-2 py-1 text-xs font-bold uppercase ${item.status === "Warning" ? "border-brand-maroon text-brand-maroon" : item.status === "Success" ? "border-brand-success text-brand-success" : "border-brand-border text-brand-help"}`}
+                              className={`inline-block rounded-md border px-2.5 py-1 text-xs font-semibold ${item.status === "Warning" ? "border-brand-maroon text-brand-maroon" : item.status === "Success" ? "border-brand-success text-brand-success" : "border-brand-border text-brand-help"}`}
                             >
-                              {item.status}
+                              {item.requestState ? STATE_LABELS[item.requestState] : item.status}
                             </span>
                           </td>
                         </tr>
@@ -135,7 +153,10 @@ export function AdminDashboard() {
               )}
             </DashboardSection>
 
-            <DashboardCalendar events={data.events} />
+            <p className="text-brand-muted text-sm">
+              Activity includes add/drop, overload, and waiver requests in your scope. Refresh the
+              overview to view the latest updates.
+            </p>
           </>
         )}
       </div>

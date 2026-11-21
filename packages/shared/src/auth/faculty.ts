@@ -30,9 +30,12 @@ export function createFacultyAuthApi(client: ApiClient) {
   return {
     ...sessionEndpoints(client, "faculty"),
 
-    async login({ employeeId, password }: FacultyCredentials): Promise<MfaChallenge> {
+    async login({ employeeId, password }: FacultyCredentials): Promise<MfaChallenge | Tokens> {
       const body: Schemas["FacultyLoginRequest"] = { employee_id: employeeId, password };
-      return parseChallenge(await client.request("/auth/faculty/login", { body }), ["totp"]);
+      const data = await client.request("/auth/faculty/login", { body });
+      // Only the API's development environment switch can issue tokens here.
+      if ("access_token" in parse.record(data)) return parseTokens(data, "faculty");
+      return parseChallenge(data, ["totp"]);
     },
 
     async enrollTotp(challengeToken: string): Promise<TotpSetup> {
