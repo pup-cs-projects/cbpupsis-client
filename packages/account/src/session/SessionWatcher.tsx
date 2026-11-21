@@ -6,7 +6,7 @@ import { useAccount } from "../context";
 
 /**
  * When the session ends, for any reason, drop cached data and return to sign-in, saying why
- * when the person did not ask for it. While the account still holds a temporary password,
+ * when the person did not ask for it (in the API's words, when the API ended it). While the account still holds a temporary password,
  * send it to the password change: the API refuses everything else until then.
  */
 export function SessionWatcher() {
@@ -14,7 +14,7 @@ export function SessionWatcher() {
   const queryClient = useQueryClient();
   const { session } = useAccount();
   useEffect(() => {
-    const stopEvents = session.subscribe((event) => {
+    const stopEvents = session.subscribe((event, reason) => {
       if (event === "signed-in") return;
       queryClient.clear();
       void navigate({
@@ -25,6 +25,7 @@ export function SessionWatcher() {
             : event === "timed-out"
               ? { expired: "idle" }
               : {},
+        state: event === "expired" && reason ? { sessionEndedReason: reason } : {},
       });
     });
     const stopChange = session.onPasswordChangeRequired(

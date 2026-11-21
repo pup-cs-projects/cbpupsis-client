@@ -7,7 +7,7 @@ const first: Tokens = { accessToken: "access-1", refreshToken: "refresh-1" };
 const second: Tokens = { accessToken: "access-2", refreshToken: "refresh-2" };
 const unauthorized = new ApiError(401, undefined);
 
-function setup(refresh = vi.fn<(token: string) => Promise<Tokens>>().mockResolvedValue(second)) {
+function setup(refresh = vi.fn<(token?: string) => Promise<Tokens>>().mockResolvedValue(second)) {
   const logout = vi.fn<(token: string) => Promise<void>>().mockResolvedValue(undefined);
   const session = createSession({ refresh, logout });
   const events: SessionEvent[] = [];
@@ -22,6 +22,54 @@ function callAcceptingOnly(accepted: string) {
     return token;
   });
 }
+
+describe("restore after a page load", () => {
+  it("picks the session up from the refresh cookie, without a token in hand", async () => {
+    const { session, refresh, events } = setup();
+
+    await expect(session.restore()).resolves.toBe(true);
+    expect(refresh).toHaveBeenCalledWith();
+    expect(session.isSignedIn()).toBe(true);
+    expect(session.lastActivity()).not.toBeNull();
+    // Not a fresh sign-in: nothing navigates.
+    expect(events).toEqual([]);
+
+    const call = vi.fn(async (token: string) => token);
+    await expect(session.authorized(call)).resolves.toBe("access-2");
+  });
+
+  it("stays signed out when the API refuses or cannot be reached, and never rejects", async () => {
+    const refused = setup(
+      vi.fn<(token?: string) => Promise<Tokens>>().mockRejectedValue(unauthorized),
+    );
+    await expect(refused.session.restore()).resolves.toBe(false);
+    expect(refused.session.isSignedIn()).toBe(false);
+    expect(refused.events).toEqual([]);
+
+    const offline = setup(
+      vi
+        .fn<(token?: string) => Promise<Tokens>>()
+        .mockRejectedValue(new ApiError(0, "NETWORK_ERROR")),
+    );
+    await expect(offline.session.restore()).resolves.toBe(false);
+  });
+
+  it("asks the API once per page load, however many callers wait on it", async () => {
+    const { session, refresh } = setup();
+
+    await Promise.all([session.restore(), session.restore()]);
+    await session.restore();
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not call the API when already signed in", async () => {
+    const { session, refresh } = setup();
+    session.signIn(first);
+
+    await expect(session.restore()).resolves.toBe(true);
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
 
 describe("createSession", () => {
   it("refuses authenticated calls before sign-in without calling the API", async () => {
@@ -72,6 +120,38 @@ describe("createSession", () => {
     await expect(session.authorized(() => Promise.reject(idle))).rejects.toBe(idle);
     expect(refresh).not.toHaveBeenCalled();
     expect(events).toEqual(["signed-in", "expired"]);
+  });
+
+  it("passes on the API's own reason when it ends the session", async () => {
+    const { session } = setup();
+    const reasons: (string | undefined)[] = [];
+    session.subscribe((event, reason) => event === "expired" && reasons.push(reason));
+    session.signIn(first);
+    const idle = new ApiError(401, "AUTH_SESSION_EXPIRED", {
+      detail: "Your session has ended. Sign in again.",
+    });
+
+    await session.authorized(() => Promise.reject(idle)).catch(() => undefined);
+
+    expect(reasons).toEqual(["Your session has ended. Sign in again."]);
+  });
+
+  it("passes on the refresh refusal's wording, and nothing when the refresh never got an answer", async () => {
+    const refused = new ApiError(401, undefined, { detail: "Refresh token already used" });
+    const offline = new ApiError(0, "NETWORK_ERROR");
+    for (const [failure, expected] of [
+      [refused, "Refresh token already used"],
+      [offline, undefined],
+    ] as const) {
+      const { session } = setup(vi.fn().mockRejectedValue(failure));
+      const reasons: (string | undefined)[] = [];
+      session.subscribe((event, reason) => event === "expired" && reasons.push(reason));
+      session.signIn(first);
+
+      await session.authorized(callAcceptingOnly("never")).catch(() => undefined);
+
+      expect(reasons).toEqual([expected]);
+    }
   });
 
   it("passes errors other than 401 through without refreshing", async () => {

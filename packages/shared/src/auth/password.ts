@@ -84,20 +84,25 @@ export function meetsPolicy(checks: readonly PasswordCheck[]): boolean {
 
 /**
  * The API answers an unknown reset token, and a wrong current password, with a bare 401 and
- * no code. Each gets a client-side code here so a page can say what happened.
+ * no code. Each gets a client-side code here so a page can branch on what happened; the API's
+ * own sentence and request id carry over unchanged.
  */
 function rename(error: unknown, code: "RESET_LINK_INVALID" | "CURRENT_PASSWORD_INCORRECT") {
   return error instanceof ApiError && error.status === 401 && error.code === undefined
-    ? new ApiError(401, code, { requestId: error.requestId })
+    ? new ApiError(401, code, { detail: error.detail, requestId: error.requestId })
     : error;
 }
 
 export function createPasswordApi(client: ApiClient) {
   return {
-    /** Always 202 with the same body, whether or not the address has an account. */
-    async requestReset(email: string): Promise<void> {
+    /**
+     * Always 202 with the same body, whether or not the address has an account. Returns the
+     * API's confirmation sentence, to show as it is.
+     */
+    async requestReset(email: string): Promise<{ message: string }> {
       const body: Schemas["ForgotPasswordRequest"] = { email };
-      await client.request("/auth/forgot-password", { body });
+      const data = parse.record(await client.request("/auth/forgot-password", { body }));
+      return { message: parse.string(data.message) };
     },
 
     /** Check a reset link without spending it, and read the rules its new password must meet. */

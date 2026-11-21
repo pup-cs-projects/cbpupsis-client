@@ -1,0 +1,91 @@
+/*
+ * My Grades on paper or PDF: the transcript alone, full width, black on white.
+ * The sidebar and the controls already carry `print:hidden`; this file handles what the
+ * Tailwind utilities can't reach from inside the page.
+ */
+@media print {
+  @page {
+    margin: 12mm;
+  }
+
+  /* The portal header sits outside this page's tree; hide it only while My Grades is shown. */
+  body:has([data-grades-page]) header {
+    display: none !important;
+  }
+
+  [data-grades-page] {
+    padding: 0 !important;
+    color: #000;
+  }
+
+  /* One column, full width: the summary rail moves under the tables. */
+  [data-grades-page] .grades-layout {
+    display: block !important;
+  }
+  [data-grades-page] .grades-layout > * {
+    margin-bottom: 8mm;
+  }
+
+  [data-grades-page] .grades-term {
+    break-inside: avoid;
+    margin-bottom: 8mm;
+  }
+
+  /* No card chrome, no sideways scroll: the table is the page. */
+  [data-grades-page] .grades-card,
+  [data-grades-page] .grades-panel,
+  [data-grades-page] .grades-metric {
+    border: 0 !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  [data-grades-page] .grades-scroll {
+    overflow: visible !important;
+  }
+
+  [data-grades-page] .grades-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    border-collapse: collapse !important;
+    font-size: 10pt;
+  }
+  [data-grades-page] .grades-table thead {
+    display: table-header-group; /* repeat the header on every page */
+    background: #fff !important;
+    color: #000 !important;
+  }
+  [data-grades-page] .grades-table th,
+  [data-grades-page] .grades-table td {
+    border: 1px solid #000 !important;
+    padding: 4pt 6pt !important;
+    color: #000 !important;
+    background: #fff !important;
+  }
+  [data-grades-page] .grades-table thead th {
+    font-weight: 700;
+    background: #eee !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  [data-grades-page] .grades-table tr {
+    break-inside: avoid;
+  }
+
+  /* Status reads as plain text: the word carries it, so the tint can go. */
+  [data-grades-page] .grades-pill {
+    border: 0 !important;
+    background: none !important;
+    color: #000 !important;
+    padding: 0 !important;
+    font-weight: 400 !important;
+  }
+
+  [data-grades-page] h1,
+  [data-grades-page] h2,
+  [data-grades-page] p,
+  [data-grades-page] dd,
+  [data-grades-page] dt {
+    color: #000 !important;
+  }
+}

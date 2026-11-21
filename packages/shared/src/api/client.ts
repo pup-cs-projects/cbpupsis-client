@@ -2,7 +2,7 @@ import { ApiError } from "./errors";
 
 export interface RequestOptions {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
-  /** Serialized as JSON. */
+  /** Serialized as JSON, except `FormData`, which the browser sends as multipart. */
   body?: unknown;
   /** Sent as `Authorization: Bearer <token>`. */
   accessToken?: string;
@@ -16,6 +16,9 @@ export interface ApiClient {
    * so a contract change fails there instead of deep inside a component.
    */
   request(path: string, options?: RequestOptions): Promise<unknown>;
+
+  /** Call the API for a file (an image, an export) and return its bytes. */
+  requestBlob(path: string, options?: RequestOptions): Promise<Blob>;
 }
 
 const TIMEOUT_MS = 20_000;
@@ -27,39 +30,61 @@ const TIMEOUT_MS = 20_000;
 export function createApiClient(baseUrl: string): ApiClient {
   const root = baseUrl.replace(/\/+$/, "");
 
+  async function send(
+    path: string,
+    { method = "POST", body, accessToken }: RequestOptions,
+    accept: string,
+  ): Promise<Response> {
+    const isForm = body instanceof FormData;
+    try {
+      return await fetch(root + path, {
+        method,
+        headers: {
+          Accept: accept,
+          // A multipart body sets its own Content-Type, boundary included.
+          ...(body === undefined || isForm ? {} : { "Content-Type": "application/json" }),
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: body === undefined ? undefined : isForm ? body : JSON.stringify(body),
+        // The API also sets an HttpOnly refresh cookie; nothing reads it yet, and sending
+        // credentials keeps that option open without a client change.
+        credentials: "include",
+        cache: "no-store",
+        signal: AbortSignal.timeout(TIMEOUT_MS),
+      });
+    } catch {
+      throw new ApiError(0, "NETWORK_ERROR");
+    }
+  }
+
+  async function failure(response: Response): Promise<ApiError> {
+    let data: unknown;
+    try {
+      data = await response.json();
+    } catch {
+      return new ApiError(response.status, undefined);
+    }
+    return toApiError(response, data);
+  }
+
   return {
-    async request(path, { method = "POST", body, accessToken } = {}) {
-      let response: Response;
-      try {
-        response = await fetch(root + path, {
-          method,
-          headers: {
-            Accept: "application/json",
-            ...(body === undefined ? {} : { "Content-Type": "application/json" }),
-            ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-          },
-          body: body === undefined ? undefined : JSON.stringify(body),
-          // The API also sets an HttpOnly refresh cookie; nothing reads it yet, and sending
-          // credentials keeps that option open without a client change.
-          credentials: "include",
-          cache: "no-store",
-          signal: AbortSignal.timeout(TIMEOUT_MS),
-        });
-      } catch {
-        throw new ApiError(0, "NETWORK_ERROR");
-      }
+    async request(path, options = {}) {
+      const response = await send(path, options, "application/json");
 
       if (response.status === 204) return undefined;
+      if (!response.ok) throw await failure(response);
 
-      let data: unknown;
       try {
-        data = await response.json();
+        return (await response.json()) as unknown;
       } catch {
-        throw new ApiError(response.status, response.ok ? "INVALID_RESPONSE" : undefined);
+        throw new ApiError(response.status, "INVALID_RESPONSE");
       }
+    },
 
-      if (!response.ok) throw toApiError(response, data);
-      return data;
+    async requestBlob(path, options = {}) {
+      const response = await send(path, { method: "GET", ...options }, "*/*");
+      if (!response.ok) throw await failure(response);
+      return response.blob();
     },
   };
 }
@@ -81,7 +106,19 @@ function toApiError(response: Response, data: unknown): ApiError {
     Number.isFinite(retrySeconds) && retrySeconds >= 0
       ? Date.now() + retrySeconds * 1000
       : undefined;
-  return new ApiError(response.status, code, { requestId, retryAt });
+  return new ApiError(response.status, code, { detail: detailOf(envelope), requestId, retryAt });
+}
+
+/**
+ * The API's sentence for a person: `detail` when it is prose, else `message` (both carry the
+ * same text in today's envelope). FastAPI's 422 sends `detail` as a list of field errors, which
+ * is not a sentence, so it yields nothing and the screen falls back to its own words.
+ */
+function detailOf(envelope: Record<string, unknown>): string | undefined {
+  for (const value of [envelope.detail, envelope.message]) {
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
 }
 
 export function isRecord(value: unknown): value is Record<string, unknown> {

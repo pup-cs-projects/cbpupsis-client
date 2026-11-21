@@ -1,7 +1,10 @@
 import { createPortalRouter } from "@cbpupsis/account";
-import type { RouterHistory } from "@tanstack/react-router";
+import { createRoute, redirect, type RouterHistory } from "@tanstack/react-router";
 
 import { HomePage } from "../features/dashboard/HomePage";
+import { GradesPage } from "../features/grades/GradesPage";
+import { ProfilePage } from "../features/profile/ProfilePage";
+import { SchedulePage } from "../features/schedule/SchedulePage";
 import { SignInPage } from "../features/sign-in/SignInPage";
 import { account } from "../lib/auth";
 
@@ -12,6 +15,32 @@ export function createAppRouter(history?: RouterHistory) {
     signIn: SignInPage,
     dashboard: HomePage,
     history,
+    extraRoutes: (rootRoute) => [
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/profile",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: ProfilePage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/schedule",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: SchedulePage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/grades",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: GradesPage,
+      }),
+    ],
   });
 }
 
