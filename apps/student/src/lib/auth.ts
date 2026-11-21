@@ -1,4 +1,5 @@
 import type { AccountConfig } from "@cbpupsis/account";
+import { createStudentAccountApi, createStudentPaymentsApi } from "@cbpupsis/shared/account";
 import { createApiClient } from "@cbpupsis/shared/api";
 import { createPasswordApi, createSession, createStudentAuthApi } from "@cbpupsis/shared/auth";
 import { createStudentDashboardApi } from "@cbpupsis/shared/dashboard";
@@ -48,6 +49,12 @@ export const scheduleApi = createStudentScheduleApi(apiClient, apiConfig.schedul
 
 /** The student's add and drop requests and the sections they may add (US-ENRL-004). */
 export const addDropApi = createStudentAddDropApi(apiClient);
+
+/** The student's billing statement and payment history (US-FIN-001). */
+export const studentAccountApi = createStudentAccountApi(apiClient);
+
+/** Paying the balance online: the payable account, the payment, its status, its receipt (US-FIN-002). */
+export const studentPaymentsApi = createStudentPaymentsApi(apiClient);
 
 /** This app's one session. Tokens stay in memory; a reload restores it from the refresh cookie. */
 export const session = createSession(authApi);

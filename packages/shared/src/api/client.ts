@@ -6,6 +6,11 @@ export interface RequestOptions {
   body?: unknown;
   /** Sent as `Authorization: Bearer <token>`. */
   accessToken?: string;
+  /**
+   * Extra request headers, such as `Idempotency-Key` on a payment. They never override the
+   * ones the client owns: `Accept`, `Content-Type`, and `Authorization`.
+   */
+  headers?: Record<string, string>;
   /** Cancels the call; it then rejects with the signal's reason, not an `ApiError`. */
   signal?: AbortSignal;
   /** Override the default 20-second deadline for documented long-running requests. */
@@ -36,7 +41,7 @@ export function createApiClient(baseUrl: string): ApiClient {
 
   async function send(
     path: string,
-    { method = "POST", body, accessToken, signal, timeoutMs = TIMEOUT_MS }: RequestOptions,
+    { method = "POST", body, accessToken, headers, signal, timeoutMs = TIMEOUT_MS }: RequestOptions,
     accept: string,
   ): Promise<Response> {
     const isForm = body instanceof FormData;
@@ -44,6 +49,7 @@ export function createApiClient(baseUrl: string): ApiClient {
       return await fetch(root + path, {
         method,
         headers: {
+          ...headers,
           Accept: accept,
           // A multipart body sets its own Content-Type, boundary included.
           ...(body === undefined || isForm ? {} : { "Content-Type": "application/json" }),
@@ -126,11 +132,16 @@ function toApiError(response: Response, data: unknown): ApiError {
       ? { allowedMarks: envelope.allowedMarks }
       : {}),
   };
+  const reason =
+    typeof envelope.reason === "string" && envelope.reason.trim()
+      ? envelope.reason.trim()
+      : undefined;
   return new ApiError(response.status, code, {
     detail: detailOf(envelope),
     requestId,
     retryAt,
     details,
+    reason,
   });
 }
 

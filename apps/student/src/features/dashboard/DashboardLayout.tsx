@@ -96,7 +96,7 @@ const NAV_SECTIONS: NavSection[] = [
     id: "finance",
     label: "Finance",
     icon: <BriefcaseIcon />,
-    children: [{ label: "Billing & Payments" }],
+    children: [{ label: "Billing & Payments", to: "/account" }],
   },
   {
     id: "forms",
