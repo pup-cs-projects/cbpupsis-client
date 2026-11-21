@@ -17,6 +17,8 @@ export class ApiError extends Error {
   readonly retryAt: number | undefined;
   /** The envelope's structured `details` (the numbers or names a refusal is about), if any. */
   readonly details: Record<string, unknown> | undefined;
+  /** The envelope's top-level `reason`: a gateway's own words for refusing, when it sent one. */
+  readonly reason: string | undefined;
 
   constructor(
     status: number,
@@ -26,6 +28,7 @@ export class ApiError extends Error {
       requestId?: string;
       retryAt?: number;
       details?: Record<string, unknown>;
+      reason?: string;
     } = {},
   ) {
     super(options.detail ?? code ?? `HTTP ${status}`);
@@ -36,6 +39,7 @@ export class ApiError extends Error {
     this.requestId = options.requestId;
     this.retryAt = options.retryAt;
     this.details = options.details;
+    this.reason = options.reason;
   }
 }
 
