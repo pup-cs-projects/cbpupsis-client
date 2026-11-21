@@ -28,3 +28,5 @@ export { MaintenancePage } from "./shared/MaintenancePage";
 export { DashboardProfileCard } from "./components/DashboardProfileCard";
 
 export { ModalDialog } from "./components/ModalDialog";
+
+export { DashboardHeader } from "./components/DashboardHeader";

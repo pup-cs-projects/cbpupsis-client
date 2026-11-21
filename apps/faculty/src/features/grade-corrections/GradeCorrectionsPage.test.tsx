@@ -11,6 +11,7 @@ import axe from "axe-core";
 import { account, session } from "../../lib/auth";
 import { me, signInDirectly } from "../../test/fixtures";
 import { GradeCorrectionsPage } from "./GradeCorrectionsPage";
+import { renderFaculty, sectionWire } from "../../test/renderFaculty";
 
 const record: Correction = {
   id: "correction-1",
@@ -230,4 +231,97 @@ it("announces an empty section catalog rather than leaving an unusable form unex
   expect(
     await screen.findByText("No assigned sections are available for correction."),
   ).toBeInTheDocument();
+});
+
+it("AC-FAC-002.1: the default live adapter files the published multipart contract and reads backend IDs", async () => {
+  const wire = {
+    id: "correction-live",
+    gradeId: "grade-1",
+    studentId: "student-1",
+    sectionId: "section-1",
+    facultyId: me.id,
+    currentMark: "2.00",
+    proposedMark: "1.50",
+    reason: "Entered incorrectly",
+    gradingSheetFileId: "private-file",
+    gradingSheetContentType: "application/pdf",
+    gradingSheetSize: 12,
+    gradingSheetSha256: "a".repeat(64),
+    state: "PENDING_CHAIR",
+    version: 1,
+    windowClosedAt: "2027-05-01T00:00:00Z",
+    chairApprovedBy: null,
+    deanApprovedBy: null,
+    registrarApprovedBy: null,
+    rejectedBy: null,
+    rejectionRemarks: null,
+    createdAt: "2026-11-19T01:00:00Z",
+  };
+  renderFaculty("/grade-corrections", {
+    "GET /faculty/grade-corrections": {
+      status: 200,
+      body: { items: [], total: 0, limit: 100, offset: 0 },
+    },
+    "GET /faculty/sections": {
+      status: 200,
+      body: { items: [sectionWire], total: 1, limit: 200, offset: 0 },
+    },
+    "GET /faculty/sections/section-1/grades": {
+      status: 200,
+      body: {
+        state: "FINAL",
+        grades: [
+          {
+            studentId: "student-1",
+            studentName: "Ana Santos",
+            studentNumber: "2026-00001",
+            finalGrade: "2.00",
+            status: "FINAL",
+            isDraft: false,
+            isLocked: true,
+          },
+        ],
+      },
+    },
+    "GET /faculty/grade-corrections/correction-live": { status: 200, body: wire },
+  });
+  const baseFetch = globalThis.fetch;
+  let uploaded: FormData | undefined;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.body instanceof FormData) {
+        uploaded = init.body;
+        return new Response(JSON.stringify(wire), {
+          status: 201,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+      return baseFetch(input, init);
+    }),
+  );
+  const user = userEvent.setup();
+  await user.click(await screen.findByRole("button", { name: "New correction" }));
+  await waitFor(() => expect(screen.getByLabelText(/^Section/)).toBeEnabled());
+  await user.selectOptions(screen.getByLabelText(/^Section/), "section-1");
+  await waitFor(() => expect(screen.getByLabelText(/^Student/)).toBeEnabled());
+  await user.selectOptions(screen.getByLabelText(/^Student/), "student-1");
+  await user.type(screen.getByLabelText(/^New mark/), "1.50");
+  await user.type(screen.getByLabelText(/^Reason/), "Entered incorrectly");
+  await user.upload(
+    screen.getByLabelText(/^Grading sheet/),
+    new File(["%PDF-evidence"], "evidence.pdf", { type: "application/pdf" }),
+  );
+  await user.click(screen.getByRole("button", { name: "File correction" }));
+  await screen.findByText(/Correction filed/);
+  expect(uploaded?.get("student_id")).toBe("student-1");
+  expect(uploaded?.get("proposed_mark")).toBe("1.50");
+  expect(uploaded?.get("grading_sheet")).toBeInstanceOf(File);
+  await user.click(screen.getByRole("button", { name: "View correction for Ana Santos" }));
+  await screen.findByRole("dialog", { name: "Correction details" });
+  expect(screen.getByRole("dialog")).toHaveTextContent("Student ID: student-1");
+  expect(screen.getByRole("dialog")).toHaveTextContent("Section ID: section-1");
+  expect(screen.getByRole("dialog")).toHaveTextContent(
+    "Document download is currently unavailable.",
+  );
 });

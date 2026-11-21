@@ -7,3 +7,6 @@
 *.jpg binary
 *.ico binary
 *.woff2 binary
+
+# Generated from the API OpenAPI schema (npm run gen:api); collapsed in PR diffs.
+packages/shared/src/api/schema.gen.ts linguist-generated=true

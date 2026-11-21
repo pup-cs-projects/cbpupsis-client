@@ -50,10 +50,12 @@ export function createAdminAuthApi(client: ApiClient) {
   return {
     ...sessionEndpoints(client, "admin"),
 
-    async login({ email, password }: AdminCredentials): Promise<AdminChallenge> {
+    async login({ email, password }: AdminCredentials): Promise<AdminChallenge | Tokens> {
       const body: Schemas["AdminLoginRequest"] = { email, password };
       const data = await client.request("/auth/admin/login", { body });
       const raw = parse.record(data);
+      // Only the API's development environment switch can issue tokens here.
+      if ("access_token" in raw) return parseTokens(data, "admin");
       return {
         ...parseChallenge(data, ["totp", "webauthn"]),
         webauthn: {

@@ -23,7 +23,6 @@ export const gradingSheet: FacultyGradeSheet = {
     "2.50",
     "2.75",
     "3.00",
-    "4.00",
     "5.00",
     "INC",
   ],

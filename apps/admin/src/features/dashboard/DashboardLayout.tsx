@@ -28,20 +28,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
         </Link>
       )}
       navigation={[
-        {
-          label: "Home",
-          icon: <DashboardIcon name="home" />,
-          children: [
-            {
-              label: "Overview",
-              content: (
-                <Link to="/dashboard" className={settingsLink}>
-                  Overview
-                </Link>
-              ),
-            },
-          ],
-        },
+        // The shared layout already renders the "Dashboard" link above these sections, as the
+        // student and faculty sidebars do; a separate Home section would duplicate it.
         {
           label: "Users",
           icon: <DashboardIcon name="users" />,

@@ -7,8 +7,11 @@ export const GOOGLE_CALENDAR_MESSAGES = {
   invalidState: "That Google sign-in expired. Please connect again.",
   unavailable: "Google Calendar is not available right now. Please try again.",
   conflict: "Check the sync status first.",
+  stillDisconnecting: "Disconnect is still finishing. Try again in a moment.",
   disconnected: "Disconnected. Your calendar stays in Google.",
   disabled: "Google Calendar sync is turned off.",
+  statusLoadFailed:
+    "We couldn't load your Google Calendar status. Your schedule and downloads still work.",
   connectAttempt:
     "Google Calendar is not available on the server yet. You can try connecting or export an .ics file.",
 };
@@ -47,6 +50,21 @@ export function googleCalendarError(error: unknown): string {
   }
   // Never echo provider payloads or callback URLs into an error message.
   return "The Google Calendar request could not be confirmed. Refresh the sync status before trying again.";
+}
+
+/**
+ * The initial status read (GET) failing is not an uncertain write: say the status could not be
+ * loaded, never the "could not be confirmed" wording meant for actions.
+ */
+export function googleCalendarStatusError(error: unknown): string {
+  if (error instanceof ApiError) {
+    if (error.code === "GOOGLE_CALENDAR_UNAVAILABLE" || error.status === 503)
+      return GOOGLE_CALENDAR_MESSAGES.unavailable;
+    if (error.code === "GOOGLE_CALENDAR_CONFLICT") return GOOGLE_CALENDAR_MESSAGES.conflict;
+    if (error.status === 401) return "Your student session has ended. Sign in, then try again.";
+    if (error.status === 403) return "Google Calendar sync is not available to your account.";
+  }
+  return GOOGLE_CALENDAR_MESSAGES.statusLoadFailed;
 }
 
 export function termKey(term: ScheduleTerm): string {

@@ -1,4 +1,3 @@
-import { SampleDataNotice } from "../../components/SampleDataNotice";
 import { ApiError } from "@cbpupsis/shared/api";
 import { gradingErrorMessage } from "@cbpupsis/shared/grades";
 import { ModalDialog } from "@cbpupsis/ui";
@@ -22,7 +21,12 @@ const date = (value: string) =>
     timeStyle: "short",
     timeZone: "Asia/Manila",
   }).format(new Date(value));
-const labels = { PENDING_DEAN: "Pending endorsement", ENDORSED: "Endorsed", REJECTED: "Rejected" };
+const labels = {
+  PENDING_DEAN: "Pending endorsement",
+  ENDORSED: "Endorsed",
+  REJECTED: "Rejected",
+  EXPIRED: "Expired",
+};
 
 export function IncompleteCompletionsPage({
   dataSource = incompleteReviewDataSource,
@@ -58,10 +62,9 @@ export function IncompleteCompletionsPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
-        <SampleDataNotice />
         <header>
           <p className="text-brand-muted text-sm">Academics / Grades</p>
-          <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Inc completions</h1>
+          <h1 className="text-brand-maroon mt-2 text-3xl font-bold">INC completions</h1>
           <p className="text-brand-muted mt-2 max-w-2xl text-sm leading-relaxed">
             Review completion requests for your college. Endorsement replaces the recorded Inc with
             the proposed mark.
@@ -128,13 +131,19 @@ export function IncompleteCompletionsPage({
                 </button>
               </div>
               {query.isPending ? (
-                <p role="status">Loading Inc completions…</p>
+                <p role="status">Loading INC completions…</p>
               ) : !items.length ? (
                 <p className="text-brand-muted py-6 text-sm">
                   No completion requests match these filters.
                 </p>
               ) : (
-                <div className="overflow-x-auto">
+                <div
+                  className="focus-visible:outline-brand-maroon overflow-x-auto rounded-lg focus-visible:outline-2 focus-visible:outline-offset-2"
+                  role="region"
+                  aria-label="INC completion requests table"
+                  // eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- Completed requests still need keyboard access to the scrollable table.
+                  tabIndex={0}
+                >
                   <table className="w-full min-w-[640px] text-left text-sm">
                     <caption className="sr-only">
                       Incomplete completion requests for your college
@@ -293,7 +302,13 @@ function ReviewDialog({
       setError(gradingErrorMessage(failure));
       if (failure instanceof ApiError && failure.code === "DECISION_REMARKS_REQUIRED")
         setRemarkError("Enter remarks when rejecting a completion.");
-      if (failure instanceof ApiError && failure.code === "VERSION_CONFLICT") setConflict(true);
+      if (
+        failure instanceof ApiError &&
+        ["VERSION_CONFLICT", "REQUEST_ALREADY_DECIDED", "INC_COMPLETION_WINDOW_CLOSED"].includes(
+          failure.code ?? "",
+        )
+      )
+        setConflict(true);
     } finally {
       running.current = false;
       setBusy(false);
@@ -302,7 +317,7 @@ function ReviewDialog({
   const item = detail.data;
   const url = attachmentUrl(item?.formUrl ?? null);
   return (
-    <ModalDialog open title="Review Inc completion" busy={busy} onClose={onClose}>
+    <ModalDialog open title="Review INC completion" busy={busy} onClose={onClose}>
       {detail.isPending ? (
         <p role="status" className="mt-4">
           Loading completion details…

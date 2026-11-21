@@ -49,6 +49,8 @@ export function GoogleCalendarCallbackPage() {
         void navigate({ to: "/schedule", search: {}, replace: true });
       },
       (failure) => {
+        // The outcome is uncertain (409 included): the schedule page must re-read the status.
+        void client.invalidateQueries({ queryKey: googleCalendarKeys.all });
         if (active) setError(googleCalendarError(failure));
       },
     );

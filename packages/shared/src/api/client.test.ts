@@ -91,6 +91,25 @@ describe("createApiClient", () => {
     expect(error).toMatchObject({ status: 401, code: "AUTH_FAILED", requestId: "req-1" });
   });
 
+  it("AC-FAC-003.2/.3: preserves the published mode-mismatch metadata alongside student row errors", async () => {
+    respond(422, {
+      code: "GRADE_MODE_MISMATCH",
+      detail: "Submitted mark does not fit the section's PASS_FAIL grading mode.",
+      gradingMode: "PASS_FAIL",
+      allowedMarks: ["PASS", "FAIL"],
+      details: { rows: [{ studentId: "student-1", message: "Use Pass or Fail." }] },
+    });
+    const error = await rejection(client.request("/faculty/sections/section-1/grades/draft"));
+    expect(error).toMatchObject({
+      code: "GRADE_MODE_MISMATCH",
+      details: {
+        gradingMode: "PASS_FAIL",
+        allowedMarks: ["PASS", "FAIL"],
+        rows: [{ studentId: "student-1", message: "Use Pass or Fail." }],
+      },
+    });
+  });
+
   it("reads a lockout's wait from the body (AC-101.4)", async () => {
     vi.useFakeTimers({ now: 1_000_000 });
     respond(423, { detail: "Locked", code: "AUTH_ACCOUNT_LOCKED", retry_after_seconds: 90 });
