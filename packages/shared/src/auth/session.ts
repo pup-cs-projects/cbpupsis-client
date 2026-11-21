@@ -16,6 +16,13 @@ export interface Session {
   isSignedIn(): boolean;
   /** Start a session from the tokens a sign-in step returned. */
   signIn(tokens: Tokens): void;
+  /**
+   * After a page load, pick the session back up from the API's HttpOnly refresh cookie.
+   * Resolves true when signed in. Runs at most once per page load; apps await it before
+   * their first route so guards see the restored session. Never rejects: a refusal or a
+   * failure to reach the API just means signed out.
+   */
+  restore(): Promise<boolean>;
   /** End the session: forget the tokens, then tell the API (best effort). */
   signOut(): Promise<void>;
   /**
@@ -36,8 +43,11 @@ export interface Session {
    * client's estimate at or before the API's, so the client never outlives the server.
    */
   lastActivity(): number | null;
-  /** Returns the unsubscribe function. */
-  subscribe(listener: (event: SessionEvent) => void): () => void;
+  /**
+   * Returns the unsubscribe function. On `expired`, `reason` is the API's own sentence for why
+   * it ended the session, when it gave one.
+   */
+  subscribe(listener: (event: SessionEvent, reason?: string) => void): () => void;
   /**
    * Called when an authenticated call answers 403 PASSWORD_CHANGE_REQUIRED: the account still
    * holds a temporary password. Returns the unsubscribe function.
@@ -46,7 +56,8 @@ export interface Session {
 }
 
 export interface SessionOptions {
-  refresh(refreshToken: string): Promise<Tokens>;
+  /** With no token, the API reads its HttpOnly refresh cookie instead. */
+  refresh(refreshToken?: string): Promise<Tokens>;
   logout(refreshToken: string): Promise<void>;
 }
 
@@ -54,25 +65,27 @@ export interface SessionOptions {
  * The signed-in state for one app.
  *
  * Tokens live in this closure and nowhere else: never localStorage or sessionStorage
- * (CONVENTIONS, RA 10173). The cost is that a page reload signs the user out, accepted until
- * the API's session-storage decision closes.
+ * (CONVENTIONS, RA 10173). A page reload is survived through `restore()`, which asks the API
+ * for fresh tokens with the HttpOnly refresh cookie that script can never read.
  */
 export function createSession({ refresh, logout }: SessionOptions): Session {
   let tokens: Tokens | null = null;
   let activity: number | null = null;
   let refreshing: Promise<Tokens | null> | null = null;
-  const listeners = new Set<(event: SessionEvent) => void>();
+  let restoring: Promise<boolean> | null = null;
+  const listeners = new Set<(event: SessionEvent, reason?: string) => void>();
   const changeListeners = new Set<() => void>();
 
-  function emit(event: SessionEvent) {
-    listeners.forEach((listener) => listener(event));
+  function emit(event: SessionEvent, reason?: string) {
+    listeners.forEach((listener) => listener(event, reason));
   }
 
-  function expire(ended: Tokens) {
+  /** The API ended the session; `refusal` is its answer, whose sentence says why. */
+  function expire(ended: Tokens, refusal?: unknown) {
     if (tokens !== ended) return;
     tokens = null;
     activity = null;
-    emit("expired");
+    emit("expired", refusal instanceof ApiError ? refusal.detail : undefined);
   }
 
   async function end(event: "signed-out" | "timed-out") {
@@ -119,8 +132,8 @@ export function createSession({ refresh, logout }: SessionOptions): Session {
           }
           tokens = next;
           return next;
-        } catch {
-          expire(current);
+        } catch (error) {
+          expire(current, error);
           return null;
         } finally {
           refreshing = null;
@@ -139,6 +152,23 @@ export function createSession({ refresh, logout }: SessionOptions): Session {
       emit("signed-in");
     },
 
+    restore() {
+      restoring ??= tokens
+        ? Promise.resolve(true)
+        : refresh().then(
+            (next) => {
+              // A sign-in that finished first keeps its own tokens.
+              if (!tokens) {
+                tokens = next;
+                activity = Date.now();
+              }
+              return true;
+            },
+            () => tokens !== null,
+          );
+      return restoring;
+    },
+
     signOut: () => end("signed-out"),
 
     timeOut: () => end("timed-out"),
@@ -152,7 +182,7 @@ export function createSession({ refresh, logout }: SessionOptions): Session {
         if (!(error instanceof ApiError) || error.status !== 401) throw error;
         // An idle session is deleted server-side; a refresh cannot revive it (AC-104.7).
         if (error.code === "AUTH_SESSION_EXPIRED") {
-          expire(current);
+          expire(current, error);
           throw error;
         }
         // Another call may already have refreshed while this one was in flight.

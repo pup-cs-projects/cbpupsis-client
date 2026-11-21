@@ -93,17 +93,35 @@ settings (`.editorconfig`, `.prettierrc.json`, `eslint.config.js`) are the sourc
 7. **Merge.** When CI is green and one reviewer has approved, a maintainer **squashes and
    merges**. The PR title becomes the commit on `dev`. Delete the branch afterwards.
 
-`dev` is released to `main` by the product owner through a PR from `dev` to `main`.
+### Releasing
+
+Releases move `dev` -> `staging` -> `main`, each step a pull request merged by the product owner.
+A merge into `staging` deploys the staging portals, and a merge into `main` deploys production
+(see `deploy.yml` below).
+
+1. Open a PR from `dev` to `staging`. Merging it deploys staging.
+2. Check the release on the staging portals.
+3. Open a PR from `staging` to `main`. Merging it deploys production.
+
+Use a **merge commit**, not a squash, for `dev` -> `staging` and `staging` -> `main`, so the
+three branches keep the same history and the next release PR shows only what is new.
+
+An urgent fix may go `hotfix/<name>` -> `main` directly. Afterwards open a PR from `main` back
+into `staging` and from `staging` into `dev`, so the fix is not lost by the next release.
+
+Release the API first when a release needs both: a portal that calls an endpoint the API does
+not serve yet breaks in front of users.
 
 ## 4. Branches and commits
 
-| Branch           | Purpose                                                               | Example                       |
-| ---------------- | --------------------------------------------------------------------- | ----------------------------- |
-| `main`           | Released code. Never commit to it directly.                           |                               |
-| `dev`            | Integration branch. Every PR targets it. Never commit to it directly. |                               |
-| `feature/<name>` | New work                                                              | `feature/login-screen`        |
-| `bugfix/<name>`  | A fix for something on `dev`                                          | `bugfix/menu-overflow-mobile` |
-| `hotfix/<name>`  | An urgent fix for `main`                                              | `hotfix/blank-page-safari`    |
+| Branch           | Purpose                                                                      | Example                       |
+| ---------------- | ---------------------------------------------------------------------------- | ----------------------------- |
+| `main`           | Production. A merge deploys it. Never commit to it directly.                 |                               |
+| `staging`        | The release candidate. A merge deploys staging. Never commit to it directly. |                               |
+| `dev`            | Integration branch. Every PR targets it. Never commit to it directly.        |                               |
+| `feature/<name>` | New work                                                                     | `feature/login-screen`        |
+| `bugfix/<name>`  | A fix for something on `dev`                                                 | `bugfix/menu-overflow-mobile` |
+| `hotfix/<name>`  | An urgent fix for `main`                                                     | `hotfix/blank-page-safari`    |
 
 Names are lowercase and hyphen-separated. One issue per branch.
 
@@ -135,10 +153,10 @@ Do not add `Co-Authored-By` or other attribution trailers.
 Installed by `npm ci` (husky), configured in `.husky/`, `package.json` (`lint-staged`), and
 `commitlint.config.js`.
 
-| Hook         | Checks                                                                                                                        |
-| ------------ | ----------------------------------------------------------------------------------------------------------------------------- |
-| `pre-commit` | refuses commits on `main` and `dev`; refuses a staged private key; runs `eslint --fix` and `prettier --write` on staged files |
-| `commit-msg` | the message follows Conventional Commits                                                                                      |
+| Hook         | Checks                                                                                                                                    |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `pre-commit` | refuses commits on `main`, `staging`, and `dev`; refuses a staged private key; runs `eslint --fix` and `prettier --write` on staged files |
+| `commit-msg` | the message follows Conventional Commits                                                                                                  |
 
 If ESLint reports something it cannot fix, the commit stops. Fix it, `git add`, and commit again.
 
@@ -147,10 +165,14 @@ skipping them locally only moves the failure to your PR.
 
 ## 6. What CI checks
 
-| Workflow             | When                                        | What                                                                              |
-| -------------------- | ------------------------------------------- | --------------------------------------------------------------------------------- |
-| `ci.yml`             | every push to `main` or `dev`, and every PR | typecheck, lint, format check, tests with coverage, production build, `npm audit` |
-| `pr-conventions.yml` | every PR                                    | Conventional Commits title; branch name; PR targets `dev`                         |
+| Workflow             | When                                                                     | What                                                                                                                                                             |
+| -------------------- | ------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ci.yml`             | every push to `dev`, every PR, and as the first stage of every deploy    | typecheck, lint, format check, tests with coverage, production build, `npm audit`                                                                                |
+| `deploy.yml`         | every push to `staging` (deploys staging) or `main` (deploys production) | CI; builds the student, faculty, and admin portals against `/api/v1` on their own domain; uploads each to its bucket; refreshes the CDN; smoke-tests each portal |
+| `pr-conventions.yml` | every PR                                                                 | Conventional Commits title; branch name; base branch (`dev` for work, `dev` -> `staging` -> `main` for releases)                                                 |
+
+A deploy that fails shows as a red run on the `staging` or `main` branch. The infrastructure it
+deploys to is defined in `cbpupsis-infra`. The superadmin portal is not deployed yet.
 
 The org is on the GitHub Free plan, so these checks cannot be made required. **The team rule is
 that nobody merges a PR with a red check.** To read a failure: `gh run view <id> --log-failed`.
@@ -210,16 +232,16 @@ Use the issue forms: **User story**, **Task**, **Bug report**, **Decision**. The
 
 ## 10. Troubleshooting
 
-| Symptom                                         | Fix                                                                                            |
-| ----------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| `Permission denied` on push                     | Accept the org invitation and confirm you have write access to the repo                        |
-| Commit refused: "Do not commit directly to dev" | `git checkout -b feature/<name>`, then commit                                                  |
-| Commit refused by commitlint                    | Rewrite the message as `type(scope): description`                                              |
-| Hooks do not run at all                         | `npm run prepare`, then check `git config core.hooksPath` prints `.husky/_`                    |
-| `format:check` fails on every file on Windows   | Line endings. Run `git add --renormalize .` and commit; `.gitattributes` keeps LF from then on |
-| Port 3000 already in use                        | Stop the other process. The port is fixed because the API's CORS setting expects it            |
-| API calls fail with a CORS error                | The API is not running, or `VITE_API_BASE_URL` in `.env.local` points somewhere else           |
-| CI fails but `npm run check` passes             | `npm run build` locally; then `gh run view <id> --log-failed`                                  |
+| Symptom                                                                | Fix                                                                                            |
+| ---------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- |
+| `Permission denied` on push                                            | Accept the org invitation and confirm you have write access to the repo                        |
+| Commit refused: "Do not commit directly to dev" (or `staging`, `main`) | `git checkout -b feature/<name>`, then commit                                                  |
+| Commit refused by commitlint                                           | Rewrite the message as `type(scope): description`                                              |
+| Hooks do not run at all                                                | `npm run prepare`, then check `git config core.hooksPath` prints `.husky/_`                    |
+| `format:check` fails on every file on Windows                          | Line endings. Run `git add --renormalize .` and commit; `.gitattributes` keeps LF from then on |
+| Port 3000 already in use                                               | Stop the other process. The port is fixed because the API's CORS setting expects it            |
+| API calls fail with a CORS error                                       | The API is not running, or `VITE_API_BASE_URL` in `.env.local` points somewhere else           |
+| CI fails but `npm run check` passes                                    | `npm run build` locally; then `gh run view <id> --log-failed`                                  |
 
 Still stuck? Comment on your issue with the exact command and output, and mention the product
 owner.

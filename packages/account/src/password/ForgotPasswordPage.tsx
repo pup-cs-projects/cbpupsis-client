@@ -1,7 +1,8 @@
 import { ApiError, errorMessage, isThrottled } from "@cbpupsis/shared/api";
 import {
   ErrorAlert,
-  formatTime,
+  Notice,
+  RetryCountdown,
   SubmitButton,
   TextField,
   useCheckedField,
@@ -14,13 +15,14 @@ import { useRef, useState, type FormEvent } from "react";
 import { AuthShell } from "../layout/AuthShell";
 import { useRequestReset } from "./usePasswordRecovery";
 
-// Feedback only; the API decides (400 INVALID_EMAIL_ADDRESS).
+// Field validation before sending, for quick feedback. The API checks again and has the final
+// word (400 INVALID_EMAIL_ADDRESS, shown in its own words).
 const EMAIL_SHAPE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function validateEmail(value: string) {
   const email = value.trim();
   if (!email) return "Enter your email address.";
-  if (!EMAIL_SHAPE.test(email)) return errorMessage(new ApiError(400, "INVALID_EMAIL_ADDRESS"));
+  if (!EMAIL_SHAPE.test(email)) return "Enter an email address such as name@pup.edu.ph.";
   return undefined;
 }
 
@@ -33,7 +35,6 @@ export function ForgotPasswordPage() {
   const email = useCheckedField(validateEmail);
   const emailInput = useRef<HTMLInputElement>(null);
   const [sentTo, setSentTo] = useState<string | null>(null);
-  const [resent, setResent] = useState(false);
   const heading = useStepHeading(sentTo ? "sent" : "request");
 
   const error = request.error;
@@ -46,7 +47,7 @@ export function ForgotPasswordPage() {
     request.variables === email.value.trim();
   const fieldError = email.error ?? (refusedEmail ? errorMessage(error) : undefined);
 
-  function send(address: string, onSent: () => void) {
+  function send(address: string, onSent?: () => void) {
     if (request.isPending || waiting) return;
     request.mutate(address, { onSuccess: onSent });
   }
@@ -58,31 +59,14 @@ export function ForgotPasswordPage() {
       return;
     }
     const address = email.value.trim();
-    send(address, () => {
-      setResent(false);
-      setSentTo(address);
-    });
+    send(address, () => setSentTo(address));
   }
 
   const alert = error && !refusedEmail && (
-    <ErrorAlert error={error}>
-      {throttle && remaining !== undefined && (
-        <p>
-          {remaining > 0 ? (
-            <>
-              Try again in{" "}
-              <span role="timer" aria-label="Time before you can try again">
-                {formatTime(remaining)}
-              </span>
-              .
-            </>
-          ) : (
-            "You can try again now."
-          )}
-        </p>
-      )}
-    </ErrorAlert>
+    <ErrorAlert error={error}>{throttle && <RetryCountdown remaining={remaining} />}</ErrorAlert>
   );
+  // The API's own confirmation; the same whether or not the address has an account.
+  const confirmation = request.data?.message;
 
   return (
     <AuthShell busy={request.isPending} skipLabel="Skip to password reset">
@@ -127,12 +111,12 @@ export function ForgotPasswordPage() {
             <h1 id="auth-title" tabIndex={-1} ref={heading}>
               Check your email
             </h1>
-            <p className="auth-subtitle">
-              If <strong className="sent-address">{sentTo}</strong> belongs to a CBPUPSIS account, a
-              reset link is on its way.
-            </p>
           </header>
+          {confirmation && <Notice tone="success">{confirmation}</Notice>}
           <div className="account-form">
+            <p className="step-text">
+              Email address: <strong className="sent-address">{sentTo}</strong>
+            </p>
             <p className="step-text">
               Open the link in that email to choose a new password. Each link works once.
             </p>
@@ -144,13 +128,10 @@ export function ForgotPasswordPage() {
               className="secondary-button"
               busy={request.isPending}
               blocked={waiting}
-              onClick={() => send(sentTo, () => setResent(true))}
+              onClick={() => send(sentTo)}
             >
               Send another link
             </SubmitButton>
-            <p className="step-text" role="status">
-              {resent && !error ? `Another link was sent to ${sentTo}.` : ""}
-            </p>
             {alert}
             <button
               type="button"

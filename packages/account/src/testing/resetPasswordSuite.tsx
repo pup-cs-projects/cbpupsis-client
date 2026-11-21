@@ -22,9 +22,19 @@ export function resetPasswordSuite({
       requiredRules: ["uppercase", "lowercase", "digit", "symbol"],
     },
   };
-  const refusal = (status: number, code: string | undefined, requestId = "req-1") => ({
+  // The API's own sentences (cbpupsis_shared/domains/auth), which the page shows unchanged.
+  const TOO_WEAK = "Password does not meet complexity requirements: symbol";
+  const EXPIRED = "The password reset link has expired; request a new one";
+  const USED = "The password reset link has already been used; request a new one";
+  const UNKNOWN = "Invalid or expired token";
+  const refusal = (
+    status: number,
+    code: string | undefined,
+    detail: string,
+    requestId = "req-1",
+  ) => ({
     status,
-    body: { detail: "Not shown to people", request_id: requestId, ...(code ? { code } : {}) },
+    body: { detail, request_id: requestId, ...(code ? { code } : {}) },
   });
 
   const passwordField = () => screen.getByLabelText(/^New password/);
@@ -115,28 +125,27 @@ export function resetPasswordSuite({
 
     it("explains a password the API calls too weak, clears it, and returns focus to it (AC-105.3)", async () => {
       mockApi({
-        [ROUTE]: [validLink, refusal(422, "AUTH_PASSWORD_TOO_WEAK", "req-weak")],
+        [ROUTE]: [validLink, refusal(422, "AUTH_PASSWORD_TOO_WEAK", TOO_WEAK, "req-weak")],
       });
       await openForm();
 
       await userEvent.type(passwordField(), "Abcdef1!{Enter}");
 
       const alert = await screen.findByRole("alert");
-      expect(alert).toHaveTextContent("That password does not meet every rule in the list.");
-      expect(alert).toHaveTextContent("Reference: req-weak");
-      expect(alert).not.toHaveTextContent("Not shown to people");
+      expect(alert).toHaveTextContent(TOO_WEAK);
+      expect(alert).toHaveTextContent("req-weak");
       expect(passwordField()).toHaveValue("");
       expect(passwordField()).toHaveFocus();
     });
 
     it("says an expired link has expired and offers a new one", async () => {
-      mockApi({ [ROUTE]: refusal(410, "AUTH_RESET_TOKEN_EXPIRED", "req-old") });
+      mockApi({ [ROUTE]: refusal(410, "AUTH_RESET_TOKEN_EXPIRED", EXPIRED, "req-old") });
       renderApp(`/reset-password?token=${TOKEN}`);
 
       expect(await screen.findByRole("heading", { name: "This link has expired" })).toHaveFocus();
       const alert = screen.getByRole("alert");
-      expect(alert).toHaveTextContent("That link has expired. Request a new one below.");
-      expect(alert).toHaveTextContent("Reference: req-old");
+      expect(alert).toHaveTextContent(EXPIRED);
+      expect(alert).toHaveTextContent("req-old");
       expect(screen.getByRole("link", { name: "Request a new link" })).toHaveAttribute(
         "href",
         "/forgot-password",
@@ -144,24 +153,24 @@ export function resetPasswordSuite({
     });
 
     it("says a used link was used, when it is spent between loading and submitting", async () => {
-      mockApi({ [ROUTE]: [validLink, refusal(410, "AUTH_RESET_TOKEN_USED")] });
+      mockApi({ [ROUTE]: [validLink, refusal(410, "AUTH_RESET_TOKEN_USED", USED)] });
       await openForm();
 
       await userEvent.type(passwordField(), "Abcdef1!{Enter}");
 
       expect(await screen.findByRole("heading", { name: "This link has been used" })).toHaveFocus();
-      expect(screen.getByRole("alert")).toHaveTextContent("That link has already been used.");
+      expect(screen.getByRole("alert")).toHaveTextContent(USED);
     });
 
     it("calls a link the API does not know not valid, with the reference", async () => {
-      mockApi({ [ROUTE]: refusal(401, undefined, "req-unknown") });
+      mockApi({ [ROUTE]: refusal(401, undefined, UNKNOWN, "req-unknown") });
       renderApp(`/reset-password?token=${TOKEN}`);
 
       expect(
         await screen.findByRole("heading", { name: "This link cannot be used" }),
       ).toHaveFocus();
-      expect(screen.getByRole("alert")).toHaveTextContent("That link is not valid.");
-      expect(screen.getByRole("alert")).toHaveTextContent("Reference: req-unknown");
+      expect(screen.getByRole("alert")).toHaveTextContent(UNKNOWN);
+      expect(screen.getByRole("alert")).toHaveTextContent("req-unknown");
     });
 
     it("treats a link without a token as not valid, without calling the API", async () => {
@@ -171,6 +180,8 @@ export function resetPasswordSuite({
       expect(
         await screen.findByRole("heading", { name: "This link cannot be used" }),
       ).toBeVisible();
+      // The API was never asked, so this is the one sentence the page writes itself.
+      expect(screen.getByRole("alert")).toHaveTextContent(/This link is incomplete/);
       expect(api.calls).toHaveLength(0);
     });
 

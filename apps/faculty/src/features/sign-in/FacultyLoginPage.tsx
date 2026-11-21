@@ -1,8 +1,15 @@
-import { AuthShell } from "@cbpupsis/account";
+import { AuthShell, useSignInNotice } from "@cbpupsis/account";
 import { ApiError, errorMessage, isChallengeRejected, isThrottled } from "@cbpupsis/shared/api";
-import { NOTICES } from "@cbpupsis/shared/auth";
-import { AuthSkeleton, formatTime, QrCode, useCodeWindow, useCountdown } from "@cbpupsis/ui";
-import { Link, useSearch } from "@tanstack/react-router";
+import {
+  ErrorAlert,
+  formatTime,
+  Notice,
+  QrCode,
+  RetryCountdown,
+  useCodeWindow,
+  useCountdown,
+} from "@cbpupsis/ui";
+import { Link } from "@tanstack/react-router";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
 import { session } from "../../lib/auth";
@@ -12,7 +19,6 @@ import { useEnterPortal, useFacultyAuth } from "./useFacultyAuth";
 export function FacultyLoginPage() {
   const { login, enrollment, confirmation, verification } = useFacultyAuth();
   const enter = useEnterPortal();
-  const { expired: sessionExpired, notice } = useSearch({ strict: false });
   const [copyStatus, setCopyStatus] = useState("");
   const [code, setCode] = useState("");
   const [useRecovery, setUseRecovery] = useState(false);
@@ -40,14 +46,7 @@ export function FacultyLoginPage() {
     confirmation.isPending ||
     verification.isPending ||
     enter.isPending;
-  const status =
-    sessionExpired === "idle"
-      ? NOTICES.timedOut
-      : sessionExpired
-        ? NOTICES.sessionEnded
-        : notice === "password-reset"
-          ? NOTICES.passwordReset
-          : null;
+  const status = useSignInNotice();
   const codeLength = useRecovery ? code.trim().length > 0 : code.length === 6;
   const title = recoveryCodes
     ? "Save your recovery codes"
@@ -148,14 +147,9 @@ export function FacultyLoginPage() {
         {codeChanged ? "The previous code window has ended. Use the current code in your app." : ""}
         {remainingLock === 0 ? "The waiting period has ended. You can try signing in again." : ""}
       </div>
-      {status && !error && !challenge && (
-        <p className="auth-notice" role="status">
-          {status}
-        </p>
-      )}
+      {status && !error && !challenge && <Notice>{status}</Notice>}
       {error && !idError && (
-        <div className="auth-error" role="alert">
-          <p>{errorMessage(error)}</p>
+        <ErrorAlert error={error}>
           {error instanceof ApiError && error.code === "AUTH_TEMPORARY_PASSWORD_EXPIRED" && (
             <p>
               <Link to="/forgot-password" className="inline-link">
@@ -163,31 +157,13 @@ export function FacultyLoginPage() {
               </Link>
             </p>
           )}
-          {lockError && (
-            <p>
-              {remainingLock === undefined ? (
-                "Contact ICTO if access is not restored."
-              ) : remainingLock > 0 ? (
-                <>
-                  Try again in{" "}
-                  <span role="timer" aria-label="Time before retry">
-                    {formatTime(remainingLock)}
-                  </span>
-                  .
-                </>
-              ) : (
-                "You can try again now."
-              )}
-            </p>
-          )}
-          {error instanceof ApiError && error.requestId && (
-            <p className="request-id">Reference: {error.requestId}</p>
-          )}
-        </div>
+          {lockError && <RetryCountdown remaining={remainingLock} />}
+        </ErrorAlert>
       )}
       {!challenge ? (
         <SignInForm
           disabled={busy || locked}
+          busy={busy}
           idError={idError}
           onSubmit={(credentials) => login.mutate(credentials)}
         />
@@ -331,7 +307,6 @@ export function FacultyLoginPage() {
           </button>
         </div>
       )}
-      {busy && <AuthSkeleton />}
       <p className="account-help">
         Don&apos;t have an account? Contact{" "}
         <a href="mailto:icto-admin@pup.edu.ph">icto-admin@pup.edu.ph</a>

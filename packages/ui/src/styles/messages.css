@@ -1,0 +1,247 @@
+/*
+ * Toasts: an error, a notice, or a confirmation, in one region fixed to the bottom-right corner
+ * (full width at the bottom below 640px). Several stack upward with a small gap.
+ *
+ * Anatomy: a flat, square block of solid tone (maroon, ink, or green) with white text. A circled
+ * symbol on the left (X, i, or a check: the tone never rests on color alone), a bold title, the
+ * message, then any countdown, link, Try again, and the reference. Dismiss sits top-right.
+ */
+.toast-region {
+  position: fixed;
+  right: 0;
+  bottom: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(640px, 100vw);
+  pointer-events: none;
+}
+.toast {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  min-height: 100px;
+  padding: 20px 60px 20px 28px;
+  color: white;
+  overflow-wrap: anywhere;
+  pointer-events: auto;
+  animation: toast-in 180ms ease-out;
+}
+/* The bottom toast keeps clear of a phone's home indicator. */
+.toast-region > .toast:last-child {
+  padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+}
+.toast--error {
+  background: var(--color-brand-maroon);
+}
+.toast--info {
+  background: var(--color-brand-ink);
+}
+.toast--success {
+  background: var(--color-brand-success);
+}
+.toast-icon {
+  flex-shrink: 0;
+  width: 36px;
+  height: 36px;
+}
+.toast-body {
+  min-width: 0;
+  flex: 1;
+}
+.toast-body p {
+  margin: 0;
+}
+.toast-title {
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.25;
+}
+.toast-body .toast-message {
+  margin-top: 2px;
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+/* Everything inside stays white on the tone, links included. */
+.toast a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.toast :focus-visible {
+  outline: 2px solid white;
+  outline-offset: 2px;
+}
+/* Anything a toast carries below its message: a countdown, a link. */
+.toast-extra {
+  margin-top: 6px;
+  font-size: 14px;
+}
+.toast-extra > * + * {
+  margin-top: 4px;
+}
+.toast-extra .inline-link {
+  min-height: 44px;
+  color: inherit;
+}
+
+/* The one action a toast may carry, such as Try again: a white outline, a full 44px target. */
+.toast-action {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-top: 10px;
+  padding: 0 18px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+  font-weight: 700;
+}
+.toast-action:hover {
+  background: color-mix(in srgb, white 12%, transparent);
+}
+
+/* The request id, for a bug report: compact, monospaced, and one tap to copy. White at 90%
+   still meets AA on every tone, the green included. */
+.toast-body .toast-ref {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  column-gap: 8px;
+  margin-top: 6px;
+  color: color-mix(in srgb, white 90%, transparent);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.toast-ref-label {
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.toast-ref-id {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "Liberation Mono", monospace;
+  font-variant-numeric: tabular-nums;
+  user-select: all;
+  overflow-wrap: anywhere;
+}
+/* A 44px target that does not make the line 44px tall: the extra height overlaps the padding. */
+.toast-copy {
+  display: inline-flex;
+  align-items: center;
+  min-width: 44px;
+  min-height: 44px;
+  margin-block: -14px;
+  padding: 0 6px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.toast-close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: white;
+}
+.toast-close:hover {
+  background: color-mix(in srgb, white 14%, transparent);
+}
+
+/* In a modal dialog only: the same toast, in the dialog's flow. */
+.toast--inline {
+  margin-top: 20px;
+  min-height: 0;
+  padding: 16px 56px 16px 18px;
+  gap: 14px;
+}
+.toast--inline .toast-icon {
+  width: 28px;
+  height: 28px;
+}
+.toast--inline .toast-title {
+  font-size: 17px;
+}
+
+@media (max-width: 639px) {
+  .toast-region {
+    left: 0;
+    width: auto;
+  }
+  .toast {
+    gap: 14px;
+    min-height: 88px;
+    padding: 16px 56px 16px 18px;
+    animation-name: toast-up;
+  }
+  .toast-region > .toast:last-child {
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  }
+  .toast-icon {
+    width: 30px;
+    height: 30px;
+  }
+  .toast-title {
+    font-size: 18px;
+  }
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+}
+@keyframes toast-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+}
+@keyframes toast-fade {
+  from {
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .toast {
+    animation: toast-fade 120ms linear;
+  }
+}
+@media print {
+  .toast-region {
+    display: none;
+  }
+}
+
+/* A field's own error: plain text under the field, which the ring on the input points to. */
+.field-error,
+.field-message:not(:empty) {
+  color: var(--color-brand-maroon-dark);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 1.5;
+}
+.field-error {
+  margin: 0;
+}
+/* An invalid field gets a maroon ring inside its own border; the error line says why. */
+input[aria-invalid="true"] {
+  box-shadow: inset 0 0 0 2px var(--color-brand-maroon);
+}

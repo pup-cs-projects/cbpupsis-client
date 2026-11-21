@@ -1,10 +1,10 @@
 import { createPortalRouter } from "@cbpupsis/account";
+import { MaintenancePage, NotFoundPage, ServerErrorPage } from "@cbpupsis/ui";
 import type { RouterHistory } from "@tanstack/react-router";
 
 import { AdminDashboard } from "../features/dashboard/AdminDashboard";
 import { AdminLoginPage } from "../features/sign-in/AdminLoginPage";
 import { account } from "../lib/auth";
-import { NotFoundPage } from "./NotFoundPage";
 
 /** Tests pass a memory history; the app uses the browser's. */
 export function createAppRouter(history?: RouterHistory) {
@@ -12,7 +12,11 @@ export function createAppRouter(history?: RouterHistory) {
     config: account,
     signIn: AdminLoginPage,
     dashboard: AdminDashboard,
-    notFound: NotFoundPage,
+    statusPages: {
+      notFound: NotFoundPage,
+      serverError: ServerErrorPage,
+      maintenance: MaintenancePage,
+    },
     history,
   });
 }

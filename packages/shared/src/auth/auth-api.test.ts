@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createApiClient } from "../api/client";
 import { ApiError } from "../api/errors";
 import { createAdminAuthApi } from "./admin";
+import { parseChallenge } from "./common";
 import { createFacultyAuthApi } from "./faculty";
 import { createStudentAuthApi } from "./student";
 import { createSuperadminAuthApi } from "./superadmin";
@@ -55,6 +56,19 @@ describe("student auth", () => {
       createStudentAuthApi(client).login({ studentNumber: "x", birthdate: "x", password: "x" }),
     ).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
   });
+
+  it("refreshes from the HttpOnly cookie with no body when no token is in hand", async () => {
+    const fetchMock = respond(pair("student"));
+
+    await expect(createStudentAuthApi(client).refresh()).resolves.toEqual({
+      accessToken: "a",
+      refreshToken: "r",
+    });
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://api.test/api/v1/auth/student/refresh");
+    expect(init.body).toBeUndefined();
+    expect(init.credentials).toBe("include");
+  });
 });
 
 describe("faculty auth", () => {
@@ -62,13 +76,13 @@ describe("faculty auth", () => {
     respond({
       mfa_required: true,
       challenge_token: "c",
-      enrollment_required: true,
+      enrollment_required: false,
       methods: ["totp"],
     });
 
     await expect(
       createFacultyAuthApi(client).login({ employeeId: "2021-00456-MN-0", password: "p" }),
-    ).resolves.toEqual({ challengeToken: "c", enrollmentRequired: true, methods: ["totp"] });
+    ).resolves.toEqual({ challengeToken: "c", enrollmentRequired: false, methods: ["totp"] });
   });
 
   it("returns the session and the recovery codes when enrollment is confirmed (AC-102.2)", async () => {
@@ -140,6 +154,44 @@ describe("superadmin auth", () => {
       url: "http://api.test/api/v1/auth/superadmin/mfa/verify",
       body: { challenge_token: "c", code: "123456" },
     });
+  });
+});
+
+describe("parseChallenge", () => {
+  const body = (enrollmentRequired: boolean, methods: unknown) => ({
+    mfa_required: true,
+    challenge_token: "c",
+    enrollment_required: enrollmentRequired,
+    methods,
+  });
+
+  it("accepts a first sign-in with no enrolled method, as the API sends it", () => {
+    expect(parseChallenge(body(true, []), ["totp"])).toEqual({
+      challengeToken: "c",
+      enrollmentRequired: true,
+      methods: [],
+    });
+  });
+
+  it("refuses a returning sign-in with no method to verify", () => {
+    expect(() => parseChallenge(body(false, []), ["totp"])).toThrow(
+      expect.objectContaining({ code: "INVALID_RESPONSE" }),
+    );
+  });
+
+  it("refuses a method this role does not support, enrolling or not", () => {
+    expect(() => parseChallenge(body(false, ["webauthn"]), ["totp"])).toThrow(
+      expect.objectContaining({ code: "INVALID_RESPONSE" }),
+    );
+    expect(() => parseChallenge(body(true, ["sms"]), ["totp", "webauthn"])).toThrow(
+      expect.objectContaining({ code: "INVALID_RESPONSE" }),
+    );
+  });
+
+  it("refuses methods that are not a list", () => {
+    expect(() => parseChallenge(body(true, undefined), ["totp"])).toThrow(
+      expect.objectContaining({ code: "INVALID_RESPONSE" }),
+    );
   });
 });
 

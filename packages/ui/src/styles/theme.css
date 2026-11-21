@@ -55,8 +55,14 @@ button:disabled {
   --color-brand-maroon-end: #962629;
   --color-brand-help: #47403b;
   --color-brand-footer-text: #545459;
-  --color-brand-error-surface: #fff5f2;
   --color-brand-recovery-surface: #fffaf3;
   --color-brand-skeleton: #b8ada2;
   --color-brand-skeleton-highlight: #e5dbcf;
+  /* A finished step, such as a completed enrollment. 5.4:1 on white, so it may carry text. */
+  --color-brand-success: #1f7a3a;
+  /* The student dashboard's warm page background, behind white cards. */
+  --color-brand-paper: #fdfbf7;
+  /* The grades page's table header and Initiate Appeal button (Figma). 11.6:1 with white. */
+  --color-brand-crimson: #7b1113;
+  --color-brand-crimson-dark: #630e10;
 }
