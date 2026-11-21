@@ -28,7 +28,7 @@ export interface ScheduleTerm {
   semester: string;
 }
 
-/** GET /students/me/schedule (US-STU-003). */
+/** GET /student/schedule (US-STU-003). */
 export interface StudentSchedule {
   term: ScheduleTerm | null;
   courses: ScheduleCourse[];
@@ -42,17 +42,24 @@ export interface ScheduleFile {
   filename: string;
 }
 
+/** Supported schedule namespaces during the student API path migration. */
+export type StudentSchedulePath = "/student/schedule" | "/students/me/schedule";
+
 /** The signed-in student's course schedule and its PDF and iCalendar exports. */
-export function createStudentScheduleApi(client: ApiClient) {
+export function createStudentScheduleApi(
+  client: ApiClient,
+  schedulePath: StudentSchedulePath = "/student/schedule",
+) {
   return {
+    googleCalendar: createGoogleCalendarApi(client, schedulePath),
     async current(accessToken: string): Promise<StudentSchedule> {
-      const body = await client.request("/students/me/schedule", { method: "GET", accessToken });
+      const body = await client.request(schedulePath, { method: "GET", accessToken });
       return parseSchedule(body);
     },
 
     /** The whole current term, whatever the read was filtered to. */
     async export(accessToken: string, format: "pdf" | "ics"): Promise<ScheduleFile> {
-      const blob = await client.requestBlob(`/students/me/schedule/export?format=${format}`, {
+      const blob = await client.requestBlob(`${schedulePath}/export?format=${format}`, {
         accessToken,
       });
       return { blob, filename: `course-schedule.${format}` };
@@ -119,5 +126,140 @@ function parseSchedule(value: unknown): StudentSchedule {
       "termUnavailable",
     ] as const),
     message: parse.optionalString(body.message),
+  };
+}
+
+export interface GoogleCalendarTarget extends ScheduleTerm {
+  provisioned: boolean;
+}
+
+/** Only public connection fields. Google credentials and IDs are never retained. */
+export interface GoogleCalendarConnection {
+  enabled: boolean;
+  connected: boolean;
+  disconnecting: boolean;
+  lastSyncAt: string | null;
+  nextSyncAt: string | null;
+  lastError: string | null;
+  targets: GoogleCalendarTarget[];
+}
+
+export interface GoogleCalendarAuthorization {
+  authorizationUrl: string;
+  expiresIn: number;
+}
+
+export interface GoogleCalendarCallback {
+  state: string;
+  code: string;
+}
+
+function termSelection(term?: ScheduleTerm): ScheduleTerm | Record<string, never> {
+  if (!term) return {};
+  const year = parse.string(term.year).trim();
+  const semester = parse.string(term.semester).trim();
+  if (!year || year.length > 20 || !semester || semester.length > 30) return parse.invalid();
+  return { year, semester };
+}
+
+function timestamp(value: unknown): string | null {
+  const result = parse.optionalString(value);
+  return result === null || Number.isFinite(Date.parse(result)) ? result : parse.invalid();
+}
+
+function parseConnection(value: unknown): GoogleCalendarConnection {
+  const body = parse.record(value);
+  const targets = parse.array(body.targets ?? []).map((value) => {
+    const target = parse.record(value);
+    return {
+      year: parse.string(target.year),
+      semester: parse.string(target.semester),
+      provisioned: parse.boolean(target.provisioned),
+    };
+  });
+  if (
+    targets.length > 10 ||
+    new Set(targets.map((t) => JSON.stringify([t.year, t.semester]))).size !== targets.length
+  )
+    return parse.invalid();
+  return {
+    enabled: parse.boolean(body.enabled),
+    connected: parse.boolean(body.connected ?? false),
+    disconnecting: parse.boolean(body.disconnecting ?? false),
+    lastSyncAt: timestamp(body.last_sync_at),
+    nextSyncAt: timestamp(body.next_sync_at),
+    lastError: parse.optionalString(body.last_error),
+    targets,
+  };
+}
+
+function parseAuthorization(value: unknown): GoogleCalendarAuthorization {
+  const body = parse.record(value);
+  const authorizationUrl = parse.string(body.authorization_url);
+  let url: URL;
+  try {
+    url = new URL(authorizationUrl);
+  } catch {
+    return parse.invalid();
+  }
+  if (
+    url.protocol !== "https:" ||
+    url.hostname !== "accounts.google.com" ||
+    url.port ||
+    url.username ||
+    url.password ||
+    !url.pathname.startsWith("/o/oauth2/")
+  )
+    return parse.invalid();
+  return { authorizationUrl, expiresIn: parse.positiveNumber(body.expires_in ?? 600) };
+}
+
+function createGoogleCalendarApi(client: ApiClient, schedulePath: StudentSchedulePath) {
+  const calendarPath = `${schedulePath}/google-calendar`;
+  return {
+    async status(accessToken: string, signal?: AbortSignal): Promise<GoogleCalendarConnection> {
+      return parseConnection(
+        await client.request(calendarPath, { method: "GET", accessToken, signal }),
+      );
+    },
+    async authorize(
+      accessToken: string,
+      term?: ScheduleTerm,
+    ): Promise<GoogleCalendarAuthorization> {
+      return parseAuthorization(
+        await client.request(`${calendarPath}/authorization`, {
+          method: "POST",
+          body: termSelection(term),
+          accessToken,
+        }),
+      );
+    },
+    async callback(
+      accessToken: string,
+      payload: GoogleCalendarCallback,
+    ): Promise<GoogleCalendarConnection> {
+      // Do not retry or persist a consumed OAuth code/state. Session auth may refresh a 401.
+      return parseConnection(
+        await client.request(`${calendarPath}/callback`, {
+          method: "POST",
+          body: { state: payload.state, code: payload.code },
+          accessToken,
+          // The provider exchange has a documented 25-second server deadline.
+          timeoutMs: 35_000,
+        }),
+      );
+    },
+    async sync(accessToken: string, term?: ScheduleTerm): Promise<GoogleCalendarConnection> {
+      return parseConnection(
+        await client.request(`${calendarPath}/sync`, {
+          method: "POST",
+          body: termSelection(term),
+          accessToken,
+        }),
+      );
+    },
+    async disconnect(accessToken: string): Promise<GoogleCalendarConnection> {
+      return parseConnection(await client.request(calendarPath, { method: "DELETE", accessToken }));
+    },
   };
 }

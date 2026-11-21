@@ -6,15 +6,10 @@ import type {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { authApi, profileApi, session } from "../../lib/auth";
+import { dashboardKeys } from "../dashboard/queries";
+import type { Dashboard } from "../dashboard/types";
 import type { EmergencyContact, PersonalInformation, StudentProfileData } from "./profileTypes";
-
-export const profileKeys = {
-  all: ["profile"] as const,
-  profile: () => [...profileKeys.all, "profile"] as const,
-  account: () => [...profileKeys.all, "account"] as const,
-  contacts: () => [...profileKeys.all, "contacts"] as const,
-  avatar: (url: string) => [...profileKeys.all, "avatar", url] as const,
-};
+import { profileKeys, profileQueryOptions, useAvatarSrc } from "./useAvatar";
 
 type PersonalInfoPatch = Omit<PersonalInformation, "fullLegalName" | "program">;
 
@@ -58,39 +53,10 @@ function sameContact(a: EmergencyContact, b: EmergencyContact): boolean {
   );
 }
 
-function toDataUrl(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(String(reader.result));
-    reader.onerror = () => reject(reader.error ?? new Error("The picture could not be read"));
-    reader.readAsDataURL(blob);
-  });
-}
-
-/**
- * The stored picture as a data URL. It needs the bearer token, so it cannot be an `<img src>`
- * of its own; a data URL, unlike an object URL, has nothing to revoke. Null until it loads, or
- * when it fails, so the placeholder shows.
- */
-function useAvatarSrc(avatarUrl: string | null): string | null {
-  const { data } = useQuery({
-    queryKey: profileKeys.avatar(avatarUrl ?? ""),
-    queryFn: async () =>
-      toDataUrl(await session.authorized((token) => profileApi.avatar(token, avatarUrl ?? ""))),
-    enabled: avatarUrl !== null,
-    staleTime: Infinity,
-    retry: false,
-  });
-  return avatarUrl === null ? null : (data ?? null);
-}
-
 export function useStudentProfile() {
   const queryClient = useQueryClient();
 
-  const profile = useQuery({
-    queryKey: profileKeys.profile(),
-    queryFn: () => session.authorized((token) => profileApi.get(token)),
-  });
+  const profile = useQuery(profileQueryOptions());
   // The institutional address the student signs in with; the profile's email is the personal one.
   const account = useQuery({
     queryKey: profileKeys.account(),
@@ -112,7 +78,18 @@ export function useStudentProfile() {
   const uploadAvatar = useMutation({
     mutationFn: (image: Blob) =>
       session.authorized((token) => profileApi.uploadAvatar(token, image)),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: profileKeys.profile() }),
+    onSuccess: (avatarUrl) => {
+      // The header reads the profile (and the dashboard, as a fallback): give both the new
+      // picture now, then refresh them.
+      queryClient.setQueryData<StudentProfile>(profileKeys.profile(), (current) =>
+        current ? { ...current, avatarUrl } : current,
+      );
+      queryClient.setQueryData<Dashboard>(dashboardKeys.me(), (dashboard) =>
+        dashboard ? { ...dashboard, avatarUrl } : dashboard,
+      );
+      void queryClient.invalidateQueries({ queryKey: dashboardKeys.me() });
+      return queryClient.invalidateQueries({ queryKey: profileKeys.profile() });
+    },
   });
 
   const saveContacts = useMutation({

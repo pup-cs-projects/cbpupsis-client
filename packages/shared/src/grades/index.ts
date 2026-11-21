@@ -7,3 +7,6 @@ export {
   type Transcript,
   type TranscriptTerm,
 } from "./student";
+
+export * from "./faculty";
+export { facultyGradesContract, incompleteReviewContract } from "./facultyContract";

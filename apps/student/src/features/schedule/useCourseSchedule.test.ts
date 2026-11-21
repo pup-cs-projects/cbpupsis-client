@@ -27,6 +27,7 @@ const api: StudentSchedule = {
 describe("toPageSchedule", () => {
   it("maps the API's term, courses, and meetings into the page's shape", () => {
     expect(toPageSchedule(api)).toEqual({
+      term: { year: "2026-2027", semester: "first" },
       summary: {
         totalUnits: 3,
         totalCourses: 1,

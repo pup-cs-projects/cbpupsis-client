@@ -99,8 +99,8 @@ export function createPasswordApi(client: ApiClient) {
      * Always 202 with the same body, whether or not the address has an account. Returns the
      * API's confirmation sentence, to show as it is.
      */
-    async requestReset(email: string): Promise<{ message: string }> {
-      const body: Schemas["ForgotPasswordRequest"] = { email };
+    async requestReset(identifier: string): Promise<{ message: string }> {
+      const body: Schemas["ForgotPasswordRequest"] = { identifier };
       const data = parse.record(await client.request("/auth/forgot-password", { body }));
       return { message: parse.string(data.message) };
     },

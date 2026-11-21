@@ -1,9 +1,13 @@
 import { errorMessage } from "@cbpupsis/shared/api";
 import { useRef, useState } from "react";
 
+import { AVATAR_PLACEHOLDER } from "./useAvatar";
+
 const MAX_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB
 const ACCEPTED_TYPES = new Set(["image/jpeg", "image/png", "image/webp"]);
-const PLACEHOLDER = "/assets/profile-placeholder.webp";
+
+/** What the uploader takes: said only when a chosen file breaks the rule, never beforehand. */
+const AVATAR_REQUIREMENTS = "JPEG, PNG, or WebP, up to 2 MB.";
 
 function CameraIcon() {
   return (
@@ -85,7 +89,7 @@ export function AvatarUpload({ avatarUrl, onConfirm }: AvatarUploadProps) {
   const [isCropping, setIsCropping] = useState(false);
 
   const errorId = "avatar-upload-error";
-  const displaySrc = previewObjectUrl ?? avatarUrl ?? PLACEHOLDER;
+  const displaySrc = previewObjectUrl ?? avatarUrl ?? AVATAR_PLACEHOLDER;
 
   function openPicker() {
     setValidationError(null);
@@ -100,11 +104,11 @@ export function AvatarUpload({ avatarUrl, onConfirm }: AvatarUploadProps) {
     if (!file) return;
 
     if (!ACCEPTED_TYPES.has(file.type)) {
-      setValidationError("Only JPEG, PNG, or WebP images are accepted.");
+      setValidationError(AVATAR_REQUIREMENTS);
       return;
     }
     if (file.size > MAX_SIZE_BYTES) {
-      setValidationError("File is too large. Please choose an image under 2 MB.");
+      setValidationError(AVATAR_REQUIREMENTS);
       return;
     }
 

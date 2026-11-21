@@ -87,7 +87,7 @@ describe("checkPassword", () => {
 });
 
 describe("password reset", () => {
-  it("requests a link by email only", async () => {
+  it("requests a reset link using the published identifier field", async () => {
     const message = "If that address is registered, a reset link has been sent.";
     const fetchMock = respond({ status: 202, body: { message } });
 
@@ -95,7 +95,7 @@ describe("password reset", () => {
 
     expect(sent(fetchMock)).toEqual({
       url: "http://api.test/api/v1/auth/forgot-password",
-      body: { email: "ana@pup.edu.ph" },
+      body: { identifier: "ana@pup.edu.ph" },
     });
   });
 
