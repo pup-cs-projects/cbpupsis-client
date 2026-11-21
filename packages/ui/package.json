@@ -6,7 +6,8 @@
   "description": "React building blocks every CBPUPSIS portal shares: buttons, fields, alerts, the password checklist, and the brand theme.",
   "exports": {
     ".": "./src/index.ts",
-    "./theme.css": "./src/styles/theme.css"
+    "./theme.css": "./src/styles/theme.css",
+    "./corrections": "./src/corrections/index.tsx"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

@@ -8,7 +8,7 @@ import { expectNoA11yViolations } from "../../test/axe";
 import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
 import { renderApp } from "../../test/renderApp";
 
-const SCHEDULE_ROUTE = "GET /students/me/schedule";
+const SCHEDULE_ROUTE = "GET /student/schedule";
 const AVAILABLE_ROUTE = "GET /student/enrollment/available-courses";
 const LIST_ROUTE = "GET /student/enrollment/add-drop";
 const CREATE_ROUTE = "POST /student/enrollment/add-drop";
@@ -140,18 +140,15 @@ function openPage(routes: Parameters<typeof mockApi>[0] = {}) {
   return api;
 }
 
-/** Open the "Available Courses to Add" tab, where the Add buttons live. */
-async function showAvailable(user: ReturnType<typeof userEvent.setup>) {
-  await user.click(await screen.findByRole("tab", { name: "Available Courses to Add" }));
-}
-
-/** Pick COMP 016 to drop with a reason and COSC 304 to add, by keyboard. */
+/** Stage a drop and an addition using the current tabbed course browser. */
 async function pickChanges(user: ReturnType<typeof userEvent.setup>) {
   const drop = await screen.findByRole("button", { name: "Drop COMP 016" });
   drop.focus();
   await user.keyboard("{Enter}");
-  await user.selectOptions(screen.getByLabelText("Reason"), "Schedule Conflict");
-  await showAvailable(user);
+  await user.selectOptions(screen.getByRole("combobox", { name: "Reason" }), "Schedule Conflict");
+  const available = screen.getByRole("tab", { name: /^Available Courses/ });
+  available.focus();
+  await user.keyboard("{Enter}");
   const add = await screen.findByRole("button", { name: "Add COSC 304" });
   add.focus();
   await user.keyboard(" ");
@@ -184,7 +181,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     const user = userEvent.setup();
     openPage();
 
-    await showAvailable(user);
+    await user.click(await screen.findByRole("tab", { name: /^Available Courses/ }));
     await screen.findByRole("button", { name: "Add COSC 304" });
     await user.type(screen.getByLabelText("Search courses to add"), "thesis");
     expect(screen.queryByRole("button", { name: "Add COSC 304" })).not.toBeInTheDocument();
@@ -205,14 +202,14 @@ describe("AddDropPage (US-ENRL-004)", () => {
     await user.click(screen.getByRole("button", { name: "Send request" }));
 
     expect(await screen.findByText("Request sent. Status: Pending.")).toBeInTheDocument();
-    await user.click(screen.getByRole("tab", { name: /^Currently Enrolled/ }));
     expect(api.called(CREATE_ROUTE)).toHaveLength(1);
     expect(api.called(CREATE_ROUTE)[0].body).toEqual({
       add: [{ sectionId: AI }],
       drop: [{ sectionId: WEBDEV, reason: "Schedule Conflict" }],
       comments: null,
     });
-    expect(await screen.findByText("Pending drop")).toBeInTheDocument();
+    await user.click(screen.getByRole("tab", { name: /^Currently Enrolled/ }));
+    expect(screen.getByText("Pending drop")).toBeInTheDocument();
     expect(screen.getByText("Pending add")).toBeInTheDocument();
     // Still enrolled: the drop waits for a reviewer.
     const enrolled = screen.getByRole("region", { name: "Currently enrolled courses" });
@@ -306,7 +303,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
       },
     });
 
-    await showAvailable(user);
+    await user.click(await screen.findByRole("tab", { name: /^Available Courses/ }));
     await user.click(await screen.findByRole("button", { name: "Add COSC 304" }));
     await user.click(screen.getByRole("button", { name: "Send request" }));
 
@@ -374,13 +371,11 @@ describe("AddDropPage (US-ENRL-004)", () => {
   });
 
   it("shows the term and deadline, and asks for courses by the eligibility read's term id", async () => {
-    const user = userEvent.setup();
     const api = openPage();
 
+    expect(await screen.findByText("Add/Drop Deadline")).toBeInTheDocument();
     expect(await screen.findByText("August 22, 2026")).toBeInTheDocument();
-    expect(screen.getByText("Add/Drop Deadline")).toBeInTheDocument();
-    await showAvailable(user);
-    await screen.findByRole("button", { name: "Add COSC 304" });
+    await screen.findByRole("button", { name: "Drop COMP 016" });
     const fetchMock = vi.mocked(fetch);
     const url = fetchMock.mock.calls
       .map(([input]) => String(input))
@@ -393,9 +388,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     const api = openPage({ [WINDOW_ROUTE]: { status: 200, body: {} } });
 
     expect(await screen.findByText("Web Development")).toBeInTheDocument();
-    // The header stays, with no date to show.
-    const deadline = screen.getByText("Add/Drop Deadline").nextElementSibling;
-    expect(deadline).toHaveTextContent("TBA");
+    expect(screen.getByText("Add/Drop Deadline").nextElementSibling).toHaveTextContent("TBA");
     expect(api.called(AVAILABLE_ROUTE)).toHaveLength(0);
   });
 

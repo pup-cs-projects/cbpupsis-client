@@ -1,5 +1,5 @@
 import { isPasswordChangeRequired } from "@cbpupsis/shared/api";
-import type { AdminChallenge } from "@cbpupsis/shared/auth";
+import type { AdminChallenge, AdminCredentials } from "@cbpupsis/shared/auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -52,11 +52,23 @@ export function useEnterPortal() {
 type Step = { token: string; code: string };
 
 export function useAdminAuth() {
+  const enter = useEnterPortal();
   // Credentials, challenge tokens, and TOTP secrets must not linger in the mutation cache.
   const options = { gcTime: 0, retry: false } as const;
   const signIn = { onSuccess: session.signIn };
 
-  const login = useMutation({ ...options, mutationFn: authApi.login });
+  const login = useMutation({
+    ...options,
+    mutationFn: async (credentials: AdminCredentials) => {
+      const result = await authApi.login(credentials);
+      if ("accessToken" in result) {
+        session.signIn(result);
+        await enter.mutateAsync();
+        return;
+      }
+      return result;
+    },
+  });
   const enrollment = useMutation({ ...options, mutationFn: authApi.enrollTotp });
   // Every second-factor step below starts the session (AC-103.2); admins get no recovery codes.
   const confirmation = useMutation({

@@ -1,6 +1,31 @@
 import type { ReactNode } from "react";
 
 const paths: Record<string, ReactNode> = {
+  bell: (
+    <>
+      <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+      <path d="M10 21h4" />
+    </>
+  ),
+  search: (
+    <>
+      <circle cx="11" cy="11" r="7" />
+      <path d="m16 16 5 5" />
+    </>
+  ),
+  close: <path d="m6 6 12 12M6 18 18 6" />,
+  academics: (
+    <>
+      <rect x="5" y="2" width="14" height="20" rx="2" />
+      <path d="M9 7h6M9 11h6M9 15h4" />
+    </>
+  ),
+  help: (
+    <>
+      <circle cx="12" cy="12" r="10" />
+      <path d="M9 9a3 3 0 0 1 6 0c0 2-3 2-3 5M12 17h.01" />
+    </>
+  ),
   signout: (
     <>
       <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />

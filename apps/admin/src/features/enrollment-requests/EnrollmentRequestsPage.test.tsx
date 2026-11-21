@@ -249,7 +249,7 @@ describe("EnrollmentRequestsPage (US-ENRL-004 frontend)", () => {
     // mockImplementation replaces the default, while the one-shot rejection remains first.
     openPage("chairperson", source);
     await screen.findByText("Requests could not be loaded");
-    await userEvent.setup().click(screen.getByRole("button", { name: /retry|try again/i }));
+    await userEvent.setup().click(screen.getByRole("button", { name: "Try again" }));
     await screen.findByRole("table");
     expect(load).toHaveBeenCalledTimes(2);
   });
