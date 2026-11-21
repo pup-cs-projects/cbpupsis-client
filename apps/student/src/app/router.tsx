@@ -1,13 +1,17 @@
 import { createPortalRouter } from "@cbpupsis/account";
 import { createRoute, redirect, useParams, type RouterHistory } from "@tanstack/react-router";
 
+import { AccountPage } from "../features/account/AccountPage";
+import { PayCancelReturn, PayPage, PaySuccessReturn } from "../features/account/PayPage";
 import { HomePage } from "../features/dashboard/HomePage";
 import { AddDropPage } from "../features/enrollment/AddDropPage";
 import { CertificatePage } from "../features/enrollment/CertificatePage";
 import { EnrollmentPage } from "../features/enrollment/EnrollmentPage";
 import { GradesPage } from "../features/grades/GradesPage";
 import { ProfilePage } from "../features/profile/ProfilePage";
+import { GoogleCalendarCallbackPage } from "../features/schedule/GoogleCalendarCallbackPage";
 import { SchedulePage } from "../features/schedule/SchedulePage";
+import { SettingsPage } from "../features/settings/SettingsPage";
 import { SignInPage } from "../features/sign-in/SignInPage";
 import { VerifyCertificatePage } from "../features/verify/VerifyCertificatePage";
 import { account } from "../lib/auth";
@@ -20,6 +24,12 @@ export function createAppRouter(history?: RouterHistory) {
     dashboard: HomePage,
     history,
     extraRoutes: (rootRoute) => [
+      // Public handoff page: it scrubs OAuth parameters and explains an expired SIS session.
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/calendar/google/callback",
+        component: GoogleCalendarCallbackPage,
+      }),
       createRoute({
         getParentRoute: () => rootRoute,
         path: "/profile",
@@ -28,6 +38,16 @@ export function createAppRouter(history?: RouterHistory) {
         },
         component: ProfilePage,
       }),
+      // Account preferences and password management, opened from the account menu. The shared
+      // /change-password route stays as the temporary-password step the API sends people to.
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/settings",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: SettingsPage,
+      }),
       createRoute({
         getParentRoute: () => rootRoute,
         path: "/schedule",
@@ -35,6 +55,41 @@ export function createAppRouter(history?: RouterHistory) {
           if (!account.session.isSignedIn()) throw redirect({ to: "/" });
         },
         component: SchedulePage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/account",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: AccountPage,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/account/pay",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: PayPage,
+      }),
+      // Where the payment gateway sends the student back to (the API's XENDIT_SUCCESS_RETURN_URL
+      // and XENDIT_CANCEL_RETURN_URL, http://localhost:3000/payments/success and /cancel in
+      // development). A student whose session ended on the trip signs in first.
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/payments/success",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: PaySuccessReturn,
+      }),
+      createRoute({
+        getParentRoute: () => rootRoute,
+        path: "/payments/cancel",
+        beforeLoad: () => {
+          if (!account.session.isSignedIn()) throw redirect({ to: "/" });
+        },
+        component: PayCancelReturn,
       }),
       createRoute({
         getParentRoute: () => rootRoute,

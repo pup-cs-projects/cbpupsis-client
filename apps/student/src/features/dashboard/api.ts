@@ -26,6 +26,8 @@ function termName(term: DashboardTerm) {
 export function toDashboard(data: StudentDashboard): Dashboard {
   return {
     fullName: data.student.name,
+    studentNumber: data.student.studentNumber,
+    avatarUrl: data.student.avatarUrl,
     term: data.currentTerm && {
       academicYear: data.currentTerm.academicYear,
       termName: termName(data.currentTerm),

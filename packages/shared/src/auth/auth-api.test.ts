@@ -72,6 +72,17 @@ describe("student auth", () => {
 });
 
 describe("faculty auth", () => {
+  it("accepts a development token response but rejects tokens for another role", async () => {
+    respond(pair("faculty"));
+    const api = createFacultyAuthApi(client);
+    const credentials = { employeeId: "2021-00456-MN-0", password: "p" };
+    await expect(api.login(credentials)).resolves.toEqual({ accessToken: "a", refreshToken: "r" });
+    respond(pair("admin"));
+    await expect(api.login(credentials)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+    respond({ access_token: "a", role: "faculty" });
+    await expect(api.login(credentials)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+
   it("gets only a challenge from the password step, never tokens (AC-102.1)", async () => {
     respond({
       mfa_required: true,
@@ -106,6 +117,17 @@ describe("faculty auth", () => {
 });
 
 describe("admin auth", () => {
+  it("accepts a development token response but rejects tokens for another role", async () => {
+    respond(pair("admin"));
+    const api = createAdminAuthApi(client);
+    const credentials = { email: "a@pup.edu.ph", password: "p" };
+    await expect(api.login(credentials)).resolves.toEqual({ accessToken: "a", refreshToken: "r" });
+    respond(pair("superadmin"));
+    await expect(api.login(credentials)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+    respond({ access_token: "a", role: "admin" });
+    await expect(api.login(credentials)).rejects.toMatchObject({ code: "INVALID_RESPONSE" });
+  });
+
   it("carries the security-key challenge with the password step's result (AC-103.1)", async () => {
     respond({
       mfa_required: true,
@@ -122,7 +144,7 @@ describe("admin auth", () => {
       password: "p",
     });
 
-    expect(challenge.webauthn).toEqual({
+    expect("webauthn" in challenge && challenge.webauthn).toEqual({
       challenge: "w",
       rpId: "admin.cbpupsis",
       credentialId: "cred",

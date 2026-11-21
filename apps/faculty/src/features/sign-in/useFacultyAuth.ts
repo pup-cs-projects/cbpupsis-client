@@ -1,5 +1,5 @@
 import { isPasswordChangeRequired } from "@cbpupsis/shared/api";
-import type { FacultySecondFactor } from "@cbpupsis/shared/auth";
+import type { FacultyCredentials, FacultySecondFactor } from "@cbpupsis/shared/auth";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "@tanstack/react-router";
 
@@ -49,9 +49,21 @@ export function useEnterPortal() {
 }
 
 export function useFacultyAuth() {
+  const enter = useEnterPortal();
   // Credentials, challenge tokens, and TOTP secrets must not linger in the mutation cache.
   const options = { gcTime: 0, retry: false } as const;
-  const login = useMutation({ ...options, mutationFn: authApi.login });
+  const login = useMutation({
+    ...options,
+    mutationFn: async (credentials: FacultyCredentials) => {
+      const result = await authApi.login(credentials);
+      if ("accessToken" in result) {
+        session.signIn(result);
+        await enter.mutateAsync();
+        return;
+      }
+      return result;
+    },
+  });
   const enrollment = useMutation({ ...options, mutationFn: authApi.enrollTotp });
   const confirmation = useMutation({
     ...options,

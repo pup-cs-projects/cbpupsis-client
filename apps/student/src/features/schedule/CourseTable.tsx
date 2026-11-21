@@ -1,8 +1,8 @@
 import { formatTimeRange } from "../../lib/datetime";
 import type { CourseItem, ScheduleSummary } from "./scheduleTypes";
 
-const th = "px-4 py-3 text-left text-xs font-semibold tracking-wide whitespace-nowrap uppercase";
-const td = "px-4 py-4 align-top text-sm";
+const th = "px-6 py-3.5 text-left text-xs font-semibold tracking-wider whitespace-nowrap uppercase";
+const td = "px-6 py-4 align-top text-sm";
 
 interface CourseTableProps {
   courses: CourseItem[];
@@ -14,13 +14,13 @@ export function CourseTable({ courses, summary }: CourseTableProps) {
   const caption = `Courses for ${summary.semester}, Academic Year ${summary.academicYear}`;
 
   return (
-    <div className="border-brand-border/25 overflow-hidden rounded-2xl border bg-white shadow-sm">
+    <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white shadow-sm">
       {/* A keyboard user can focus the region to scroll it when the table is wider than it. */}
       {/* eslint-disable-next-line jsx-a11y/no-noninteractive-tabindex -- scrollable region (WCAG 2.1.1) */}
       <div role="region" aria-label={caption} tabIndex={0} className="overflow-x-auto">
         <table className="w-full min-w-[680px] border-collapse">
           <caption className="sr-only">{caption}</caption>
-          <thead className="bg-brand-maroon text-white">
+          <thead className="bg-brand-crimson text-white">
             <tr>
               <th scope="col" className={th}>
                 Course Code &amp; Title
@@ -39,11 +39,11 @@ export function CourseTable({ courses, summary }: CourseTableProps) {
               </th>
             </tr>
           </thead>
-          <tbody className="divide-brand-border/20 divide-y">
+          <tbody className="divide-y divide-neutral-100">
             {courses.map((course) => (
-              <tr key={course.id} className="hover:bg-brand-paper transition-colors">
+              <tr key={course.id} className="transition-colors hover:bg-neutral-50/50">
                 <th scope="row" className={`${td} text-left font-normal`}>
-                  <span className="text-brand-maroon block font-bold whitespace-nowrap">
+                  <span className="text-brand-crimson block font-bold whitespace-nowrap">
                     {course.courseCode}
                   </span>
                   <span className="text-brand-ink block">{course.courseTitle}</span>

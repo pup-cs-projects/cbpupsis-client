@@ -71,11 +71,6 @@ function paragraph(text: string) {
     element?.tagName === "P" && element.textContent === text;
 }
 
-/** The dd beside a dt with this label, for a stat that may repeat its sibling's value. */
-function statValue(label: string) {
-  return screen.getByText(label).nextElementSibling;
-}
-
 async function pickFirstCourse(user: ReturnType<typeof userEvent.setup>) {
   await user.click(await screen.findByRole("checkbox", { name: /Select COMP 016/ }));
 }
@@ -180,8 +175,9 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
       },
     });
 
-    await screen.findByText("Effective Ceiling");
-    expect(statValue("Effective Ceiling")).toHaveTextContent("26");
+    expect(await screen.findByRole("status", { name: "Running total" })).toHaveTextContent(
+      "of 26 allowed",
+    );
 
     await pickFirstCourse(user);
     await reviewAndConfirm(user);
@@ -250,8 +246,9 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
       },
     });
 
-    await screen.findByText("Effective Ceiling");
-    expect(statValue("Effective Ceiling")).toHaveTextContent("35");
+    expect(await screen.findByRole("status", { name: "Running total" })).toHaveTextContent(
+      "of 35 allowed",
+    );
     await pickFirstCourse(user);
     await reviewAndConfirm(user);
 
@@ -314,10 +311,9 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
       },
     });
 
-    await screen.findByText("Effective Ceiling");
-    expect(statValue("Prescribed Load")).toHaveTextContent("26");
-    expect(statValue("Standing Reduction")).toHaveTextContent("3");
-    expect(statValue("Effective Ceiling")).toHaveTextContent("23");
+    expect(await screen.findByRole("status", { name: "Running total" })).toHaveTextContent(
+      "of 23 allowed",
+    );
   });
 
   it("AC-ENRL-001.7: Probation shows an effective ceiling of 20 for a prescribed 26, from the API alone", async () => {
@@ -333,9 +329,9 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
       },
     });
 
-    await screen.findByText("Effective Ceiling");
-    expect(statValue("Standing Reduction")).toHaveTextContent("6");
-    expect(statValue("Effective Ceiling")).toHaveTextContent("20");
+    expect(await screen.findByRole("status", { name: "Running total" })).toHaveTextContent(
+      "of 20 allowed",
+    );
   });
 
   it("AC-ENRL-001.8 (display): shows the summer subject limit for a student it applies to", async () => {
@@ -411,7 +407,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     // Once in the alert, and once in each named course's row.
     const messages = await screen.findAllByText(/^COMP 016 and COSC 304 overlap on Monday/);
     expect(messages).toHaveLength(3);
-    const row = screen.getByRole("rowheader", { name: "COSC 304" }).closest("tr");
+    const row = screen.getByRole("rowheader", { name: /^COSC 304/ }).closest("tr");
     expect(within(row as HTMLElement).getByText(/overlap on Monday/)).toBeInTheDocument();
   });
 
@@ -645,7 +641,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
       "GET /student/enrollment/waiver": { status: 200, body: [] },
     });
 
-    const row = (await screen.findByRole("rowheader", { name: "COMP 009" })).closest(
+    const row = (await screen.findByRole("rowheader", { name: /^COMP 009/ })).closest(
       "tr",
     ) as HTMLElement;
     expect(within(row).getByText("COMP 003: Inc; required range 1.00-3.00.")).toBeInTheDocument();
@@ -799,7 +795,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
       [ELIGIBILITY_ROUTE]: { status: 200, body: eligibility({ overloadEligible: false }) },
     });
 
-    await screen.findByText("Effective Ceiling");
+    await screen.findByRole("status", { name: "Running total" });
     expect(screen.queryByRole("button", { name: "Request an overload" })).not.toBeInTheDocument();
   });
 
@@ -870,7 +866,9 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     await user.click(checkboxes[0]);
     await user.click(checkboxes[1]);
     expect(screen.queryByText("No Selected Course")).not.toBeInTheDocument();
-    expect(screen.getByText(paragraph("Total: 6 units"))).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Running total" })).toHaveTextContent(
+      "Running Total: 6 units",
+    );
 
     await user.click(screen.getByRole("button", { name: "Clear All" }));
 
@@ -926,7 +924,7 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
     const retry = await screen.findByRole("button", { name: /try again/i });
     await user.click(retry);
 
-    await screen.findByText("Effective Ceiling");
+    await screen.findByRole("status", { name: "Running total" });
   });
 
   it("AC-ENRL-001.1: shows a loading message while the enrollment information loads", async () => {
@@ -962,6 +960,8 @@ describe("EnrollmentPage (US-ENRL-001)", () => {
 
     await user.keyboard(" ");
     expect(checkbox).toBeChecked();
-    expect(screen.getByText(paragraph("Total: 3 units"))).toBeInTheDocument();
+    expect(screen.getByRole("status", { name: "Running total" })).toHaveTextContent(
+      "Running Total: 3 units",
+    );
   });
 });

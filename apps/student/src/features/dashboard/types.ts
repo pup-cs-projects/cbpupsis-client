@@ -46,6 +46,10 @@ export interface EmptyMessages {
 export interface Dashboard {
   /** The student's name as the University records it; null when it has none. */
   fullName: string | null;
+  /** YYYY-NNNNN-XX-N; null when the University has none on record. */
+  studentNumber: string | null;
+  /** The profile picture's address, for the same authenticated fetch the Profile page uses. */
+  avatarUrl: string | null;
   term: AcademicTerm | null;
   announcements: Announcement[];
   events: CalendarEvent[];

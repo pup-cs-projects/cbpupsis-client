@@ -86,3 +86,15 @@ export function manilaWeekday(now = new Date()) {
 export function formatTimeRange(start: string, end: string) {
   return `${formatClockTime(start)} – ${formatClockTime(end)}`;
 }
+
+const shortDateInManila = new Intl.DateTimeFormat("en-US", {
+  timeZone: TIME_ZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
+
+/** "06/10/2026" (MM/DD/YYYY): the Manila day an instant falls on, for dense tables. */
+export function formatShortDate(iso: string) {
+  return shortDateInManila.format(new Date(iso));
+}

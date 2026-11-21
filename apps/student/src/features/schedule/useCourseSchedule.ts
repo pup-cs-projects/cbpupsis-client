@@ -4,13 +4,7 @@ import { useState } from "react";
 import type { StudentSchedule as ApiSchedule } from "@cbpupsis/shared/schedule";
 
 import { scheduleApi as api, session } from "../../lib/auth";
-import {
-  WEEKDAYS,
-  type CalendarConnectStart,
-  type CourseItem,
-  type ExportFile,
-  type StudentSchedule,
-} from "./scheduleTypes";
+import { WEEKDAYS, type CourseItem, type ExportFile, type StudentSchedule } from "./scheduleTypes";
 
 const SEMESTERS: Record<string, string> = {
   first: "First Semester",
@@ -35,6 +29,7 @@ export function toPageSchedule(schedule: ApiSchedule): StudentSchedule | null {
     location: course.room ?? course.meetings.find((m) => m.room)?.room ?? "To be announced",
   }));
   return {
+    term: { ...schedule.term },
     summary: {
       totalUnits: schedule.totalCredits,
       totalCourses: courses.length,
@@ -59,13 +54,6 @@ export const scheduleApi = {
   /** The term's classes as weekly recurring events (text/calendar). */
   async exportIcs(): Promise<ExportFile | null> {
     return session.authorized((token) => api.export(token, "ics"));
-  },
-
-  // TODO(api): Google sync is served (/students/me/schedule/google-calendar) but off unless
-  // GOOGLE_CALENDAR_ENABLED, and needs this portal to post Google's callback code back. Until
-  // that flow is built, the button says it is not available yet.
-  async connectGoogleCalendar(): Promise<CalendarConnectStart | null> {
-    return null;
   },
 };
 
@@ -93,7 +81,7 @@ function saveFile({ blob, filename }: ExportFile) {
   setTimeout(() => URL.revokeObjectURL(url), 0);
 }
 
-export type ScheduleAction = "pdf" | "ics" | "google";
+export type ScheduleAction = "pdf" | "ics";
 
 export interface ActionNotice {
   tone: "info" | "success";
@@ -103,10 +91,9 @@ export interface ActionNotice {
 const UNAVAILABLE: Record<ScheduleAction, string> = {
   pdf: "Downloading your COR isn't available yet. Please check back soon.",
   ics: "Calendar export isn't available yet. Please check back soon.",
-  google: "Google Calendar sync isn't available yet. Please check back soon.",
 };
 
-/** The right rail's three buttons: COR download, .ics export, and Google Calendar connect. */
+/** Schedule downloads stay independent of the optional Google Calendar integration. */
 export function useScheduleActions() {
   const [notice, setNotice] = useState<ActionNotice | null>(null);
 
@@ -115,7 +102,7 @@ export function useScheduleActions() {
     onSuccess: (file) => {
       if (!file) return setNotice({ tone: "info", text: UNAVAILABLE.pdf });
       saveFile(file);
-      setNotice({ tone: "success", text: "Your Certificate of Registration is downloading." });
+      setNotice({ tone: "success", text: "Your schedule is downloading." });
     },
   });
 
@@ -131,19 +118,11 @@ export function useScheduleActions() {
     },
   });
 
-  const google = useMutation({
-    mutationFn: () => scheduleApi.connectGoogleCalendar(),
-    onSuccess: (start) => {
-      if (!start) return setNotice({ tone: "info", text: UNAVAILABLE.google });
-      window.location.assign(start.authorizationUrl);
-    },
-  });
-
-  const mutations = { pdf, ics, google };
+  const mutations = { pdf, ics };
   const pending = (Object.keys(mutations) as ScheduleAction[]).find(
     (key) => mutations[key].isPending,
   );
-  const failed = [pdf, ics, google].find((mutation) => mutation.isError);
+  const failed = [pdf, ics].find((mutation) => mutation.isError);
 
   function run(action: ScheduleAction) {
     // One outcome at a time: a new press clears the last one's notice or error.
@@ -155,7 +134,6 @@ export function useScheduleActions() {
   return {
     downloadCor: () => run("pdf"),
     exportIcs: () => run("ics"),
-    connectGoogleCalendar: () => run("google"),
     pending: pending ?? null,
     notice,
     error: failed?.error ?? null,

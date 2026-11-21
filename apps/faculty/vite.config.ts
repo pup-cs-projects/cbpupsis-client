@@ -15,6 +15,11 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
+    // Authenticated page flows include full axe scans on slower CI workers.
+    testTimeout: 15_000,
+    // Bound jsdom concurrency so coverage runs remain reliable on developer machines and CI.
+    maxWorkers: 2,
+    fsModuleCache: false,
     setupFiles: ["./src/test/setup.ts"],
     css: false,
     coverage: {

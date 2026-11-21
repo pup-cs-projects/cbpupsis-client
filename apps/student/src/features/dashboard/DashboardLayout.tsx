@@ -1,9 +1,11 @@
 import { SignOutButton } from "@cbpupsis/account";
 import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
+import { Bell, ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
+import { useHeaderAvatar } from "../profile/useAvatar";
 import { useMe } from "../sign-in/queries";
-import { useStudentName } from "./queries";
+import { useStudentIdentity } from "./queries";
 
 // ---- Icons (decorative: the label or the button's name carries the meaning) ----
 
@@ -54,12 +56,6 @@ const MailIcon = () => (
     <path d="M2 7l10 7 10-7" />
   </Icon>
 );
-const GearIcon = () => (
-  <Icon>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-  </Icon>
-);
 const HelpIcon = () => (
   <Icon>
     <circle cx="12" cy="12" r="10" />
@@ -67,35 +63,22 @@ const HelpIcon = () => (
     <circle cx="12" cy="17" r=".5" fill="currentColor" />
   </Icon>
 );
-const UserCircleIcon = () => (
-  <Icon>
-    <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-    <circle cx="12" cy="7" r="4" />
-  </Icon>
-);
 const ChevronDownIcon = () => (
   <Icon className="size-3.5">
     <path d="M6 9l6 6 6-6" />
-  </Icon>
-);
-const SignOutIcon = () => (
-  <Icon>
-    <path d="M15 4h3a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2h-3" />
-    <path d="M10 17l-5-5 5-5M5 12h11" />
   </Icon>
 );
 
 // ---- Data ----
 
 // Items without a `to` or `href` have no route yet: unavailable, never a dead link.
-type SubItem = { label: string; to?: LinkProps["to"]; href?: string; kind?: "signout" };
+type SubItem = { label: string; to?: LinkProps["to"]; href?: string };
 
 type NavSection = {
   id: string;
   label: string;
   icon: ReactNode;
   children?: SubItem[];
-  href?: string;
 };
 
 const NAV_SECTIONS: NavSection[] = [
@@ -113,35 +96,37 @@ const NAV_SECTIONS: NavSection[] = [
     id: "finance",
     label: "Finance",
     icon: <BriefcaseIcon />,
-    children: [{ label: "Billing & Payments" }],
+    children: [{ label: "Billing & Payments", to: "/account" }],
   },
   {
     id: "forms",
     label: "Forms & Requests",
     icon: <MailIcon />,
-    children: [{ label: "Forms Portal" }, { label: "Track Requests" }],
-  },
-  {
-    id: "settings",
-    label: "Settings",
-    icon: <GearIcon />,
     children: [
-      { label: "Profile", to: "/profile" },
-      { label: "Change Password", to: "/change-password" },
-      { label: "Logout", kind: "signout" as const },
+      { label: "Add or Drop Courses", to: "/enrollment/add-drop" },
+      { label: "Track Requests" },
     ],
   },
-  // The same support address as the sign-in page.
-  { id: "help", label: "Help & Support", icon: <HelpIcon />, href: "mailto:icto-admin@pup.edu.ph" },
+  // Profile, Settings (with Change Password), and Logout live in the header's account menu.
 ];
 
+// A utility link, not a module: pinned to the bottom of the sidebar, apart from the list above.
+// The same support address as the sign-in page.
+const HELP_LINK = {
+  label: "Help & Support",
+  icon: <HelpIcon />,
+  href: "mailto:icto-admin@pup.edu.ph",
+};
+
 const SIDEBAR_ID = "student-sidebar";
+const SEARCH_LABEL = "Search for schedules, grades, forms...";
 
 // ---- Component ----
 
 /**
- * The student portal's frame: a white header (seal, name, the main links), the collapsible
- * obelisk sidebar (a drawer below 768px), and the main landmark the skip link jumps to.
+ * The student portal's frame: a white header (seal, name, the search/notifications/account
+ * cluster), the collapsible obelisk sidebar (a drawer below 768px), and the main landmark the
+ * skip link jumps to.
  */
 export function DashboardLayout({ children }: { children: ReactNode }) {
   const [isExpanded, setIsExpanded] = useState(() => {
@@ -206,7 +191,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
       </a>
 
       {/* ---- Full-width top header ---- */}
-      <header className="border-brand-border/30 z-20 flex h-[72px] shrink-0 items-center justify-between gap-4 border-b bg-white px-4 md:px-8">
+      <header className="border-brand-border/30 relative z-20 flex h-[72px] shrink-0 items-center justify-between gap-2 border-b bg-white px-4 md:gap-4 md:px-8">
         <div className="flex min-w-0 items-center gap-3">
           <button
             ref={menuButton}
@@ -231,25 +216,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               <span className="text-brand-maroon block text-[22px] leading-none font-bold tracking-tight">
                 CBPUPSIS
               </span>
-              <span className="text-brand-maroon block text-xs leading-tight font-medium">
+              <span className="text-brand-maroon hidden text-xs leading-tight font-medium sm:block">
                 PUP Academic Portal
               </span>
             </span>
           </Link>
         </div>
 
-        <nav aria-label="Main" className="hidden items-center sm:flex print:hidden">
-          {/* Notifications: not built yet — unavailable, never a dead link. */}
-          <span
-            role="link"
-            aria-disabled="true"
-            title="Coming soon"
-            className="text-brand-ink inline-flex min-h-11 cursor-default items-center text-sm font-medium"
-          >
-            Notifications
-            <span className="sr-only">, coming soon</span>
-          </span>
-        </nav>
+        <div className="flex shrink-0 items-center gap-1 sm:gap-2 print:hidden">
+          <SearchField />
+          <NotificationBell />
+          <UserMenu />
+        </div>
       </header>
 
       {/* ---- Body row: sidebar + main ---- */}
@@ -271,71 +249,56 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           } ${isExpanded ? "md:w-72" : "md:w-16"}`}
           style={{ backgroundImage: "url(/assets/obelisk.webp)" }}
         >
-          <nav
-            aria-label="Student modules"
-            className="flex-1 overflow-x-hidden overflow-y-auto py-2"
-          >
-            {/* Dashboard / hamburger toggle */}
-            <button
-              type="button"
-              className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"}`}
-              aria-label={expanded ? "Collapse menu" : "Expand menu"}
-              aria-expanded={expanded}
-              aria-controls={SIDEBAR_ID}
-              onClick={() => {
-                if (drawerOpen) {
-                  setDrawerOpen(false);
-                  menuButton.current?.focus();
-                } else persistExpanded(!isExpanded);
-              }}
-            >
-              <MenuIcon />
-            </button>
+          <nav aria-label="Student modules" className="flex min-h-0 flex-1 flex-col py-2">
+            {/* The modules scroll on a short screen; Help & Support below never scrolls away. */}
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+              {/* Dashboard / hamburger toggle */}
+              <button
+                type="button"
+                className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"}`}
+                aria-label={expanded ? "Collapse menu" : "Expand menu"}
+                aria-expanded={expanded}
+                aria-controls={SIDEBAR_ID}
+                onClick={() => {
+                  if (drawerOpen) {
+                    setDrawerOpen(false);
+                    menuButton.current?.focus();
+                  } else persistExpanded(!isExpanded);
+                }}
+              >
+                <MenuIcon />
+              </button>
 
-            <div className="mx-3 my-1.5 border-t border-white/15" />
+              <div className="mx-3 my-1.5 border-t border-white/15" />
 
-            {/* Dashboard — wired route with active highlight */}
-            <Link
-              to="/dashboard"
-              activeOptions={{ includeSearch: false }}
-              aria-label="Dashboard"
-              className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} aria-[current=page]:bg-white/20 aria-[current=page]:text-white`}
-            >
-              <HomeIcon />
-              {expanded && (
-                <span
-                  className="flex-1 text-left text-sm font-semibold whitespace-nowrap"
-                  aria-hidden="true"
-                >
-                  Dashboard
-                </span>
-              )}
-            </Link>
+              {/* Dashboard — wired route with active highlight */}
+              <Link
+                to="/dashboard"
+                activeOptions={{ includeSearch: false }}
+                aria-label="Dashboard"
+                className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} aria-[current=page]:bg-white/20 aria-[current=page]:text-white`}
+              >
+                <HomeIcon />
+                {expanded && (
+                  <span
+                    className="flex-1 text-left text-sm font-semibold whitespace-nowrap"
+                    aria-hidden="true"
+                  >
+                    Dashboard
+                  </span>
+                )}
+              </Link>
 
-            <div className="mx-3 my-1.5 border-t border-white/15" />
+              <div className="mx-3 my-1.5 border-t border-white/15" />
 
-            <ul>
-              {NAV_SECTIONS.map((section) => {
-                const open = expanded && openSection === section.id;
-                const rowClass = `${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${
-                  open || section.id === activeSection ? "bg-white/10 text-white" : ""
-                }`;
-                return (
-                  <li key={section.id}>
-                    {section.href ? (
-                      <a
-                        href={section.href}
-                        className={rowClass}
-                        aria-label={`${section.label}: email portal support`}
-                      >
-                        {section.icon}
-                        {expanded && (
-                          <span className="flex-1 text-left text-sm font-medium whitespace-nowrap">
-                            {section.label}
-                          </span>
-                        )}
-                      </a>
-                    ) : (
+              <ul>
+                {NAV_SECTIONS.map((section) => {
+                  const open = expanded && openSection === section.id;
+                  const rowClass = `${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${
+                    open || section.id === activeSection ? "bg-white/10 text-white" : ""
+                  }`;
+                  return (
+                    <li key={section.id}>
                       <button
                         type="button"
                         className={rowClass}
@@ -360,49 +323,62 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                           </>
                         )}
                       </button>
-                    )}
 
-                    {/* Submenu */}
-                    {open && section.children && (
-                      <ul className="bg-black/15">
-                        {section.children.map((item) => (
-                          <li key={item.label}>
-                            {item.kind === "signout" ? (
-                              <SignOutButton className={subItem}>{item.label}</SignOutButton>
-                            ) : item.to ? (
-                              <Link
-                                to={item.to}
-                                className={`${subItem} aria-[current=page]:bg-white/20 aria-[current=page]:font-semibold aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-gold)]`}
-                              >
-                                {item.label}
-                              </Link>
-                            ) : (
-                              <button
-                                type="button"
-                                className={`${subItem} cursor-default`}
-                                aria-disabled="true"
-                              >
-                                {item.label}
-                                <span className="sr-only">, coming soon</span>
-                                <span
-                                  aria-hidden="true"
-                                  className="ml-auto rounded-full border border-white/40 px-2 text-xs"
+                      {/* Submenu */}
+                      {open && section.children && (
+                        <ul className="bg-black/15">
+                          {section.children.map((item) => (
+                            <li key={item.label}>
+                              {item.to ? (
+                                <Link
+                                  to={item.to}
+                                  className={`${subItem} aria-[current=page]:bg-white/20 aria-[current=page]:font-semibold aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-gold)]`}
                                 >
-                                  Soon
-                                </span>
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-          </nav>
+                                  {item.label}
+                                </Link>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={`${subItem} cursor-default`}
+                                  aria-disabled="true"
+                                >
+                                  {item.label}
+                                  <span className="sr-only">, coming soon</span>
+                                  <span
+                                    aria-hidden="true"
+                                    className="ml-auto rounded-full border border-white/40 px-2 text-xs"
+                                  >
+                                    Soon
+                                  </span>
+                                </button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
 
-          <ProfileCard expanded={expanded} />
+            {/* Help & Support: pinned to the bottom, set apart by a divider, in either state. */}
+            <div className="mt-auto shrink-0">
+              <div className="mx-3 mb-1.5 border-t border-white/15" />
+              <a
+                href={HELP_LINK.href}
+                aria-label={`${HELP_LINK.label}: email portal support`}
+                className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"}`}
+              >
+                {HELP_LINK.icon}
+                {expanded && (
+                  <span className="flex-1 text-left text-sm font-medium whitespace-nowrap">
+                    {HELP_LINK.label}
+                  </span>
+                )}
+              </a>
+            </div>
+          </nav>
         </aside>
 
         {/* ---- Main content ---- */}
@@ -419,46 +395,236 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 }
 
 /**
- * Who is signed in, and Sign out (with its confirmation). The picture and name open the profile.
- * The name shows only once the API gives one; it is never derived from the email.
+ * The search field: a plain input docked beside the bell and account menu on desktop, an icon
+ * that expands into the same input, as a panel beneath the header, on narrow screens.
  */
-function ProfileCard({ expanded }: { expanded: boolean }) {
-  const me = useMe();
-  const fullName = useStudentName().data;
+function SearchField() {
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const toggleButton = useRef<HTMLButtonElement>(null);
+  const mobileInput = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (mobileOpen) mobileInput.current?.focus();
+  }, [mobileOpen]);
+
+  function closeMobile() {
+    setMobileOpen(false);
+    toggleButton.current?.focus();
+  }
+
+  const fieldClass =
+    "w-64 lg:w-80 rounded-xl border border-neutral-200 bg-neutral-50/80 py-2 pr-4 pl-10 text-sm text-neutral-800 placeholder:text-neutral-400 focus:outline-none focus:ring-2 focus:ring-brand-crimson/20 focus:border-brand-crimson focus:bg-white transition-all";
 
   return (
-    <div className="shrink-0 border-t border-white/15 p-3">
-      <div className={`flex items-center ${expanded ? "gap-3" : "flex-col gap-2"}`}>
-        {me.isPending && <p className="sr-only">Loading your account</p>}
-        {me.isSuccess && <p className="sr-only">Signed in as {me.data.email}</p>}
-        <Link
-          to="/profile"
-          aria-label="Your profile"
-          className={`focus-visible:outline-brand-gold! flex min-h-11 min-w-0 items-center rounded-lg text-white hover:bg-white/10 aria-[current=page]:bg-white/20 ${
-            expanded ? "flex-1 gap-3 pr-2" : "justify-center"
-          }`}
-        >
-          <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-white/20">
-            <UserCircleIcon />
-          </span>
-          {expanded && (
-            <span className="min-w-0 flex-1" aria-hidden="true">
-              <span className="block truncate text-xs leading-tight font-semibold">
-                {(fullName ?? "Student").toUpperCase()}
-              </span>
-              {me.isSuccess && (
-                <span className="block truncate text-xs leading-tight text-white/80">
-                  {me.data.email}
-                </span>
-              )}
-            </span>
-          )}
-        </Link>
-        <SignOutButton className="focus-visible:outline-brand-gold! grid size-11 shrink-0 place-items-center rounded-lg text-white hover:bg-white/10">
-          <SignOutIcon />
-          <span className="sr-only">Sign out</span>
-        </SignOutButton>
-      </div>
+    <>
+      <button
+        ref={toggleButton}
+        type="button"
+        aria-label={mobileOpen ? "Close search" : "Search"}
+        aria-expanded={mobileOpen}
+        className="rounded-full p-2.5 text-neutral-700 transition-colors hover:bg-neutral-100 md:hidden"
+        onClick={() => setMobileOpen((open) => !open)}
+      >
+        {mobileOpen ? (
+          <X className="size-5" aria-hidden="true" />
+        ) : (
+          <Search className="size-5" aria-hidden="true" />
+        )}
+      </button>
+
+      <form
+        role="search"
+        className="relative hidden md:block"
+        onSubmit={(event) => event.preventDefault()}
+      >
+        <Search
+          aria-hidden="true"
+          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400"
+        />
+        <input
+          type="search"
+          aria-label={SEARCH_LABEL}
+          placeholder={SEARCH_LABEL}
+          className={fieldClass}
+        />
+      </form>
+
+      {mobileOpen && (
+        <div className="border-brand-border/30 absolute inset-x-0 top-full z-20 border-b bg-white p-3 shadow-sm md:hidden">
+          <form role="search" className="relative" onSubmit={(event) => event.preventDefault()}>
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400"
+            />
+            <input
+              ref={mobileInput}
+              type="search"
+              aria-label={SEARCH_LABEL}
+              placeholder={SEARCH_LABEL}
+              className={`${fieldClass} w-full`}
+              onKeyDown={(event) => event.key === "Escape" && closeMobile()}
+            />
+          </form>
+        </div>
+      )}
+    </>
+  );
+}
+
+/**
+ * The notification bell. Not built yet (no notifications API) — unavailable, never a dead
+ * link — but the unread badge is ready for when there is a count to show.
+ */
+function NotificationBell() {
+  const unreadCount = 0;
+
+  return (
+    <button
+      type="button"
+      aria-disabled="true"
+      title="Coming soon"
+      className="relative cursor-default rounded-full p-2.5 text-neutral-700 transition-colors hover:bg-neutral-100"
+    >
+      <Bell className="size-5" aria-hidden="true" />
+      <span className="sr-only">Notifications, coming soon</span>
+      {unreadCount > 0 && (
+        <span className="absolute top-1 right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
+          {unreadCount}
+        </span>
+      )}
+    </button>
+  );
+}
+
+/**
+ * The student's photo in a circle, or their initial on a plain circle only if the picture fails
+ * to display. While the profile loads it is an empty circle, not a stand-in that then changes.
+ */
+function Avatar({ name, src, pending }: { name: string | null; src: string; pending: boolean }) {
+  // The picture that failed, not a yes/no: a new photo gets its own try.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  if (pending) {
+    return (
+      <span
+        aria-hidden="true"
+        className="block h-9 w-9 animate-pulse rounded-full border border-neutral-200 bg-neutral-100 motion-reduce:animate-none"
+      />
+    );
+  }
+  if (src !== failedSrc) {
+    return (
+      <img
+        src={src}
+        alt=""
+        className="h-9 w-9 rounded-full border border-neutral-200 object-cover"
+        onError={() => setFailedSrc(src)}
+      />
+    );
+  }
+  const initial = name?.trim().charAt(0).toUpperCase() || "S";
+  return (
+    <span
+      aria-hidden="true"
+      className="bg-brand-crimson/10 text-brand-crimson flex h-9 w-9 items-center justify-center rounded-full border border-neutral-200 text-sm font-semibold"
+    >
+      {initial}
+    </span>
+  );
+}
+
+/**
+ * Who is signed in: the student's avatar and a chevron beside the bell, opening a menu with the
+ * full identity and Profile, Settings, and Logout (with its own confirmation). The trigger carries
+ * no name of its own (its accessible name has it); the menu shows the name only once the API
+ * gives one, never derived from the email.
+ */
+function UserMenu() {
+  const me = useMe();
+  const identity = useStudentIdentity();
+  const avatar = useHeaderAvatar(identity.data?.avatarUrl ?? null);
+  const [open, setOpen] = useState(false);
+  const container = useRef<HTMLDivElement>(null);
+  const trigger = useRef<HTMLButtonElement>(null);
+
+  // Click-outside and Escape close the menu; Escape hands focus back to the trigger.
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target as Element;
+      // A portalled confirmation makes this menu inert; keep its owner mounted.
+      if (container.current?.closest("[inert]")) return;
+      // The sign-out confirmation is portaled to <body>; a click in it is not outside
+      // the menu, and closing here would unmount it before the sign-out runs.
+      if (target.closest?.('[role="alertdialog"]')) return;
+      if (!container.current?.contains(target)) setOpen(false);
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (container.current?.closest("[inert]")) return;
+      if (event.key !== "Escape") return;
+      setOpen(false);
+      trigger.current?.focus();
+    }
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  const fullName = identity.data?.fullName ?? null;
+
+  return (
+    <div ref={container} className="relative">
+      {me.isPending && <p className="sr-only">Loading your account</p>}
+      {me.isSuccess && <p className="sr-only">Signed in as {me.data.email}</p>}
+
+      <button
+        ref={trigger}
+        type="button"
+        aria-haspopup="true"
+        aria-expanded={open}
+        aria-label={fullName ? `Account menu for ${fullName}` : "Account menu"}
+        className="flex cursor-pointer items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-neutral-100"
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Avatar name={fullName} src={avatar.src} pending={avatar.pending} />
+        <ChevronDown className="h-4 w-4 text-neutral-500" aria-hidden="true" />
+      </button>
+
+      {open && (
+        <div className="absolute right-0 z-50 mt-2 w-56 rounded-2xl border border-neutral-200 bg-white py-2 shadow-lg">
+          <div className="px-4 py-2">
+            <p className="truncate text-sm font-semibold text-neutral-900">
+              {fullName ?? "Student"}
+            </p>
+            {identity.data?.studentNumber && (
+              <p className="truncate text-xs text-neutral-500">{identity.data.studentNumber}</p>
+            )}
+            {me.isSuccess && <p className="truncate text-xs text-neutral-500">{me.data.email}</p>}
+          </div>
+
+          <div className="my-1 border-t border-neutral-100" />
+
+          <Link
+            to="/profile"
+            className="focus-visible:outline-brand-crimson! block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            onClick={() => setOpen(false)}
+          >
+            Profile
+          </Link>
+          <Link
+            to="/settings"
+            className="focus-visible:outline-brand-crimson! block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            onClick={() => setOpen(false)}
+          >
+            Settings
+          </Link>
+          <SignOutButton className="focus-visible:outline-brand-crimson! block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50">
+            Logout
+          </SignOutButton>
+        </div>
+      )}
     </div>
   );
 }
