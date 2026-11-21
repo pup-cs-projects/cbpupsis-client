@@ -3,7 +3,7 @@ import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
 import { Bell, ChevronDown, Search, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
-import { useAvatarSrc } from "../profile/useAvatar";
+import { useHeaderAvatar } from "../profile/useAvatar";
 import { useMe } from "../sign-in/queries";
 import { useStudentIdentity } from "./queries";
 
@@ -56,12 +56,6 @@ const MailIcon = () => (
     <path d="M2 7l10 7 10-7" />
   </Icon>
 );
-const GearIcon = () => (
-  <Icon>
-    <circle cx="12" cy="12" r="3" />
-    <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z" />
-  </Icon>
-);
 const HelpIcon = () => (
   <Icon>
     <circle cx="12" cy="12" r="10" />
@@ -85,7 +79,6 @@ type NavSection = {
   label: string;
   icon: ReactNode;
   children?: SubItem[];
-  href?: string;
 };
 
 const NAV_SECTIONS: NavSection[] = [
@@ -114,16 +107,16 @@ const NAV_SECTIONS: NavSection[] = [
       { label: "Track Requests" },
     ],
   },
-  // Profile, Change Password, and Logout now live in the header's account menu.
-  {
-    id: "settings",
-    label: "Settings",
-    icon: <GearIcon />,
-    children: [{ label: "Change Password", to: "/change-password" }],
-  },
-  // The same support address as the sign-in page.
-  { id: "help", label: "Help & Support", icon: <HelpIcon />, href: "mailto:icto-admin@pup.edu.ph" },
+  // Profile, Settings (with Change Password), and Logout live in the header's account menu.
 ];
+
+// A utility link, not a module: pinned to the bottom of the sidebar, apart from the list above.
+// The same support address as the sign-in page.
+const HELP_LINK = {
+  label: "Help & Support",
+  icon: <HelpIcon />,
+  href: "mailto:icto-admin@pup.edu.ph",
+};
 
 const SIDEBAR_ID = "student-sidebar";
 const SEARCH_LABEL = "Search for schedules, grades, forms...";
@@ -256,71 +249,56 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           } ${isExpanded ? "md:w-72" : "md:w-16"}`}
           style={{ backgroundImage: "url(/assets/obelisk.webp)" }}
         >
-          <nav
-            aria-label="Student modules"
-            className="flex-1 overflow-x-hidden overflow-y-auto py-2"
-          >
-            {/* Dashboard / hamburger toggle */}
-            <button
-              type="button"
-              className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"}`}
-              aria-label={expanded ? "Collapse menu" : "Expand menu"}
-              aria-expanded={expanded}
-              aria-controls={SIDEBAR_ID}
-              onClick={() => {
-                if (drawerOpen) {
-                  setDrawerOpen(false);
-                  menuButton.current?.focus();
-                } else persistExpanded(!isExpanded);
-              }}
-            >
-              <MenuIcon />
-            </button>
+          <nav aria-label="Student modules" className="flex min-h-0 flex-1 flex-col py-2">
+            {/* The modules scroll on a short screen; Help & Support below never scrolls away. */}
+            <div className="min-h-0 flex-1 overflow-x-hidden overflow-y-auto">
+              {/* Dashboard / hamburger toggle */}
+              <button
+                type="button"
+                className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"}`}
+                aria-label={expanded ? "Collapse menu" : "Expand menu"}
+                aria-expanded={expanded}
+                aria-controls={SIDEBAR_ID}
+                onClick={() => {
+                  if (drawerOpen) {
+                    setDrawerOpen(false);
+                    menuButton.current?.focus();
+                  } else persistExpanded(!isExpanded);
+                }}
+              >
+                <MenuIcon />
+              </button>
 
-            <div className="mx-3 my-1.5 border-t border-white/15" />
+              <div className="mx-3 my-1.5 border-t border-white/15" />
 
-            {/* Dashboard — wired route with active highlight */}
-            <Link
-              to="/dashboard"
-              activeOptions={{ includeSearch: false }}
-              aria-label="Dashboard"
-              className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} aria-[current=page]:bg-white/20 aria-[current=page]:text-white`}
-            >
-              <HomeIcon />
-              {expanded && (
-                <span
-                  className="flex-1 text-left text-sm font-semibold whitespace-nowrap"
-                  aria-hidden="true"
-                >
-                  Dashboard
-                </span>
-              )}
-            </Link>
+              {/* Dashboard — wired route with active highlight */}
+              <Link
+                to="/dashboard"
+                activeOptions={{ includeSearch: false }}
+                aria-label="Dashboard"
+                className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} aria-[current=page]:bg-white/20 aria-[current=page]:text-white`}
+              >
+                <HomeIcon />
+                {expanded && (
+                  <span
+                    className="flex-1 text-left text-sm font-semibold whitespace-nowrap"
+                    aria-hidden="true"
+                  >
+                    Dashboard
+                  </span>
+                )}
+              </Link>
 
-            <div className="mx-3 my-1.5 border-t border-white/15" />
+              <div className="mx-3 my-1.5 border-t border-white/15" />
 
-            <ul>
-              {NAV_SECTIONS.map((section) => {
-                const open = expanded && openSection === section.id;
-                const rowClass = `${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${
-                  open || section.id === activeSection ? "bg-white/10 text-white" : ""
-                }`;
-                return (
-                  <li key={section.id}>
-                    {section.href ? (
-                      <a
-                        href={section.href}
-                        className={rowClass}
-                        aria-label={`${section.label}: email portal support`}
-                      >
-                        {section.icon}
-                        {expanded && (
-                          <span className="flex-1 text-left text-sm font-medium whitespace-nowrap">
-                            {section.label}
-                          </span>
-                        )}
-                      </a>
-                    ) : (
+              <ul>
+                {NAV_SECTIONS.map((section) => {
+                  const open = expanded && openSection === section.id;
+                  const rowClass = `${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"} ${
+                    open || section.id === activeSection ? "bg-white/10 text-white" : ""
+                  }`;
+                  return (
+                    <li key={section.id}>
                       <button
                         type="button"
                         className={rowClass}
@@ -345,44 +323,61 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                           </>
                         )}
                       </button>
-                    )}
 
-                    {/* Submenu */}
-                    {open && section.children && (
-                      <ul className="bg-black/15">
-                        {section.children.map((item) => (
-                          <li key={item.label}>
-                            {item.to ? (
-                              <Link
-                                to={item.to}
-                                className={`${subItem} aria-[current=page]:bg-white/20 aria-[current=page]:font-semibold aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-gold)]`}
-                              >
-                                {item.label}
-                              </Link>
-                            ) : (
-                              <button
-                                type="button"
-                                className={`${subItem} cursor-default`}
-                                aria-disabled="true"
-                              >
-                                {item.label}
-                                <span className="sr-only">, coming soon</span>
-                                <span
-                                  aria-hidden="true"
-                                  className="ml-auto rounded-full border border-white/40 px-2 text-xs"
+                      {/* Submenu */}
+                      {open && section.children && (
+                        <ul className="bg-black/15">
+                          {section.children.map((item) => (
+                            <li key={item.label}>
+                              {item.to ? (
+                                <Link
+                                  to={item.to}
+                                  className={`${subItem} aria-[current=page]:bg-white/20 aria-[current=page]:font-semibold aria-[current=page]:text-white aria-[current=page]:shadow-[inset_4px_0_0_var(--color-brand-gold)]`}
                                 >
-                                  Soon
-                                </span>
-                              </button>
-                            )}
-                          </li>
-                        ))}
-                      </ul>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
+                                  {item.label}
+                                </Link>
+                              ) : (
+                                <button
+                                  type="button"
+                                  className={`${subItem} cursor-default`}
+                                  aria-disabled="true"
+                                >
+                                  {item.label}
+                                  <span className="sr-only">, coming soon</span>
+                                  <span
+                                    aria-hidden="true"
+                                    className="ml-auto rounded-full border border-white/40 px-2 text-xs"
+                                  >
+                                    Soon
+                                  </span>
+                                </button>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+
+            {/* Help & Support: pinned to the bottom, set apart by a divider, in either state. */}
+            <div className="mt-auto shrink-0">
+              <div className="mx-3 mb-1.5 border-t border-white/15" />
+              <a
+                href={HELP_LINK.href}
+                aria-label={`${HELP_LINK.label}: email portal support`}
+                className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"}`}
+              >
+                {HELP_LINK.icon}
+                {expanded && (
+                  <span className="flex-1 text-left text-sm font-medium whitespace-nowrap">
+                    {HELP_LINK.label}
+                  </span>
+                )}
+              </a>
+            </div>
           </nav>
         </aside>
 
@@ -501,14 +496,28 @@ function NotificationBell() {
   );
 }
 
-/** A photo, or an initial on a plain circle when there is none. */
-function Avatar({ name, src }: { name: string | null; src: string | null }) {
-  if (src) {
+/**
+ * The student's photo in a circle, or their initial on a plain circle only if the picture fails
+ * to display. While the profile loads it is an empty circle, not a stand-in that then changes.
+ */
+function Avatar({ name, src, pending }: { name: string | null; src: string; pending: boolean }) {
+  // The picture that failed, not a yes/no: a new photo gets its own try.
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  if (pending) {
+    return (
+      <span
+        aria-hidden="true"
+        className="block h-9 w-9 animate-pulse rounded-full border border-neutral-200 bg-neutral-100 motion-reduce:animate-none"
+      />
+    );
+  }
+  if (src !== failedSrc) {
     return (
       <img
         src={src}
         alt=""
         className="h-9 w-9 rounded-full border border-neutral-200 object-cover"
+        onError={() => setFailedSrc(src)}
       />
     );
   }
@@ -524,14 +533,15 @@ function Avatar({ name, src }: { name: string | null; src: string | null }) {
 }
 
 /**
- * Who is signed in: the name and avatar beside the bell, opening a menu with the full identity
- * and Profile, Change Password, and Sign out (with its own confirmation). The name shows only
- * once the API gives one; it is never derived from the email.
+ * Who is signed in: the student's avatar and a chevron beside the bell, opening a menu with the
+ * full identity and Profile, Settings, and Logout (with its own confirmation). The trigger carries
+ * no name of its own (its accessible name has it); the menu shows the name only once the API
+ * gives one, never derived from the email.
  */
 function UserMenu() {
   const me = useMe();
   const identity = useStudentIdentity();
-  const avatarSrc = useAvatarSrc(identity.data?.avatarUrl ?? null);
+  const avatar = useHeaderAvatar(identity.data?.avatarUrl ?? null);
   const [open, setOpen] = useState(false);
   const container = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
@@ -563,7 +573,6 @@ function UserMenu() {
   }, [open]);
 
   const fullName = identity.data?.fullName ?? null;
-  const firstName = fullName?.split(" ")[0] ?? "Student";
 
   return (
     <div ref={container} className="relative">
@@ -579,13 +588,7 @@ function UserMenu() {
         className="flex cursor-pointer items-center gap-2 rounded-xl p-1.5 transition-colors hover:bg-neutral-100"
         onClick={() => setOpen((value) => !value)}
       >
-        <span
-          aria-hidden="true"
-          className="hidden text-sm font-semibold text-neutral-800 sm:inline"
-        >
-          {firstName}
-        </span>
-        <Avatar name={fullName} src={avatarSrc} />
+        <Avatar name={fullName} src={avatar.src} pending={avatar.pending} />
         <ChevronDown className="h-4 w-4 text-neutral-500" aria-hidden="true" />
       </button>
 
@@ -611,11 +614,11 @@ function UserMenu() {
             Profile
           </Link>
           <Link
-            to="/change-password"
+            to="/settings"
             className="focus-visible:outline-brand-crimson! block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
             onClick={() => setOpen(false)}
           >
-            Change Password
+            Settings
           </Link>
           <SignOutButton className="focus-visible:outline-brand-crimson! block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50">
             Logout
