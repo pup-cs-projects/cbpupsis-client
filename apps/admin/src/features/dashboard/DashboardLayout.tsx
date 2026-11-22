@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 
 import { useMe } from "../sign-in/useAdminAuth";
 import { isReviewerRole } from "../enrollment-requests/reviewRules";
+import { isCatalogRole } from "../catalog/catalogUi";
 import { reportTabsFor } from "../reports/access";
 import { canManageFees } from "../fee-structures/access";
 import { useProfile } from "./queries";
@@ -42,7 +43,18 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           icon: <DashboardIcon name="mail" />,
           children: [
             { label: "Calendar" },
-            { label: "Courses" },
+            ...(isCatalogRole(me.data?.position)
+              ? [
+                  {
+                    label: "Courses",
+                    content: (
+                      <Link to="/catalog" className={settingsLink}>
+                        Courses
+                      </Link>
+                    ),
+                  },
+                ]
+              : []),
             ...(me.data?.position === "dean"
               ? [
                   {
