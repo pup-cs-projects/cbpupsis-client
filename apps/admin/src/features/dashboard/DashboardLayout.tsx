@@ -9,6 +9,7 @@ import type { ReactNode } from "react";
 
 import { useMe } from "../sign-in/useAdminAuth";
 import { isReviewerRole } from "../enrollment-requests/reviewRules";
+import { reportTabsFor } from "../reports/access";
 import { useProfile } from "./queries";
 
 /** Portal navigation and account wiring, separate from the dashboard page like student. */
@@ -75,7 +76,16 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
           icon: <DashboardIcon name="briefcase" />,
           children: [
             { label: "User Management" },
-            { label: "Enrollment" },
+            reportTabsFor(me.data?.position).length > 0
+              ? {
+                  label: "Enrollment",
+                  content: (
+                    <Link to="/reports" className={settingsLink}>
+                      Enrollment
+                    </Link>
+                  ),
+                }
+              : { label: "Enrollment" },
             { label: "Financial" },
             { label: "System Health" },
           ],
