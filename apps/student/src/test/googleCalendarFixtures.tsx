@@ -75,7 +75,7 @@ export function mockCalendarApi(routes: Parameters<typeof mockApi>[0] = {}, sign
   if (signedIn) signInDirectly();
   return mockApi({
     [ME_ROUTE]: { status: 200, body: me },
-    "GET /student/me/dashboard": { status: 200, body: dashboardResponse },
+    "GET /student/dashboard": { status: 200, body: dashboardResponse },
     "GET /student/schedule": { status: 200, body: scheduleResponse },
     [CALENDAR_ROUTE]: { status: 200, body: calendarStatus },
     ...routes,

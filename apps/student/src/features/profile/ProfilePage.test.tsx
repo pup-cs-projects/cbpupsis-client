@@ -9,7 +9,7 @@ import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
 import { renderApp } from "../../test/renderApp";
 import { AVATAR_PLACEHOLDER } from "./useAvatar";
 
-const DASHBOARD_ROUTE = "GET /student/me/dashboard";
+const DASHBOARD_ROUTE = "GET /student/dashboard";
 
 // Each test renders the whole app and loads real PSGC data, so give async work room on a slow run.
 configure({ asyncUtilTimeout: 4000 });
