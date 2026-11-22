@@ -10,6 +10,7 @@ import type { ReactNode } from "react";
 import { useMe } from "../sign-in/useAdminAuth";
 import { isReviewerRole } from "../enrollment-requests/reviewRules";
 import { reportTabsFor } from "../reports/access";
+import { canManageFees } from "../fee-structures/access";
 import { useProfile } from "./queries";
 
 /** Portal navigation and account wiring, separate from the dashboard page like student. */
@@ -101,6 +102,25 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     content: (
                       <Link to="/grade-corrections" className={settingsLink}>
                         Correction of Entry
+                      </Link>
+                    ),
+                  },
+                ],
+              },
+            ]
+          : []),
+        // Finance alone holds ManageFeeStructure; Registrar, Dean, and Chair never see the link.
+        ...(canManageFees(me.data?.position)
+          ? [
+              {
+                label: "Financial",
+                icon: <DashboardIcon name="briefcase" />,
+                children: [
+                  {
+                    label: "Fee structure",
+                    content: (
+                      <Link to="/fee-structures" className={settingsLink}>
+                        Fee structure
                       </Link>
                     ),
                   },
