@@ -7,6 +7,7 @@ import {
   createSession,
 } from "@cbpupsis/shared/auth";
 import { createAdminEnrollmentApi } from "@cbpupsis/shared/enrollment";
+import { createAdminFeeApi } from "@cbpupsis/shared/fees";
 import { createIncompleteReviewApi, incompleteReviewContract } from "@cbpupsis/shared/grades";
 
 export const apiClient = createApiClient(
@@ -19,6 +20,8 @@ export const authApi = createAdminAuthApi(apiClient);
 export const passwordApi = createPasswordApi(apiClient);
 export const profileApi = createProfileApi(apiClient);
 export const enrollmentApi = createAdminEnrollmentApi(apiClient);
+/** Fee structures: only Finance holds `ManageFeeStructure` (US-FIN-003). */
+export const feeApi = createAdminFeeApi(apiClient);
 
 export const incompleteReviewApi = createIncompleteReviewApi(apiClient, incompleteReviewContract);
 
