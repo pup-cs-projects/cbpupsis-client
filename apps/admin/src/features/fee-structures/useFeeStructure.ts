@@ -6,9 +6,25 @@ import type { FeeStructureDataSource } from "./dataSource";
 /** One key factory for the feature; the owner keeps one admin's cache from another's. */
 export const feeStructureKeys = {
   all: ["fee-structures"] as const,
+  options: (owner: string | undefined) => [...feeStructureKeys.all, "options", owner] as const,
   term: (owner: string | undefined, termId: string) =>
     [...feeStructureKeys.all, owner, termId] as const,
 };
+
+/** The terms and programs the form picks from. */
+export function useFeeStructureOptions(
+  source: FeeStructureDataSource,
+  owner: string | undefined,
+  enabled: boolean,
+) {
+  return useQuery({
+    queryKey: feeStructureKeys.options(owner),
+    queryFn: ({ signal }) => source.options(signal),
+    enabled,
+    retry: false,
+    refetchOnWindowFocus: false,
+  });
+}
 
 export function useFeeStructure(
   source: FeeStructureDataSource,
@@ -34,6 +50,9 @@ export function useSaveFeeStructure(
   return useMutation({
     mutationFn: (input: FeeStructureInput) => source.save(termId, input),
     retry: false,
-    onSuccess: (saved) => client.setQueryData(feeStructureKeys.term(owner, termId), saved),
+    onSuccess: (saved) => {
+      client.setQueryData(feeStructureKeys.term(owner, termId), saved);
+      void client.invalidateQueries({ queryKey: feeStructureKeys.options(owner) });
+    },
   });
 }

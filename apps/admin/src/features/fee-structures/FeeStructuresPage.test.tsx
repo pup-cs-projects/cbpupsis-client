@@ -10,7 +10,10 @@ import { renderApp } from "../../test/renderApp";
 
 const TERM = "30000000-0000-4000-8000-000000000001";
 const FEES = `/admin/fee-structures/${TERM}`;
+const OLD_TERM = "30000000-0000-4000-8000-000000000002";
+const OPTIONS_ROUTE = "GET /admin/fee-structures/options";
 const PROGRAM = "50000000-0000-4000-8000-000000000001";
+const PROGRAM_IT = "50000000-0000-4000-8000-000000000002";
 const IN_USE = "Students were already assessed with these fees. Set up the change for a new term.";
 const NOT_AVAILABLE = "This page is not available to your role.";
 
@@ -44,6 +47,35 @@ const blank = {
   installments: [],
 };
 
+const options = {
+  terms: [
+    {
+      id: TERM,
+      academicYear: "2026-2027",
+      semester: "FIRST_SEMESTER",
+      isCurrent: true,
+      hasFeeStructure: true,
+    },
+    {
+      id: OLD_TERM,
+      academicYear: "2025-2026",
+      semester: "SECOND_SEMESTER",
+      isCurrent: false,
+      hasFeeStructure: false,
+    },
+  ],
+  programs: [
+    { id: PROGRAM, code: "BSCS", name: "Bachelor of Science in Computer Science" },
+    { id: PROGRAM_IT, code: "BSIT", name: "Bachelor of Science in Information Technology" },
+  ],
+};
+
+/** The same options with no current term, so nothing loads until Finance picks one. */
+const noCurrent = {
+  ...options,
+  terms: options.terms.map((term) => ({ ...term, isCurrent: false })),
+};
+
 type Routes = Parameters<typeof mockApi>[0];
 
 beforeEach(() => {
@@ -64,17 +96,20 @@ function openPage(position: string, routes: Routes = {}) {
     "GET /admin/me": { status: 200, body: { ...me, position } },
     "GET /users/me": { status: 200, body: { full_name: "Admin User", email: me.email } },
     "POST /auth/admin/logout": { status: 204 },
+    [OPTIONS_ROUTE]: { status: 200, body: options },
     ...routes,
   });
   renderApp("/fee-structures");
   return { ...http, user: userEvent.setup() };
 }
 
-/** Finance enters the term id and loads its fees. */
+/** Finance picks the term from the dropdown and its fees load. */
 async function loadTerm(routes: Routes) {
-  const view = openPage("finance", routes);
-  await view.user.type(await screen.findByLabelText(/Term ID/), TERM);
-  await view.user.click(screen.getByRole("button", { name: "Load fees" }));
+  const view = openPage("finance", {
+    [OPTIONS_ROUTE]: { status: 200, body: noCurrent },
+    ...routes,
+  });
+  await view.user.selectOptions(await screen.findByLabelText(/^Term/), TERM);
   return view;
 }
 
@@ -102,15 +137,16 @@ describe("Fee structure page (US-FIN-003)", () => {
           "href",
           "/fee-structures",
         );
-        expect(screen.getByLabelText(/Term ID/)).toBeInTheDocument();
+        expect(await screen.findByLabelText(/^Term/)).toBeInTheDocument();
         expect(screen.queryByText(NOT_AVAILABLE)).not.toBeInTheDocument();
         return;
       }
       await screen.findByText(NOT_AVAILABLE);
       expect(screen.queryByRole("button", { name: "Financial" })).not.toBeInTheDocument();
       expect(screen.queryByRole("link", { name: "Fee structure" })).not.toBeInTheDocument();
-      expect(screen.queryByLabelText(/Term ID/)).not.toBeInTheDocument();
+      expect(screen.queryByLabelText(/^Term/)).not.toBeInTheDocument();
       expect(called(`GET ${FEES}`)).toHaveLength(0);
+      expect(called(OPTIONS_ROUTE)).toHaveLength(0);
     },
   );
 
@@ -140,8 +176,13 @@ describe("Fee structure page (US-FIN-003)", () => {
       expect(await screen.findByRole("heading", { name, level: 2 })).toBeInTheDocument();
     }
     expect(screen.getByLabelText(/Default tuition per unit/)).toHaveValue("500.00");
-    expect(screen.getByLabelText(/Program 1 ID/)).toHaveValue(PROGRAM);
-    expect(screen.getByLabelText(/Program 1 tuition per unit/)).toHaveValue("550.00");
+    const programRates = screen.getByRole("list", { name: "Program tuition rates" });
+    expect(within(programRates).getByText("BSCS")).toBeInTheDocument();
+    expect(
+      within(programRates).getByText("Bachelor of Science in Computer Science"),
+    ).toBeInTheDocument();
+    expect(programRates).not.toHaveTextContent(PROGRAM);
+    expect(screen.getByLabelText(/BSCS tuition per unit/)).toHaveValue("550.00");
     expect(screen.getByLabelText(/Registration fee \(PHP\)/)).toHaveValue("1250.00");
     expect(screen.getByLabelText(/Late penalty rate/)).toHaveValue("3.50");
     expect(screen.getByLabelText("Payment due date")).toHaveValue("2026-08-15");
@@ -299,12 +340,14 @@ describe("Fee structure page (US-FIN-003)", () => {
   });
 
   it("asks for a term first, then shows a loading message", async () => {
-    const { user } = openPage("finance", { [`GET ${FEES}`]: "pending" });
+    const { user } = openPage("finance", {
+      [OPTIONS_ROUTE]: { status: 200, body: noCurrent },
+      [`GET ${FEES}`]: "pending",
+    });
     expect(
-      await screen.findByText("Enter a term ID to see and edit its fee structure."),
+      await screen.findByText("Choose a term to see and edit its fee structure."),
     ).toBeInTheDocument();
-    await user.type(screen.getByLabelText(/Term ID/), TERM);
-    await user.click(screen.getByRole("button", { name: "Load fees" }));
+    await user.selectOptions(screen.getByLabelText(/^Term/), TERM);
     expect(await screen.findByText("Loading the fee structure…")).toBeInTheDocument();
   });
 
@@ -324,12 +367,79 @@ describe("Fee structure page (US-FIN-003)", () => {
     ).toBeInTheDocument();
   });
 
-  it("asks for a well-formed term ID before calling the API", async () => {
-    const { user, called } = openPage("finance");
-    await user.type(await screen.findByLabelText(/Term ID/), "2026-1");
-    await user.click(screen.getByRole("button", { name: "Load fees" }));
-    expect(screen.getByLabelText(/Term ID/)).toHaveAttribute("aria-invalid", "true");
+  it("asks for a term before calling the API when no term is current", async () => {
+    const { called } = openPage("finance", { [OPTIONS_ROUTE]: { status: 200, body: noCurrent } });
+    const term = await screen.findByLabelText(/^Term/);
+    expect(term).toHaveValue("");
+    expect(
+      screen.getByText("Choose a term to see and edit its fee structure."),
+    ).toBeInTheDocument();
     expect(called(`GET ${FEES}`)).toHaveLength(0);
+  });
+
+  it("shows a loading message while the terms and programs load", async () => {
+    openPage("finance", { [OPTIONS_ROUTE]: "pending" });
+    expect(await screen.findByText("Loading terms and programs…")).toBeInTheDocument();
+    expect(screen.queryByLabelText(/^Term/)).not.toBeInTheDocument();
+  });
+
+  it("shows an error with a retry when the terms and programs fail to load", async () => {
+    const { user, called } = openPage("finance", {
+      [OPTIONS_ROUTE]: [
+        { status: 503, body: { detail: "Service unavailable.", request_id: "req-7" } },
+        { status: 200, body: options },
+      ],
+      [`GET ${FEES}`]: { status: 200, body: saved },
+    });
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("Service unavailable.");
+    expect(alert).toHaveTextContent("Request ID: req-7");
+    expect(called(`GET ${FEES}`)).toHaveLength(0);
+    await user.click(within(alert).getByRole("button", { name: "Retry loading terms" }));
+    expect(await screen.findByLabelText(/^Term/)).toHaveValue(TERM);
+    expect(called(OPTIONS_ROUTE)).toHaveLength(2);
+  });
+
+  it("preselects the current term, names it, and loads its fees", async () => {
+    const { called } = openPage("finance", { [`GET ${FEES}`]: { status: 200, body: saved } });
+    const term = await screen.findByLabelText(/^Term/);
+    expect(term).toHaveValue(TERM);
+    expect(
+      screen.getByRole("option", { name: "2026-2027 First semester (current)" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "2025-2026 Second semester, no fees saved" }),
+    ).toBeInTheDocument();
+    expect(await screen.findByLabelText(/Default tuition per unit/)).toHaveValue("500.00");
+    expect(called(`GET ${FEES}`)).toHaveLength(1);
+  });
+
+  it("adds a program rate from the programs not yet listed", async () => {
+    const { user, called } = await loadTerm({
+      [`GET ${FEES}`]: { status: 200, body: saved },
+      [`PUT ${FEES}`]: { status: 200, body: saved },
+    });
+    const pick = await screen.findByLabelText("Program to add");
+    const choices = within(pick)
+      .getAllByRole("option")
+      .map((option) => option.textContent);
+    expect(choices).toEqual([
+      "Choose a program",
+      "BSIT: Bachelor of Science in Information Technology",
+    ]);
+    const add = screen.getByRole("button", { name: "Add program rate" });
+    expect(add).toBeDisabled();
+    await user.selectOptions(pick, PROGRAM_IT);
+    await user.click(add);
+    await user.type(screen.getByLabelText(/BSIT tuition per unit/), "600.00");
+    expect(screen.queryByLabelText("Program to add")).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Save fee structure" }));
+    await screen.findByText("Fee structure saved for this term.");
+    const body = called(`PUT ${FEES}`)[0]?.body as { programTuitionRates: unknown[] };
+    expect(body.programTuitionRates).toEqual([
+      { programId: PROGRAM, tuitionPerUnit: "550.00" },
+      { programId: PROGRAM_IT, tuitionPerUnit: "600.00" },
+    ]);
   });
 
   it("passes the axe check with the form loaded", async () => {

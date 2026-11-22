@@ -36,6 +36,48 @@ export interface FeeInstallment {
   dueDate: string;
 }
 
+/** A term Finance can set fees for, as `GET /admin/fee-structures/options` lists it. */
+export interface FeeTermOption {
+  id: string;
+  academicYear: string;
+  semester: string;
+  isCurrent: boolean;
+  /** True when the term already has a saved fee structure. */
+  hasFeeStructure: boolean;
+}
+
+/** An active program a per-program tuition rate can name. */
+export interface FeeProgramOption {
+  id: string;
+  code: string;
+  name: string;
+}
+
+/** The terms (current first, then newest) and active programs (by code) for the form. */
+export interface FeeStructureOptions {
+  terms: FeeTermOption[];
+  programs: FeeProgramOption[];
+}
+
+const SEMESTER_NAMES: Record<string, string> = {
+  "1": "First semester",
+  first: "First semester",
+  "first semester": "First semester",
+  "2": "Second semester",
+  second: "Second semester",
+  "second semester": "Second semester",
+  summer: "Summer",
+  midyear: "Summer",
+};
+
+/** A term as a person reads it: `2026-2027 First semester`. */
+export function termLabel(term: Pick<FeeTermOption, "academicYear" | "semester">): string {
+  const raw = term.semester.trim().replace(/_/g, " ").toLowerCase();
+  const known = SEMESTER_NAMES[raw];
+  const semester = known ?? raw.charAt(0).toUpperCase() + raw.slice(1);
+  return `${term.academicYear} ${semester}`.trim();
+}
+
 /** What `PUT /admin/fee-structures/{term_id}` saves: the read shape without the term id. */
 export type FeeStructureInput = Omit<FeeStructure, "academicTermId">;
 
@@ -168,10 +210,44 @@ function parseFeeStructure(value: unknown): FeeStructure {
   };
 }
 
+function parseOptions(value: unknown): FeeStructureOptions {
+  const raw = parse.record(value);
+  return {
+    terms: parse.array(raw.terms).map((item) => {
+      const term = parse.record(item);
+      return {
+        id: parse.string(term.id),
+        academicYear: parse.string(term.academicYear),
+        semester: parse.string(term.semester),
+        isCurrent: parse.boolean(term.isCurrent),
+        hasFeeStructure: parse.boolean(term.hasFeeStructure),
+      };
+    }),
+    programs: parse.array(raw.programs).map((item) => {
+      const program = parse.record(item);
+      return {
+        id: parse.string(program.id),
+        code: parse.string(program.code),
+        name: parse.string(program.name),
+      };
+    }),
+  };
+}
+
 /** Finance's fee structure endpoints (US-FIN-003). Only the `ManageFeeStructure` holder may call. */
 export function createAdminFeeApi(client: ApiClient) {
   const path = (termId: string) => `/admin/fee-structures/${encodeURIComponent(termId)}`;
   return {
+    /** The terms and active programs the form picks from (`GET /admin/fee-structures/options`). */
+    async options(accessToken: string, signal?: AbortSignal): Promise<FeeStructureOptions> {
+      const data = await client.request("/admin/fee-structures/options", {
+        method: "GET",
+        accessToken,
+        signal,
+      });
+      return parseOptions(data);
+    },
+
     async get(accessToken: string, termId: string, signal?: AbortSignal): Promise<FeeStructure> {
       const data = await client.request(path(termId), { method: "GET", accessToken, signal });
       return parseFeeStructure(data);

@@ -5,6 +5,7 @@ import { feeApi, session } from "../../lib/auth";
 /** The fee structure calls, each run with the signed-in admin's token. */
 export function createFeeStructureDataSource(api: AdminFeeApi, auth: Pick<Session, "authorized">) {
   return {
+    options: (signal?: AbortSignal) => auth.authorized((token) => api.options(token, signal)),
     get: (termId: string, signal?: AbortSignal) =>
       auth.authorized((token) => api.get(token, termId, signal)),
     save: (termId: string, input: FeeStructureInput) =>

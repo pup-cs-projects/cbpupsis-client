@@ -8,8 +8,10 @@ import {
   percentHundredths,
   refusedDatePair,
   refusedFeeField,
+  termLabel,
   type FeeCode,
   type FeeField,
+  type FeeProgramOption,
   type FeeStructure,
   type FeeStructureInput,
 } from "@cbpupsis/shared/fees";
@@ -20,7 +22,7 @@ import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { useMe } from "../sign-in/useAdminAuth";
 import { canManageFees } from "./access";
 import { feeStructureDataSource, type FeeStructureDataSource } from "./dataSource";
-import { useFeeStructure, useSaveFeeStructure } from "./useFeeStructure";
+import { useFeeStructure, useFeeStructureOptions, useSaveFeeStructure } from "./useFeeStructure";
 
 const button =
   "inline-flex min-h-11 cursor-pointer items-center justify-center rounded-lg border border-brand-border/40 bg-white px-4 py-2 text-sm font-semibold hover:bg-brand-paper disabled:cursor-not-allowed disabled:opacity-50";
@@ -66,25 +68,15 @@ export function FeeStructuresPage({
 }) {
   const me = useMe();
   const allowed = canManageFees(me.data?.position);
-  const [termInput, setTermInput] = useState("");
-  const [termId, setTermId] = useState("");
-  const [termError, setTermError] = useState<string | null>(null);
+  const options = useFeeStructureOptions(dataSource, me.data?.id, me.isSuccess && allowed);
+  const [pickedTerm, setPickedTerm] = useState<string | null>(null);
+  // The current term is chosen until Finance picks another one.
+  const termId = pickedTerm ?? options.data?.terms.find((term) => term.isCurrent)?.id ?? "";
   const query = useFeeStructure(dataSource, me.data?.id, termId, me.isSuccess && allowed);
-  const forbidden = query.error instanceof ApiError && query.error.status === 403;
+  const forbidden =
+    (query.error instanceof ApiError && query.error.status === 403) ||
+    (options.error instanceof ApiError && options.error.status === 403);
   const denied = (me.isSuccess && !allowed) || forbidden;
-
-  function chooseTerm(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const value = termInput.trim();
-    if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)) {
-      setTermError(
-        "Enter the term's ID, a 36-character code like 3f2b1c9e-0000-4000-8000-000000000001.",
-      );
-      return;
-    }
-    setTermError(null);
-    setTermId(value.toLowerCase());
-  }
 
   return (
     <DashboardLayout>
@@ -138,47 +130,69 @@ export function FeeStructuresPage({
               <h2 id="term-heading" className={legend}>
                 Academic term
               </h2>
-              <form
-                noValidate
-                onSubmit={chooseTerm}
-                className="mt-4 flex flex-wrap items-end gap-3"
-              >
-                <div className="min-w-0 flex-1 basis-64">
-                  <label htmlFor="fee-term-id" className="text-sm font-medium">
-                    Term ID <span aria-hidden="true">*</span>
-                  </label>
-                  <input
-                    id="fee-term-id"
-                    className={input + " mt-2 font-mono"}
-                    value={termInput}
-                    required
-                    autoComplete="off"
-                    spellCheck={false}
-                    aria-invalid={termError ? true : undefined}
-                    aria-describedby="fee-term-id-error"
-                    onChange={(event) => setTermInput(event.target.value)}
-                  />
+              {options.isPending ? (
+                <p role="status" className="mt-4 text-sm">
+                  Loading terms and programs…
+                </p>
+              ) : options.isError ? (
+                <div role="alert" className="mt-4">
+                  <p>{errorMessage(options.error)}</p>
+                  {options.error instanceof ApiError && options.error.requestId && (
+                    <p className="text-brand-muted mt-2 text-xs">
+                      Request ID: {options.error.requestId}
+                    </p>
+                  )}
+                  <button
+                    type="button"
+                    className={button + " mt-4"}
+                    disabled={options.isFetching}
+                    onClick={() => void options.refetch()}
+                  >
+                    Retry loading terms
+                  </button>
                 </div>
-                <button type="submit" className={primary}>
-                  Load fees
-                </button>
-              </form>
-              <p id="fee-term-id-error" className={fieldError}>
-                {termError}
-              </p>
+              ) : options.data.terms.length === 0 ? (
+                <p className="mt-4 text-sm">No academic terms exist yet.</p>
+              ) : (
+                <div className="mt-4 max-w-md min-w-0">
+                  <label htmlFor="fee-term" className="text-sm font-medium">
+                    Term <span aria-hidden="true">*</span>
+                  </label>
+                  <select
+                    id="fee-term"
+                    className={input + " mt-2"}
+                    value={termId}
+                    required
+                    onChange={(event) => setPickedTerm(event.target.value)}
+                  >
+                    {termId === "" && (
+                      <option value="" disabled>
+                        Choose a term
+                      </option>
+                    )}
+                    {options.data.terms.map((term) => (
+                      <option key={term.id} value={term.id}>
+                        {termLabel(term)}
+                        {term.isCurrent ? " (current)" : ""}
+                        {term.hasFeeStructure ? "" : ", no fees saved"}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </section>
 
-            {termId === "" ? (
+            {options.isSuccess && options.data.terms.length > 0 && termId === "" ? (
               <p className="text-brand-muted text-sm">
-                Enter a term ID to see and edit its fee structure.
+                Choose a term to see and edit its fee structure.
               </p>
-            ) : query.isPending ? (
+            ) : termId === "" ? null : query.isPending ? (
               <p role="status">Loading the fee structure…</p>
             ) : query.isError ? (
               <div role="alert" className={card}>
                 <p>
                   {query.error instanceof ApiError && query.error.status === 404
-                    ? "No academic term has this ID. Check the ID, then try again."
+                    ? "This academic term no longer exists. Choose another term."
                     : errorMessage(query.error)}
                 </p>
                 {query.error instanceof ApiError && query.error.requestId && (
@@ -200,6 +214,7 @@ export function FeeStructuresPage({
                 key={termId}
                 termId={termId}
                 initial={query.data}
+                programOptions={options.data?.programs ?? []}
                 owner={me.data?.id}
                 source={dataSource}
               />
@@ -240,11 +255,13 @@ function isBlank(data: FeeStructure): boolean {
 function FeeStructureForm({
   termId,
   initial,
+  programOptions,
   owner,
   source,
 }: {
   termId: string;
   initial: FeeStructure;
+  programOptions: FeeProgramOption[];
   owner: string | undefined;
   source: FeeStructureDataSource;
 }) {
@@ -272,9 +289,22 @@ function FeeStructureForm({
       dueDate: item.dueDate,
     })),
   );
+  const [programToAdd, setProgramToAdd] = useState("");
   const [clientErrors, setClientErrors] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState(false);
   const [inUse, setInUse] = useState(false);
+
+  const programById = new Map(programOptions.map((program) => [program.id, program]));
+  const listed = new Set(programs.map((program) => program.programId));
+  const addable = programOptions.filter((program) => !listed.has(program.id));
+
+  /** The program a row names, as a person reads it, never a raw ID when the program is known. */
+  function programName(programId: string): { code: string; name: string } {
+    const known = programById.get(programId);
+    return known
+      ? { code: known.code, name: known.name }
+      : { code: "Inactive program", name: programId };
+  }
 
   const total = installmentTotal(installments.map((item) => item.percentage));
   const totalIsExact = installments.length === 0 || total === 10_000;
@@ -306,7 +336,7 @@ function FeeStructureForm({
       if (!isFeeAmount(amounts[field])) errors[field] = AMOUNT_HINT;
     }
     for (const program of programs) {
-      if (!program.programId.trim()) errors[`program-${program.key}-id`] = "Enter the program ID.";
+      if (!program.programId.trim()) errors[`program-${program.key}-id`] = "Choose a program.";
       if (!isFeeAmount(program.tuitionPerUnit)) errors[`program-${program.key}-rate`] = AMOUNT_HINT;
     }
     for (const item of installments) {
@@ -453,47 +483,27 @@ function FeeStructureForm({
           </div>
         </div>
         <ul className="mt-4 space-y-4" aria-label="Program tuition rates">
-          {programs.map((program, index) => {
+          {programs.map((program) => {
             const idError = clientErrors[`program-${program.key}-id`];
             const rateError = clientErrors[`program-${program.key}-rate`];
             const base = `${id}-program-${program.key}`;
+            const named = programName(program.programId);
             return (
               <li
                 key={program.key}
                 className="border-brand-border/25 grid gap-3 rounded-xl border p-4 sm:grid-cols-[1fr_12rem_auto] sm:items-start"
               >
                 <div className="min-w-0">
-                  <label htmlFor={`${base}-id`} className="text-sm font-medium">
-                    Program {index + 1} ID <span aria-hidden="true">*</span>
-                  </label>
-                  <input
-                    id={`${base}-id`}
-                    className={input + " mt-2 font-mono"}
-                    required
-                    autoComplete="off"
-                    spellCheck={false}
-                    value={program.programId}
-                    disabled={inUse}
-                    aria-invalid={idError ? true : undefined}
-                    aria-describedby={`${base}-id-error`}
-                    onChange={(event) => {
-                      edit();
-                      setPrograms(
-                        programs.map((item) =>
-                          item.key === program.key
-                            ? { ...item, programId: event.target.value }
-                            : item,
-                        ),
-                      );
-                    }}
-                  />
-                  <p id={`${base}-id-error`} className={fieldError}>
-                    {idError}
+                  <p className="text-sm font-medium">Program</p>
+                  <p className="mt-2 text-sm">
+                    <span className="font-semibold">{named.code}</span>{" "}
+                    <span className="text-brand-muted break-words">{named.name}</span>
                   </p>
+                  <p className={fieldError}>{idError}</p>
                 </div>
                 <div className="min-w-0">
                   <label htmlFor={`${base}-rate`} className="text-sm font-medium">
-                    Program {index + 1} tuition per unit (PHP) <span aria-hidden="true">*</span>
+                    {named.code} tuition per unit (PHP) <span aria-hidden="true">*</span>
                   </label>
                   <input
                     id={`${base}-rate`}
@@ -529,23 +539,54 @@ function FeeStructureForm({
                     setPrograms(programs.filter((item) => item.key !== program.key));
                   }}
                 >
-                  Remove<span className="sr-only"> program {index + 1} rate</span>
+                  Remove<span className="sr-only"> {named.code} rate</span>
                 </button>
               </li>
             );
           })}
         </ul>
-        <button
-          type="button"
-          className={button + " mt-4"}
-          disabled={inUse}
-          onClick={() => {
-            edit();
-            setPrograms([...programs, { key: takeKey(), programId: "", tuitionPerUnit: "" }]);
-          }}
-        >
-          Add program rate
-        </button>
+        {addable.length > 0 ? (
+          <div className="mt-4 flex flex-wrap items-end gap-3">
+            <div className="min-w-0 flex-1 basis-64">
+              <label htmlFor={`${id}-program-add`} className="text-sm font-medium">
+                Program to add
+              </label>
+              <select
+                id={`${id}-program-add`}
+                className={input + " mt-2"}
+                value={programToAdd}
+                disabled={inUse}
+                onChange={(event) => setProgramToAdd(event.target.value)}
+              >
+                <option value="">Choose a program</option>
+                {addable.map((program) => (
+                  <option key={program.id} value={program.id}>
+                    {program.code}: {program.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              className={button}
+              disabled={inUse || programToAdd === ""}
+              onClick={() => {
+                edit();
+                setPrograms([
+                  ...programs,
+                  { key: takeKey(), programId: programToAdd, tuitionPerUnit: "" },
+                ]);
+                setProgramToAdd("");
+              }}
+            >
+              Add program rate
+            </button>
+          </div>
+        ) : (
+          programOptions.length > 0 && (
+            <p className="text-brand-muted mt-4 text-sm">Every active program has its own rate.</p>
+          )
+        )}
       </Group>
 
       <Group title="Fixed fees">

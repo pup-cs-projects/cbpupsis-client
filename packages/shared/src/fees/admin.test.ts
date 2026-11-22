@@ -10,6 +10,7 @@ import {
   percentHundredths,
   refusedDatePair,
   refusedFeeField,
+  termLabel,
 } from "./admin";
 
 const api = createAdminFeeApi(createApiClient("http://api.test/api/v1"));
@@ -47,6 +48,51 @@ describe("admin fee structure API (US-FIN-003)", () => {
     const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
     expect(url).toBe(`http://api.test/api/v1/admin/fee-structures/${termId}`);
     expect(init.method).toBe("GET");
+  });
+
+  it("reads the term and program options", async () => {
+    const options = {
+      terms: [
+        {
+          id: termId,
+          academicYear: "2026-2027",
+          semester: "FIRST_SEMESTER",
+          isCurrent: true,
+          hasFeeStructure: false,
+        },
+      ],
+      programs: [
+        {
+          id: "50000000-0000-4000-8000-000000000001",
+          code: "BSCS",
+          name: "Bachelor of Science in Computer Science",
+        },
+      ],
+    };
+    const fetchMock = respond(200, options);
+    await expect(api.options("token")).resolves.toEqual(options);
+    const [url, init] = fetchMock.mock.calls[0] as [string, RequestInit];
+    expect(url).toBe("http://api.test/api/v1/admin/fee-structures/options");
+    expect(init.method).toBe("GET");
+  });
+
+  it("refuses options whose term flags are not booleans", async () => {
+    respond(200, {
+      terms: [{ id: termId, academicYear: "2026-2027", semester: "1", isCurrent: "yes" }],
+      programs: [],
+    });
+    await expect(api.options("token")).rejects.toThrow();
+  });
+
+  it("names a term by year and semester", () => {
+    expect(termLabel({ academicYear: "2026-2027", semester: "FIRST_SEMESTER" })).toBe(
+      "2026-2027 First semester",
+    );
+    expect(termLabel({ academicYear: "2026-2027", semester: "Second Semester" })).toBe(
+      "2026-2027 Second semester",
+    );
+    expect(termLabel({ academicYear: "2026-2027", semester: "SUMMER" })).toBe("2026-2027 Summer");
+    expect(termLabel({ academicYear: "2026-2027", semester: "REGULAR" })).toBe("2026-2027 Regular");
   });
 
   it("AC-FIN-003.1: saves with PUT and the camel case body", async () => {
