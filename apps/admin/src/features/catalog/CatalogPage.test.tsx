@@ -11,6 +11,7 @@ import { afterEach, expect, it, vi } from "vitest";
 
 import { account, session } from "../../lib/auth";
 import { me, signInDirectly } from "../../test/fixtures";
+import { renderApp } from "../../test/renderApp";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { CatalogPage } from "./CatalogPage";
 import type { CatalogDataSource } from "./dataSource";
@@ -418,3 +419,21 @@ it.each([
     }
   },
 );
+
+it("AC-ENRL-005.8: /catalog is registered in the portal router", async () => {
+  signInDirectly();
+  mockApi({
+    "GET /admin/me": { status: 200, body: { ...me, position: "registrar" } },
+    "GET /users/me": { status: 200, body: { full_name: "Catalog Admin", email: me.email } },
+    "GET /admin/catalog/courses": {
+      status: 200,
+      body: { items: [], total: 0, limit: 25, offset: 0 },
+    },
+    "POST /auth/admin/logout": { status: 204 },
+  });
+  renderApp("/catalog");
+  expect(
+    await screen.findByRole("heading", { level: 1, name: "Course Catalog" }),
+  ).toBeInTheDocument();
+  expect(await screen.findByText("No courses in your scope yet.")).toBeInTheDocument();
+});
