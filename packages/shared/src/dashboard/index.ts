@@ -5,6 +5,7 @@ export {
   type DashboardAnnouncement,
   type DashboardEmptyStates,
   type DashboardEvent,
+  type DashboardHold,
   type DashboardStudent,
   type DashboardTerm,
   type StudentDashboard,

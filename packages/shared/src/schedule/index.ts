@@ -10,5 +10,4 @@ export {
   type ScheduleTerm,
   type StudentSchedule,
   type StudentScheduleApi,
-  type StudentSchedulePath,
 } from "./student";

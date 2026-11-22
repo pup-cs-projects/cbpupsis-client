@@ -1,4 +1,5 @@
 import type {
+  EmergencyContact as ApiContact,
   EmergencyContactInput,
   ProfileUpdate,
   StudentProfile,
@@ -8,15 +9,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { authApi, profileApi, session } from "../../lib/auth";
 import { dashboardKeys } from "../dashboard/queries";
 import type { Dashboard } from "../dashboard/types";
-import type { EmergencyContact, PersonalInformation, StudentProfileData } from "./profileTypes";
+import type {
+  EmergencyContactDraft,
+  PersonalInfoKey,
+  PersonalInformation,
+  StudentProfileData,
+} from "./profileTypes";
+import { normalizePhone } from "./profileValidation";
 import { profileKeys, profileQueryOptions, useAvatarSrc } from "./useAvatar";
 
-type PersonalInfoPatch = Omit<PersonalInformation, "fullLegalName" | "program">;
-
-/** The API takes +639XXXXXXXXX or 09XXXXXXXXX only; the form also allows spaces and dashes. */
-export function normalizePhone(raw: string): string {
-  return raw.replace(/[\s\-().]/g, "");
-}
+type PersonalInfoPatch = Pick<PersonalInformation, PersonalInfoKey>;
 
 function text(profile: StudentProfile, name: string): string {
   return profile.fields[name]?.value ?? "";
@@ -31,26 +33,27 @@ function titleCase(code: string): string {
     .join(" ");
 }
 
-function toContactInput(contact: EmergencyContact): EmergencyContactInput {
+/** Exactly the six keys the API takes for a contact, and nothing else. */
+function toContactInput(contact: EmergencyContactDraft): EmergencyContactInput {
   return {
-    name: contact.fullName.trim(),
+    name: contact.name.trim(),
     relationship: contact.relationship.trim(),
-    phone: normalizePhone(contact.phoneNumber),
+    phone: normalizePhone(contact.phone),
     email: contact.email.trim() || null,
     address: contact.address.trim() || null,
     isPrimary: contact.isPrimary,
   };
 }
 
-function sameContact(a: EmergencyContact, b: EmergencyContact): boolean {
-  return (
-    a.fullName === b.fullName &&
-    a.relationship === b.relationship &&
-    a.phoneNumber === b.phoneNumber &&
-    a.email === b.email &&
-    a.address === b.address &&
-    a.isPrimary === b.isPrimary
-  );
+/**
+ * The list after `saved` was written. The API keeps exactly one primary, demoting the others
+ * whenever one is set, so the screen does the same without waiting for another read.
+ */
+function withSaved(list: ApiContact[], saved: ApiContact): ApiContact[] {
+  const demoted = saved.isPrimary ? list.map((c) => ({ ...c, isPrimary: false })) : list;
+  return demoted.some((c) => c.id === saved.id)
+    ? demoted.map((c) => (c.id === saved.id ? saved : c))
+    : [...demoted, saved];
 }
 
 export function useStudentProfile() {
@@ -92,37 +95,27 @@ export function useStudentProfile() {
     },
   });
 
-  const saveContacts = useMutation({
-    mutationFn: async ({
-      original,
-      next,
-    }: {
-      original: EmergencyContact[];
-      next: EmergencyContact[];
-    }) => {
-      const kept = new Set(next.map((c) => c.id));
-      const removed = original.filter((c) => !kept.has(c.id));
-      const added = next.filter((c) => !original.some((o) => o.id === c.id));
-      const changed = next.filter((c) => {
-        const before = original.find((o) => o.id === c.id);
-        return before !== undefined && !sameContact(before, c);
-      });
-      // The API keeps exactly one primary, demoting the others whenever one is set. Writing the
-      // new primary last means the API ends in the state the student saw in the form.
-      const writes = [...changed, ...added].sort(
-        (a, b) => Number(a.isPrimary) - Number(b.isPrimary),
+  const saveContact = useMutation({
+    mutationFn: ({ id, contact }: { id: string | null; contact: EmergencyContactDraft }) =>
+      session.authorized((token) =>
+        id === null
+          ? profileApi.createContact(token, toContactInput(contact))
+          : profileApi.updateContact(token, id, toContactInput(contact)),
+      ),
+    onSuccess: (saved) => {
+      queryClient.setQueryData<ApiContact[]>(profileKeys.contacts(), (list) =>
+        withSaved(list ?? [], saved),
       );
-
-      await session.authorized(async (token) => {
-        for (const c of removed) await profileApi.deleteContact(token, c.id);
-        for (const c of writes) {
-          if (added.includes(c)) await profileApi.createContact(token, toContactInput(c));
-          else await profileApi.updateContact(token, c.id, toContactInput(c));
-        }
-      });
     },
-    // Refetch even after a partial failure, so the list shows what the API actually holds.
-    onSettled: () => queryClient.invalidateQueries({ queryKey: profileKeys.contacts() }),
+  });
+
+  const deleteContact = useMutation({
+    mutationFn: (id: string) => session.authorized((token) => profileApi.deleteContact(token, id)),
+    onSuccess: (_result, id) => {
+      queryClient.setQueryData<ApiContact[]>(profileKeys.contacts(), (list) =>
+        (list ?? []).filter((c) => c.id !== id),
+      );
+    },
   });
 
   let data: StudentProfileData | undefined;
@@ -146,16 +139,16 @@ export function useStudentProfile() {
       personalInfo: {
         fullLegalName,
         program,
-        phoneNumber: text(p, "phone"),
-        personalEmail: text(p, "email"),
-        homeAddress: text(p, "permanentAddress"),
-        currentResidence: text(p, "currentAddress"),
+        phone: text(p, "phone"),
+        emailAddress: text(p, "emailAddress"),
+        permanentAddress: text(p, "permanentAddress"),
+        currentAddress: text(p, "currentAddress"),
       },
       emergencyContacts: contacts.data.map((c) => ({
         id: c.id,
-        fullName: c.name,
+        name: c.name,
         relationship: c.relationship,
-        phoneNumber: c.phone,
+        phone: c.phone,
         email: c.email ?? "",
         address: c.address ?? "",
         isPrimary: c.isPrimary,
@@ -176,15 +169,17 @@ export function useStudentProfile() {
     async updatePersonalInfo(patch: PersonalInfoPatch): Promise<void> {
       const info = data?.personalInfo;
       const changes: ProfileUpdate = {};
-      if (patch.phoneNumber !== info?.phoneNumber) {
-        changes.phone = normalizePhone(patch.phoneNumber);
+      if (normalizePhone(patch.phone) !== normalizePhone(info?.phone ?? "")) {
+        changes.phone = normalizePhone(patch.phone);
       }
-      if (patch.personalEmail !== info?.personalEmail) changes.email = patch.personalEmail.trim();
-      if (patch.homeAddress !== info?.homeAddress) {
-        changes.permanentAddress = patch.homeAddress.trim();
+      if (patch.emailAddress !== info?.emailAddress) {
+        changes.emailAddress = patch.emailAddress.trim();
       }
-      if (patch.currentResidence !== info?.currentResidence) {
-        changes.currentAddress = patch.currentResidence.trim();
+      if (patch.permanentAddress !== info?.permanentAddress) {
+        changes.permanentAddress = patch.permanentAddress.trim();
+      }
+      if (patch.currentAddress !== info?.currentAddress) {
+        changes.currentAddress = patch.currentAddress.trim();
       }
       if (Object.keys(changes).length === 0) return;
       await updatePersonalInfo.mutateAsync(changes);
@@ -194,8 +189,13 @@ export function useStudentProfile() {
       await uploadAvatar.mutateAsync(image);
     },
 
-    async setAllEmergencyContacts(next: EmergencyContact[]): Promise<void> {
-      await saveContacts.mutateAsync({ original: data?.emergencyContacts ?? [], next });
+    /** Creates the contact when `id` is null, else updates it. Rejects with the API's error. */
+    async saveEmergencyContact(id: string | null, contact: EmergencyContactDraft): Promise<void> {
+      await saveContact.mutateAsync({ id, contact });
+    },
+
+    async deleteEmergencyContact(id: string): Promise<void> {
+      await deleteContact.mutateAsync(id);
     },
   };
 }

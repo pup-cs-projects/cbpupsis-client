@@ -9,7 +9,7 @@ import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
 import { renderApp } from "../../test/renderApp";
 import { AVATAR_PLACEHOLDER } from "../profile/useAvatar";
 
-const DASHBOARD_ROUTE = "GET /student/me/dashboard";
+const DASHBOARD_ROUTE = "GET /student/dashboard";
 
 function dashboard(student: Record<string, unknown> = {}) {
   return {
