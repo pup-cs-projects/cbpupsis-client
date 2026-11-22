@@ -14,6 +14,7 @@
     "./psgc": "./src/psgc/index.ts",
     "./schedule": "./src/schedule/index.ts",
     "./enrollment": "./src/enrollment/index.ts",
+    "./catalog": "./src/catalog/admin.ts",
     "./grades/corrections": "./src/grades/corrections.ts",
     "./grades/correction-samples": "./src/grades/correctionSamples.ts",
     "./sections/faculty": "./src/sections/faculty.ts",

@@ -127,7 +127,7 @@ describe("Enrollment requests nav", () => {
     await screen.findByRole("heading", { name: "Not available to your role" });
     await openAcademics();
 
-    expect(await screen.findByText("Courses")).toBeInTheDocument();
+    expect(await screen.findByText("Calendar")).toBeInTheDocument();
     expect(screen.queryByRole("link", { name: "Enrollment requests" })).not.toBeInTheDocument();
     expect(api.called("GET /admin/add-drop")).toHaveLength(0);
   });
