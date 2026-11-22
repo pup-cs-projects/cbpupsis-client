@@ -56,6 +56,8 @@ const RECEIPT_URL = "https://sis.example.test/receipts/REF-0001";
 /** The late fine line the API adds once an account is overdue. */
 const FINE_LINE = { description: "Late payment fine", amount: "100.00", coveredByFhe: false };
 
+let router: ReturnType<typeof renderApp>;
+
 function openAccount(routes: Parameters<typeof mockApi>[0] = {}) {
   signInDirectly();
   const api = mockApi({
@@ -64,7 +66,7 @@ function openAccount(routes: Parameters<typeof mockApi>[0] = {}) {
     [PAYMENTS_ROUTE]: { status: 200, body: [] },
     ...routes,
   });
-  renderApp("/account");
+  router = renderApp("/account");
   return api;
 }
 
@@ -362,8 +364,9 @@ describe("AccountPage (US-FIN-001)", () => {
     await user.click(screen.getByRole("button", { name: "Download Invoice" }));
     expect(print).toHaveBeenCalledTimes(1);
 
+    // US-FIN-002: Pay Now opens the online payment page.
     await user.click(pay);
-    expect(screen.getByRole("status")).toHaveTextContent("Online payment is not available");
+    await waitFor(() => expect(router.state.location.pathname).toBe("/account/pay"));
   });
 
   it("AC-FIN-001.8: payment history lists date, amount, reference, and status, newest first", async () => {
