@@ -1,13 +1,13 @@
 import { mockApi } from "@cbpupsis/account/testing";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { session } from "../../lib/auth";
 import { me, ME_ROUTE, signInDirectly } from "../../test/fixtures";
 import { renderApp } from "../../test/renderApp";
 
-const DASHBOARD_ROUTE = "GET /student/me/dashboard";
+const DASHBOARD_ROUTE = "GET /student/dashboard";
 
 function dashboard(data: Record<string, unknown> = {}) {
   return {
@@ -74,7 +74,15 @@ function openDashboard(routes: Parameters<typeof mockApi>[0] = {}) {
   return api;
 }
 
+// The fixtures' events fall in August 2026, so the page must think it is early August: it shows
+// only events that have not ended before today.
+beforeEach(() => {
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-08-10T04:00:00+08:00"));
+});
+
 afterEach(async () => {
+  vi.useRealTimers();
   mockApi({ "POST /auth/student/logout": { status: 204 } });
   await session.signOut();
   vi.unstubAllGlobals();
@@ -92,7 +100,7 @@ describe("student dashboard", () => {
     expect(screen.getByRole("heading", { name: "Enrollment opens August 1" })).toBeInTheDocument();
     expect(screen.getByText("Start of classes")).toBeInTheDocument();
     expect(screen.getByText("August 17, 2026")).toBeInTheDocument();
-    expect(screen.getByText("Failed sign-in attempt")).toBeInTheDocument();
+    expect(screen.getByText("Sign-in attempt failed")).toBeInTheDocument();
     expect(screen.getByText(/Needs attention/)).toBeInTheDocument();
 
     // The page and the sidebar share one request.

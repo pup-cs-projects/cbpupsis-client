@@ -1,7 +1,10 @@
+import { fieldErrors } from "@cbpupsis/shared/api";
+import { PROFILE_UPDATE_KEYS } from "@cbpupsis/shared/profile";
 import { ErrorAlert, Notice } from "@cbpupsis/ui";
-import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type FormEvent, type ReactNode } from "react";
 
-import type { PersonalInformation } from "./profileTypes";
+import { PsgcAddressPicker } from "./PsgcAddressPicker";
+import type { PersonalInfoKey, PersonalInformation } from "./profileTypes";
 import { isValidAddress, isValidEmail, isValidPHPhone } from "./profileValidation";
 
 // ---- Icons ----
@@ -55,38 +58,30 @@ const ChevronIcon = ({ open }: { open: boolean }) => (
 // ---- Sub-components ----
 
 /**
- * Immutable field with a contextual popover explaining why it cannot be changed.
- * Triggers on hover, click/tap, and keyboard focus. Dismisses on mouse-out,
- * click-outside, or Escape.
+ * An institutional field the student cannot change, shown as plain read-only text (never an
+ * input) with a lock. A popover explains why on hover, on click or focus of the lock, and
+ * dismisses on mouse-out, click-outside, or Escape.
  */
-function LockedFieldWithPopover({
-  id,
-  label,
-  value,
-}: {
-  id: string;
-  label: string;
-  value: string;
-}) {
+function LockedField({ id, label, value }: { id: string; label: string; value: string }) {
   const [lockHovered, setLockHovered] = useState(false);
-  const [fieldActive, setFieldActive] = useState(false);
+  const [lockActive, setLockActive] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const isOpen = lockHovered || fieldActive;
+  const isOpen = lockHovered || lockActive;
   const popoverId = `${id}-info`;
-
-  function closeAll() {
-    setLockHovered(false);
-    setFieldActive(false);
-  }
+  const labelId = `${id}-label`;
 
   useEffect(() => {
     if (!isOpen) return;
+    function close() {
+      setLockHovered(false);
+      setLockActive(false);
+    }
     function onPointerDown(e: PointerEvent) {
-      if (!containerRef.current?.contains(e.target as Node)) closeAll();
+      if (!containerRef.current?.contains(e.target as Node)) close();
     }
     function onKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape") closeAll();
+      if (e.key === "Escape") close();
     }
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
@@ -97,32 +92,33 @@ function LockedFieldWithPopover({
   }, [isOpen]);
 
   return (
-    <div ref={containerRef} className="relative flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-brand-ink text-sm font-semibold">
+    <div
+      ref={containerRef}
+      role="group"
+      aria-labelledby={labelId}
+      className="relative flex flex-col gap-1.5"
+    >
+      <span id={labelId} className="text-brand-ink text-sm font-semibold">
         {label}
-      </label>
+      </span>
 
-      <div className="relative cursor-default">
-        <input
-          id={id}
-          type="text"
-          value={value}
-          readOnly
-          aria-readonly="true"
+      <div
+        className="border-brand-border/40 bg-brand-ink/5 flex min-h-[2.75rem] items-center justify-between gap-3 rounded-xl border border-dashed px-4 py-3"
+        onMouseEnter={() => setLockHovered(true)}
+        onMouseLeave={() => setLockHovered(false)}
+      >
+        <p className="text-brand-ink min-w-0 text-sm break-words">{value}</p>
+        <button
+          type="button"
+          aria-label={`Why ${label} is locked`}
           aria-describedby={popoverId}
-          onClick={() => setFieldActive(true)}
-          onFocus={() => setFieldActive(true)}
-          onBlur={() => setFieldActive(false)}
-          className="border-brand-border/30 text-brand-ink focus-visible:ring-brand-maroon/50 w-full cursor-not-allowed rounded-xl border bg-neutral-100 px-4 py-3 pr-10 text-sm select-none focus-visible:ring-2 focus-visible:ring-offset-1 focus-visible:outline-none"
-        />
-        <span
-          aria-hidden="true"
-          className="text-brand-muted absolute top-1/2 right-3 -translate-y-1/2"
-          onMouseEnter={() => setLockHovered(true)}
-          onMouseLeave={() => setLockHovered(false)}
+          aria-expanded={isOpen}
+          onClick={() => setLockActive((open) => !open)}
+          className="text-brand-muted focus-visible:ring-brand-maroon/50 flex shrink-0 items-center gap-1.5 rounded text-xs font-semibold focus-visible:ring-2 focus-visible:outline-none"
         >
           <LockIcon />
-        </span>
+          <span>Locked</span>
+        </button>
       </div>
 
       {/* Popover — always anchored BELOW the field (never flips above) so it never
@@ -140,7 +136,7 @@ function LockedFieldWithPopover({
           isOpen ? "scale-100 opacity-100" : "pointer-events-none scale-95 opacity-0",
         ].join(" ")}
       >
-        {/* Caret pointing up toward the input */}
+        {/* Caret pointing up toward the field */}
         <span className="absolute -top-[5px] left-5 size-[10px] rotate-45 border-t border-l border-neutral-200 bg-white" />
         <p className="text-xs leading-relaxed text-neutral-700 sm:leading-snug lg:text-sm lg:leading-normal">
           Changing your legal name or program requires a formal request through the University
@@ -214,112 +210,156 @@ function ProfileField({
 
 // ---- Types ----
 
-type EditableKeys = "phoneNumber" | "personalEmail" | "homeAddress" | "currentResidence";
-type Draft = Pick<PersonalInformation, EditableKeys>;
-type FieldErrors = Partial<Record<EditableKeys, string>>;
+/** An address is `null` while its picker is half-filled. */
+type Draft = Record<"phone" | "emailAddress", string> &
+  Record<"permanentAddress" | "currentAddress", string | null>;
+type FieldErrors = Partial<Record<PersonalInfoKey, string>>;
+type Saved = Pick<PersonalInformation, PersonalInfoKey>;
 
-const FIELD_ORDER: EditableKeys[] = [
-  "phoneNumber",
-  "personalEmail",
-  "homeAddress",
-  "currentResidence",
-];
+const INCOMPLETE_ADDRESS = "Choose every part of the address, or keep the current one.";
+
+function draftOf(info: PersonalInformation): Draft {
+  return {
+    phone: info.phone,
+    emailAddress: info.emailAddress,
+    permanentAddress: info.permanentAddress,
+    currentAddress: info.currentAddress,
+  };
+}
+
+/** One address's problem, if any. An address left as it was saved is never re-judged. */
+function addressError(next: string | null, saved: string, empty: string): string | undefined {
+  if (next === null) return INCOMPLETE_ADDRESS;
+  if (next.trim() === "") return empty;
+  if (next !== saved && !isValidAddress(next)) return "Enter a complete address.";
+  return undefined;
+}
 
 // ---- Main component ----
 
 interface PersonalInfoSectionProps {
   info: PersonalInformation;
   /** Rejects with the API's error, which the form shows; the draft stays open to fix. */
-  onSave: (patch: Draft) => Promise<void>;
+  onSave: (patch: Saved) => Promise<void>;
 }
 
 export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) {
   const [isOpen, setIsOpen] = useState(true);
   const [isEditing, setIsEditing] = useState(false);
-  const [draft, setDraft] = useState<Draft>({
-    phoneNumber: info.phoneNumber,
-    personalEmail: info.personalEmail,
-    homeAddress: info.homeAddress,
-    currentResidence: info.currentResidence,
-  });
+  const [draft, setDraft] = useState<Draft>(() => draftOf(info));
+  // While checked, the current address is the permanent one and cannot be edited on its own.
+  const [sameAsPermanent, setSameAsPermanent] = useState(false);
+  // The separate current address, kept while the box is checked so unchecking brings it back.
+  const [ownCurrent, setOwnCurrent] = useState<string | null>(info.currentAddress);
   const [errors, setErrors] = useState<FieldErrors>({});
+  // Fresh pickers per edit session, so each starts from the saved address.
+  const [session, setSession] = useState(0);
   // Each increment forces Notice to remount so saving twice re-shows the toast.
   const [savedKey, setSavedKey] = useState(0);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<unknown>(null);
 
+  const sameId = useId();
+
   // Refs for focus management.
   const editButtonRef = useRef<HTMLButtonElement>(null);
-  const phoneNumberRef = useRef<HTMLInputElement>(null);
-  const personalEmailRef = useRef<HTMLInputElement>(null);
-  const homeAddressRef = useRef<HTMLInputElement>(null);
-  const currentResidenceRef = useRef<HTMLInputElement>(null);
+  const phoneRef = useRef<HTMLInputElement>(null);
+  const emailAddressRef = useRef<HTMLInputElement>(null);
 
-  function patchDraft(key: EditableKeys, value: string) {
-    setDraft((prev) => ({ ...prev, [key]: value }));
-    // Clear the field's error as soon as the user types.
+  const currentAddress = sameAsPermanent ? draft.permanentAddress : draft.currentAddress;
+
+  function clearError(key: PersonalInfoKey) {
     if (errors[key]) setErrors((prev) => ({ ...prev, [key]: undefined }));
   }
 
-  function validate(): FieldErrors {
+  function patchDraft(key: PersonalInfoKey, value: string | null) {
+    setDraft((prev) => ({ ...prev, [key]: value }));
+    clearError(key);
+    // The mirrored current address has the same problem as the permanent one it copies.
+    if (key === "permanentAddress" && sameAsPermanent) clearError("currentAddress");
+  }
+
+  function toggleSame(checked: boolean) {
+    setSameAsPermanent(checked);
+    clearError("currentAddress");
+    if (checked) {
+      setOwnCurrent(draft.currentAddress);
+    } else {
+      setDraft((prev) => ({ ...prev, currentAddress: ownCurrent }));
+    }
+  }
+
+  function validate(next: Draft): FieldErrors {
     const e: FieldErrors = {};
-    if (!isValidPHPhone(draft.phoneNumber)) {
-      e.phoneNumber = "Enter a valid Philippine number (e.g. +63 912 345 6789 or 09XX XXX XXXX).";
+    if (!isValidPHPhone(next.phone)) {
+      e.phone = "Enter a valid Philippine number (e.g. +63 912 345 6789 or 09XX XXX XXXX).";
     }
-    if (!isValidEmail(draft.personalEmail)) {
-      e.personalEmail = "Enter a valid email address.";
+    if (!isValidEmail(next.emailAddress)) {
+      e.emailAddress = "Enter a valid email address.";
     }
-    if (!isValidAddress(draft.homeAddress)) {
-      e.homeAddress = "Enter a complete address (at least 10 characters).";
-    }
-    if (!isValidAddress(draft.currentResidence)) {
-      e.currentResidence = "Enter a current residence address (at least 10 characters).";
-    }
+    const permanent = addressError(
+      next.permanentAddress,
+      info.permanentAddress,
+      "Choose your permanent address.",
+    );
+    if (permanent) e.permanentAddress = permanent;
+    const current = addressError(
+      next.currentAddress,
+      info.currentAddress,
+      "Choose your current address.",
+    );
+    if (current) e.currentAddress = current;
     return e;
   }
 
   function startEdit() {
-    setDraft({
-      phoneNumber: info.phoneNumber,
-      personalEmail: info.personalEmail,
-      homeAddress: info.homeAddress,
-      currentResidence: info.currentResidence,
-    });
+    const saved = draftOf(info);
+    setDraft(saved);
+    setSameAsPermanent(
+      info.permanentAddress.trim() !== "" && info.currentAddress === info.permanentAddress,
+    );
+    setOwnCurrent(info.currentAddress);
     setErrors({});
     setSaveError(null);
+    setSession((n) => n + 1);
     setIsEditing(true);
   }
 
-  const isDirty =
-    draft.phoneNumber !== info.phoneNumber ||
-    draft.personalEmail !== info.personalEmail ||
-    draft.homeAddress !== info.homeAddress ||
-    draft.currentResidence !== info.currentResidence;
-
   async function handleSave() {
     if (saving) return;
-    const e = validate();
+    const next = { ...draft, currentAddress };
+    const e = validate(next);
     if (Object.keys(e).length > 0) {
       setErrors(e);
-      const firstKey = FIELD_ORDER.find((k) => e[k]);
-      if (firstKey) {
-        const inputRefs: Record<EditableKeys, React.RefObject<HTMLInputElement | null>> = {
-          phoneNumber: phoneNumberRef,
-          personalEmail: personalEmailRef,
-          homeAddress: homeAddressRef,
-          currentResidence: currentResidenceRef,
-        };
-        inputRefs[firstKey].current?.focus();
-      }
+      (e.phone ? phoneRef : e.emailAddress ? emailAddressRef : null)?.current?.focus();
       return;
     }
+    // Validation passed, so no address is still half-built.
+    const patch: Saved = {
+      phone: next.phone,
+      emailAddress: next.emailAddress,
+      permanentAddress: next.permanentAddress ?? info.permanentAddress,
+      currentAddress: next.currentAddress ?? info.currentAddress,
+    };
+    const isDirty = PROFILE_UPDATE_KEYS.some((key) => patch[key] !== info[key]);
     if (isDirty) {
       setSaving(true);
       setSaveError(null);
       try {
-        await onSave(draft);
+        await onSave(patch);
       } catch (error) {
-        setSaveError(error);
+        // A reason the API tied to one field goes under that field; anything else is a banner.
+        const reasons = fieldErrors(error);
+        const mine: FieldErrors = {};
+        for (const key of PROFILE_UPDATE_KEYS) {
+          if (reasons[key]) mine[key] = reasons[key];
+        }
+        if (Object.keys(mine).length > 0) {
+          setErrors(mine);
+          (mine.phone ? phoneRef : mine.emailAddress ? emailAddressRef : null)?.current?.focus();
+        } else {
+          setSaveError(error);
+        }
         return;
       } finally {
         setSaving(false);
@@ -373,7 +413,7 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
               form="personal-info-form"
               aria-label="Save changes to personal information"
               disabled={saving}
-              className="text-brand-muted hover:text-brand-maroon focus-visible:outline-brand-maroon grid min-h-11 min-w-11 place-items-center rounded-lg transition-colors"
+              className="text-brand-muted hover:text-brand-maroon focus-visible:outline-brand-maroon grid min-h-11 min-w-11 place-items-center rounded-lg transition-colors disabled:opacity-60"
             >
               <SaveIcon />
             </button>
@@ -407,67 +447,82 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
             onSubmit={handleSubmit}
             className="border-brand-border/25 mt-4 rounded-2xl border bg-white p-6 shadow-sm"
           >
-            {/* Row 1: locked fields — hover/click/focus reveals the registrar info popover */}
-            <div className="grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
-              <LockedFieldWithPopover
-                id="fullLegalName"
-                label="Full Legal Name"
-                value={info.fullLegalName}
-              />
-              <LockedFieldWithPopover
-                id="academicProgram"
-                label="Academic Program"
-                value={info.program}
-              />
+            {/* Row 1: locked fields — read-only text; the lock explains who can change them */}
+            <div className="grid grid-cols-1 gap-x-6 gap-y-4 sm:grid-cols-2">
+              <LockedField id="fullLegalName" label="Full Legal Name" value={info.fullLegalName} />
+              <LockedField id="academicProgram" label="Academic Program" value={info.program} />
             </div>
 
             {/* Row 2: phone + email */}
             <div className="mt-6 grid grid-cols-1 gap-x-6 gap-y-0 sm:grid-cols-2">
               <ProfileField
-                id="phoneNumber"
+                id="phone"
                 label="Phone Number"
                 type="tel"
-                value={isEditing ? draft.phoneNumber : info.phoneNumber}
-                error={errors.phoneNumber}
+                value={isEditing ? draft.phone : info.phone}
+                error={errors.phone}
                 isEditing={isEditing}
-                inputRef={phoneNumberRef}
-                onChange={(v) => patchDraft("phoneNumber", v)}
+                inputRef={phoneRef}
+                onChange={(v) => patchDraft("phone", v)}
               />
               <ProfileField
-                id="personalEmail"
+                id="emailAddress"
                 label="Email Address"
                 type="email"
-                value={isEditing ? draft.personalEmail : info.personalEmail}
-                error={errors.personalEmail}
+                value={isEditing ? draft.emailAddress : info.emailAddress}
+                error={errors.emailAddress}
                 isEditing={isEditing}
-                inputRef={personalEmailRef}
-                onChange={(v) => patchDraft("personalEmail", v)}
+                inputRef={emailAddressRef}
+                onChange={(v) => patchDraft("emailAddress", v)}
               />
             </div>
 
-            {/* Row 3: home address (full width) */}
-            <div className="mt-1">
-              <ProfileField
-                id="homeAddress"
-                label="Home Address (Permanent)"
-                value={isEditing ? draft.homeAddress : info.homeAddress}
-                error={errors.homeAddress}
-                isEditing={isEditing}
-                inputRef={homeAddressRef}
-                onChange={(v) => patchDraft("homeAddress", v)}
-              />
-            </div>
+            {/* Row 3: permanent address (full width) */}
+            <PsgcAddressPicker
+              key={`permanent-${session}`}
+              id="permanentAddress"
+              label="Home Address (Permanent)"
+              value={
+                isEditing
+                  ? (draft.permanentAddress ?? info.permanentAddress)
+                  : info.permanentAddress
+              }
+              readOnly={!isEditing}
+              error={errors.permanentAddress}
+              onChange={(v) => patchDraft("permanentAddress", v)}
+            />
 
-            {/* Row 4: current residence (full width) */}
-            <div className="mt-1">
-              <ProfileField
-                id="currentResidence"
+            {/* Row 4: current address (full width), optionally mirroring the permanent one */}
+            <div className="mt-2">
+              {isEditing && (
+                <label htmlFor={sameId} className="mb-1 flex cursor-pointer items-center gap-2.5">
+                  <input
+                    id={sameId}
+                    type="checkbox"
+                    checked={sameAsPermanent}
+                    onChange={(e) => toggleSame(e.target.checked)}
+                    className="accent-brand-maroon size-4"
+                  />
+                  <span className="text-brand-ink text-sm font-medium">
+                    Same as permanent address
+                  </span>
+                </label>
+              )}
+              <PsgcAddressPicker
+                key={`current-${session}`}
+                id="currentAddress"
                 label="Current Residence Address"
-                value={isEditing ? draft.currentResidence : info.currentResidence}
-                error={errors.currentResidence}
-                isEditing={isEditing}
-                inputRef={currentResidenceRef}
-                onChange={(v) => patchDraft("currentResidence", v)}
+                value={
+                  sameAsPermanent
+                    ? (draft.permanentAddress ?? info.permanentAddress)
+                    : isEditing
+                      ? (draft.currentAddress ?? info.currentAddress)
+                      : info.currentAddress
+                }
+                readOnly={!isEditing}
+                disabled={sameAsPermanent}
+                error={errors.currentAddress}
+                onChange={(v) => patchDraft("currentAddress", v)}
               />
             </div>
           </form>

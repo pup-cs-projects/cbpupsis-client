@@ -62,6 +62,17 @@ export function calendarDateInManila(iso: string) {
   return isoDayInManila.format(new Date(iso));
 }
 
+/** Today's Manila calendar date ("2026-06-29"), for telling an upcoming event from a past one. */
+export function todayInManila(now = new Date()) {
+  return isoDayInManila.format(now);
+}
+
+/** Whether an instant falls within the last `days` days, counted back from `now`. */
+export function isWithinLastDays(iso: string, days: number, now = new Date()) {
+  const time = new Date(iso).getTime();
+  return Number.isFinite(time) && time >= now.getTime() - days * 86_400_000;
+}
+
 /** "June 27, 2026 • 10:42 AM", in Manila, for an instant the API sends in UTC. */
 export function formatTimestamp(iso: string) {
   const date = new Date(iso);
