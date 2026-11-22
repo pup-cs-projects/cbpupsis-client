@@ -13,7 +13,7 @@ const FRESH_FOR_MS = 60_000;
 
 // The call goes through dashboardApi's property at call time, so a test can stand in for it.
 
-/** The whole dashboard (GET /student/me/dashboard), fetched once and shared by the page. */
+/** The whole dashboard (GET /student/dashboard), fetched once and shared by the page. */
 export function useDashboard() {
   return useQuery({
     queryKey: dashboardKeys.me(),

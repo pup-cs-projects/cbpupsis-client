@@ -15,13 +15,19 @@ export interface StudentProfile {
   fields: Record<string, ProfileField>;
 }
 
-/** The fields a student may change. Anything else answers 403 PROFILE_FIELD_LOCKED. */
+/**
+ * The fields a student may change, under the API's own names. Anything else answers
+ * 403 PROFILE_FIELD_LOCKED, so nothing but these four keys is ever sent.
+ */
 export interface ProfileUpdate {
   phone?: string;
-  email?: string;
+  emailAddress?: string;
   permanentAddress?: string;
   currentAddress?: string;
 }
+
+/** A student keeps at most this many emergency contacts. */
+export const MAX_EMERGENCY_CONTACTS = 3;
 
 export interface EmergencyContact {
   id: string;
@@ -35,6 +41,35 @@ export interface EmergencyContact {
 
 export type EmergencyContactInput = Omit<EmergencyContact, "id">;
 
+/** The four editable profile keys, in the order the form lists them. */
+export const PROFILE_UPDATE_KEYS = [
+  "phone",
+  "emailAddress",
+  "permanentAddress",
+  "currentAddress",
+] as const;
+
+/** Copies only the keys the API takes, so a stray property can never reach the request body. */
+function profileBody(changes: ProfileUpdate): ProfileUpdate {
+  const body: ProfileUpdate = {};
+  for (const key of PROFILE_UPDATE_KEYS) {
+    const value = changes[key];
+    if (value !== undefined) body[key] = value;
+  }
+  return body;
+}
+
+function contactBody(contact: EmergencyContactInput): EmergencyContactInput {
+  return {
+    name: contact.name,
+    relationship: contact.relationship,
+    phone: contact.phone,
+    email: contact.email,
+    address: contact.address,
+    isPrimary: contact.isPrimary,
+  };
+}
+
 const PROFILE = "/student/profile";
 const CONTACTS = `${PROFILE}/emergency-contacts`;
 
@@ -46,7 +81,11 @@ export function createStudentProfileApi(client: ApiClient) {
     },
 
     async update(accessToken: string, changes: ProfileUpdate): Promise<StudentProfile> {
-      const body = await client.request(PROFILE, { method: "PATCH", body: changes, accessToken });
+      const body = await client.request(PROFILE, {
+        method: "PATCH",
+        body: profileBody(changes),
+        accessToken,
+      });
       return parseProfile(body);
     },
 
@@ -77,7 +116,9 @@ export function createStudentProfileApi(client: ApiClient) {
       accessToken: string,
       contact: EmergencyContactInput,
     ): Promise<EmergencyContact> {
-      return parseContact(await client.request(CONTACTS, { body: contact, accessToken }));
+      return parseContact(
+        await client.request(CONTACTS, { body: contactBody(contact), accessToken }),
+      );
     },
 
     async updateContact(
@@ -87,7 +128,7 @@ export function createStudentProfileApi(client: ApiClient) {
     ): Promise<EmergencyContact> {
       const body = await client.request(`${CONTACTS}/${encodeURIComponent(id)}`, {
         method: "PATCH",
-        body: contact,
+        body: contactBody(contact),
         accessToken,
       });
       return parseContact(body);

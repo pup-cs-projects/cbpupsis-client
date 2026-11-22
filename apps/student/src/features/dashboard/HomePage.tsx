@@ -4,12 +4,16 @@ import { useSearch } from "@tanstack/react-router";
 import { useState, type ReactNode } from "react";
 
 import "@cbpupsis/account/styles.css";
-import { formatEventDates, formatTimestamp } from "../../lib/datetime";
+import { todayInManila } from "../../lib/datetime";
 import { useMe } from "../sign-in/queries";
+import { ActivityList, ActivityModal } from "./ActivityLog";
 import { BullhornIcon } from "./BullhornIcon";
+import { CalendarModal } from "./CalendarModal";
 import { DashboardLayout } from "./DashboardLayout";
+import { EventRow } from "./EventRow";
+import { HoldBanners } from "./HoldBanners";
 import { useDashboard } from "./queries";
-import type { ActivityStatus, CalendarEvent } from "./types";
+import { CARD_LIMIT, newestFirst, studentDetails, upcomingEvents } from "./view";
 
 // Campus photos served from apps/student/public/assets/gallery/
 const GALLERY_PHOTOS = [
@@ -19,14 +23,6 @@ const GALLERY_PHOTOS = [
   { id: 4, src: "/assets/gallery/pup-gate.webp", alt: "PUP Gate" },
   { id: 5, src: "/assets/gallery/pup-student.webp", alt: "Campus Life" },
 ] as const;
-
-// The bar's color is never alone: each item also carries its status in words. Only a warning
-// (a failed sign-in, say) shows its word on screen; the others are routine.
-const STATUS: Record<ActivityStatus, { word: string; bar: string; visible: boolean }> = {
-  success: { word: "Completed", bar: "bg-brand-success", visible: false },
-  info: { word: "Update", bar: "bg-brand-gold", visible: false },
-  warning: { word: "Needs attention", bar: "bg-brand-maroon", visible: true },
-};
 
 // ---- Icons (decorative) ----
 
@@ -59,12 +55,6 @@ const ClockIcon = () => (
     <path d="M12 6v6l4 2" />
   </SvgIcon>
 );
-const InfoCircleIcon = () => (
-  <SvgIcon className="size-4">
-    <circle cx="12" cy="12" r="10" />
-    <path d="M12 16v-4M12 8h.01" />
-  </SvgIcon>
-);
 
 /** A section's loading state: a quiet placeholder, and words for screen readers. */
 function Loading({ label }: { label: string }) {
@@ -81,15 +71,26 @@ function Loading({ label }: { label: string }) {
   );
 }
 
+const SEE_ALL_BUTTON =
+  "border-brand-border/60 text-brand-ink hover:bg-brand-cream/60 min-h-11 w-full rounded-lg border bg-white py-2 text-sm font-medium print:hidden";
+
 // ---- Page component ----
 
 export function HomePage() {
   const { notice } = useSearch({ strict: false });
   const me = useMe();
-  // One request for the whole page (GET /student/me/dashboard); every section reads from it.
+  // One request for the whole page (GET /student/dashboard); every section reads from it.
   const dashboard = useDashboard();
   const data = dashboard.data;
   const fullName = data?.fullName;
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [activityOpen, setActivityOpen] = useState(false);
+
+  // Today in Manila, read on each render. The cards show only events that have not ended before
+  // it, and only the first three of those or of the newest activity.
+  const today = todayInManila();
+  const upcoming = data ? upcomingEvents(data.events, today) : [];
+  const recentActivity = data ? newestFirst(data.recentActivity) : [];
 
   return (
     <DashboardLayout>
@@ -97,6 +98,11 @@ export function HomePage() {
       {me.isError && <ErrorAlert error={me.error} onRetry={() => void me.refetch()} />}
       {dashboard.isError && (
         <ErrorAlert error={dashboard.error} onRetry={() => void dashboard.refetch()} />
+      )}
+
+      {/* ---- Holds: the first thing on the page. A failed load is never read as "no holds". ---- */}
+      {(data || dashboard.isError) && (
+        <HoldBanners holds={data ? data.holds : null} onRetry={() => void dashboard.refetch()} />
       )}
 
       <div className="space-y-7 px-4 py-8 sm:px-8">
@@ -109,7 +115,7 @@ export function HomePage() {
           )}
           <h1
             id="welcome-heading"
-            className="text-brand-ink mt-1.5 text-3xl leading-tight font-bold tracking-tight sm:text-4xl"
+            className="text-brand-ink mt-1.5 text-3xl leading-tight font-bold tracking-tight break-words sm:text-4xl"
           >
             {fullName ? (
               <>
@@ -119,6 +125,11 @@ export function HomePage() {
               "Welcome back!"
             )}
           </h1>
+          {data && (
+            <p className="text-brand-ink mt-2 text-sm font-medium break-words">
+              {studentDetails(data)}
+            </p>
+          )}
           {data?.term && (
             <p className="text-brand-muted mt-2 text-sm">
               Currently viewing{" "}
@@ -148,10 +159,10 @@ export function HomePage() {
           </ul>
         </section>
 
-        {/* ---- Two-column lower grid ---- */}
-        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[62fr_38fr]">
+        {/* ---- Two-column lower grid (minmax(0, …): a long word can never widen a column) ---- */}
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,62fr)_minmax(0,38fr)]">
           {/* ---- Left: Announcements ---- */}
-          <section aria-labelledby="announcements-heading" className="space-y-3">
+          <section aria-labelledby="announcements-heading" className="min-w-0 space-y-3">
             <h2
               id="announcements-heading"
               className="text-brand-maroon flex items-center gap-2 text-base font-bold"
@@ -175,18 +186,20 @@ export function HomePage() {
                   >
                     <h3
                       id={`announcement-${item.id}`}
-                      className="text-brand-ink text-sm font-semibold"
+                      className="text-brand-ink text-sm font-semibold break-words"
                     >
                       {item.title}
                     </h3>
-                    <p className="text-brand-muted mt-1 text-[13px] leading-relaxed">{item.body}</p>
+                    <p className="text-brand-muted mt-1 text-[13px] leading-relaxed break-words">
+                      {item.body}
+                    </p>
                   </article>
                 ))
               ))}
           </section>
 
           {/* ---- Right: Events + Recent Activity ---- */}
-          <div className="space-y-6">
+          <div className="min-w-0 space-y-6">
             {/* Events */}
             <section aria-labelledby="events-heading" className="space-y-3">
               <h2
@@ -199,25 +212,24 @@ export function HomePage() {
 
               {dashboard.isPending && <Loading label="Loading events" />}
               {data &&
-                (data.events.length === 0 ? (
+                (upcoming.length === 0 ? (
                   <p className="text-brand-muted px-1 text-sm">{data.emptyMessages.events}</p>
                 ) : (
                   <ul className="space-y-0.5">
-                    {data.events.map((event) => (
-                      <EventRow key={event.id} event={event} />
+                    {upcoming.slice(0, CARD_LIMIT).map((event) => (
+                      <EventRow key={event.id} event={event} scope="card" />
                     ))}
                   </ul>
                 ))}
 
-              {data && data.events.length > 3 && (
-                // No calendar route yet: unavailable rather than a dead button.
+              {/* Past events stay one tap away, in the full calendar. */}
+              {data && data.events.length > 0 && (
                 <button
                   type="button"
-                  aria-disabled="true"
-                  className="border-brand-border/60 text-brand-ink min-h-11 w-full cursor-not-allowed rounded-lg border bg-white py-2 text-sm font-medium print:hidden"
+                  onClick={() => setCalendarOpen(true)}
+                  className={SEE_ALL_BUTTON}
                 >
                   Full Academic Calendar
-                  <span className="sr-only">, coming soon</span>
                 </button>
               )}
             </section>
@@ -234,75 +246,31 @@ export function HomePage() {
 
               {dashboard.isPending && <Loading label="Loading recent activity" />}
               {data &&
-                (data.recentActivity.length === 0 ? (
+                (recentActivity.length === 0 ? (
                   <p className="text-brand-muted text-sm">{data.emptyMessages.recentActivity}</p>
                 ) : (
-                  <ul className="space-y-3">
-                    {data.recentActivity.map((item) => {
-                      const status = STATUS[item.status];
-                      return (
-                        <li key={item.id} className="flex gap-3">
-                          <div className="mt-1 shrink-0" aria-hidden="true">
-                            <div className={`h-8 w-1 rounded-full ${status.bar}`} />
-                          </div>
-                          <div>
-                            <p className="text-brand-muted text-xs font-medium">
-                              <span className={status.visible ? "" : "sr-only"}>
-                                {status.word}:{" "}
-                              </span>
-                              <time dateTime={item.occurredAt}>
-                                {formatTimestamp(item.occurredAt)}
-                              </time>
-                            </p>
-                            <p className="text-brand-ink mt-0.5 text-[13px]">{item.description}</p>
-                          </div>
-                        </li>
-                      );
-                    })}
-                  </ul>
+                  <div className="space-y-4">
+                    <ActivityList items={recentActivity.slice(0, CARD_LIMIT)} />
+                    <button
+                      type="button"
+                      onClick={() => setActivityOpen(true)}
+                      className={SEE_ALL_BUTTON}
+                    >
+                      View all activity
+                    </button>
+                  </div>
                 ))}
             </section>
           </div>
         </div>
       </div>
-    </DashboardLayout>
-  );
-}
 
-function EventRow({ event }: { event: CalendarEvent }) {
-  const [open, setOpen] = useState(false);
-  const detailsId = `event-details-${event.id}`;
-  return (
-    <li className="hover:bg-brand-cream/60 rounded-lg px-1 py-1.5 transition-colors">
-      <div className="flex items-center justify-between gap-2">
-        <div>
-          <p className="text-brand-ink text-xs font-semibold">
-            <time dateTime={event.startsOn}>{formatEventDates(event.startsOn, event.endsOn)}</time>
-          </p>
-          <p className="text-brand-muted text-xs">{event.title}</p>
-        </div>
-        {event.details ? (
-          <button
-            type="button"
-            className="text-brand-muted hover:text-brand-maroon grid size-11 shrink-0 place-items-center rounded-full"
-            aria-label={`More about ${event.title}`}
-            aria-expanded={open}
-            aria-controls={detailsId}
-            onClick={() => setOpen(!open)}
-          >
-            <InfoCircleIcon />
-          </button>
-        ) : (
-          <span className="text-brand-muted grid size-11 place-items-center">
-            <InfoCircleIcon />
-          </span>
-        )}
-      </div>
-      {event.details && open && (
-        <p id={detailsId} className="text-brand-help mt-1 pb-1 text-xs leading-relaxed">
-          {event.details}
-        </p>
+      {calendarOpen && data && (
+        <CalendarModal events={data.events} today={today} onClose={() => setCalendarOpen(false)} />
       )}
-    </li>
+      {activityOpen && data && (
+        <ActivityModal items={data.recentActivity} onClose={() => setActivityOpen(false)} />
+      )}
+    </DashboardLayout>
   );
 }

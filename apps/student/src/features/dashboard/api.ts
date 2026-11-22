@@ -2,6 +2,7 @@ import type { DashboardTerm, StudentDashboard } from "@cbpupsis/shared/dashboard
 
 import { session, studentDashboardApi } from "../../lib/auth";
 import { calendarDateInManila } from "../../lib/datetime";
+import { humanizeActivity } from "./activityCopy";
 import type { Dashboard } from "./types";
 
 // Used when the API leaves a section's message out, so an empty section never reads as blank.
@@ -28,6 +29,19 @@ export function toDashboard(data: StudentDashboard): Dashboard {
     fullName: data.student.name,
     studentNumber: data.student.studentNumber,
     avatarUrl: data.student.avatarUrl,
+    programme: data.student.programme,
+    yearLevel: data.student.yearLevel,
+    enrollmentStatus: data.student.enrollmentStatus,
+    holds:
+      data.holds &&
+      data.holds.map((hold) => ({
+        type: hold.type,
+        office: hold.office,
+        description: hold.description,
+        amount: hold.amountOutstanding,
+        currency: hold.currency,
+        blocksEnrollment: hold.blocksEnrollment,
+      })),
     term: data.currentTerm && {
       academicYear: data.currentTerm.academicYear,
       termName: termName(data.currentTerm),
@@ -47,7 +61,8 @@ export function toDashboard(data: StudentDashboard): Dashboard {
     recentActivity: data.recentActivity.map((item) => ({
       id: item.id,
       occurredAt: item.occurredAt,
-      description: item.description,
+      // Raw codes and event keys never reach the screen (see activityCopy.ts).
+      description: humanizeActivity(item),
       status: item.severity,
     })),
     emptyMessages: {
@@ -58,7 +73,7 @@ export function toDashboard(data: StudentDashboard): Dashboard {
   };
 }
 
-/** The dashboard's one call: GET /student/me/dashboard, through the portal's session. */
+/** The dashboard's one call: GET /student/dashboard, through the portal's session. */
 export const dashboardApi = {
   async get(): Promise<Dashboard> {
     return toDashboard(await session.authorized((token) => studentDashboardApi.me(token)));
