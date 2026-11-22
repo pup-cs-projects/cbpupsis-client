@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2 } from "lucide-react";
-import { useState } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
 import { ApiError } from "@cbpupsis/shared/api";
 
@@ -116,7 +116,7 @@ function GoodStanding() {
 }
 
 function AccountStatus({ account }: { account: StudentAccount }) {
-  const [payNotice, setPayNotice] = useState(false);
+  const navigate = useNavigate();
   const overdue = account.paymentStatus === PAYMENT_OVERDUE;
   const owes = isPositiveAmount(account.netPayable);
   // The API sends "0.00" when there is no subsidy (AC-FIN-001.6): then there is no line for it.
@@ -160,7 +160,7 @@ function AccountStatus({ account }: { account: StudentAccount }) {
           {owes && (
             <button
               type="button"
-              onClick={() => setPayNotice(true)}
+              onClick={() => void navigate({ to: "/account/pay" })}
               className="inline-flex h-11 min-w-[180px] items-center justify-center rounded-xl bg-[#7B1113] px-6 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#630e10]"
             >
               Pay Now
@@ -175,12 +175,6 @@ function AccountStatus({ account }: { account: StudentAccount }) {
             Download Invoice
           </button>
         </div>
-        {payNotice && (
-          <p role="status" className="mt-4 text-sm text-neutral-700">
-            Online payment is not available in the portal yet. Pay at the University cashier; your
-            balance updates once the payment is posted.
-          </p>
-        )}
       </div>
     </section>
   );
