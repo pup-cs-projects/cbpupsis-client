@@ -15,6 +15,7 @@
     "./schedule": "./src/schedule/index.ts",
     "./enrollment": "./src/enrollment/index.ts",
     "./fees": "./src/fees/index.ts",
+    "./reports": "./src/reports/index.ts",
     "./grades/corrections": "./src/grades/corrections.ts",
     "./grades/correction-samples": "./src/grades/correctionSamples.ts",
     "./sections/faculty": "./src/sections/faculty.ts",
