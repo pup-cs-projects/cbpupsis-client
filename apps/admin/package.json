@@ -17,12 +17,12 @@
     "@cbpupsis/shared": "*",
     "@cbpupsis/ui": "*",
     "@simplewebauthn/browser": "^14.0.0",
-    "@tanstack/react-query": "^5.102.8",
-    "@tanstack/react-router": "^1.170.36",
+    "@tanstack/react-query": "^5.108.2",
+    "@tanstack/react-router": "^1.170.46",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
   "devDependencies": {
-    "axe-core": "^4.14.0"
+    "axe-core": "^4.14.1"
   }
 }
