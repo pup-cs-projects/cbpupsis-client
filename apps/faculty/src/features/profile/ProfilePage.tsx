@@ -45,7 +45,7 @@ export function ProfilePage() {
           </p>
         </header>
         <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-          <div className="min-w-0">
+          <div className="min-w-0 space-y-6">
             {error ? (
               <section className={gradeCard} role="alert" aria-label="Profile unavailable">
                 <h2 className="text-xl font-bold">Profile unavailable</h2>
@@ -66,11 +66,11 @@ export function ProfilePage() {
             ) : (
               <p role="status">Loading faculty profile…</p>
             )}
+            {me.data && <PasswordSettings />}
           </div>
           {me.data && (
-            <div className="min-w-0 space-y-6">
+            <div className="min-w-0">
               <NotificationSettings owner={me.data.id} />
-              <PasswordSettings />
             </div>
           )}
         </div>
