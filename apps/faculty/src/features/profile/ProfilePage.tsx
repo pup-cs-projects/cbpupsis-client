@@ -7,6 +7,7 @@ import { facultyProfileApi, session } from "../../lib/auth";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { gradeButton, gradeCard, gradeField, gradePrimary } from "../grades/gradeStyles";
 import { useMe } from "../sign-in/useFacultyAuth";
+import { PasswordSettings } from "./PasswordSettings";
 
 const labels: Record<string, string> = {
   fullName: "Full name",
@@ -69,6 +70,7 @@ export function ProfilePage() {
           {me.data && (
             <div className="min-w-0 space-y-6">
               <NotificationSettings owner={me.data.id} />
+              <PasswordSettings />
             </div>
           )}
         </div>
@@ -212,7 +214,11 @@ function ProfileEditor({ initial, owner }: { initial: FacultyProfile; owner: str
                       className="text-brand-muted mt-2 flex items-center gap-1.5 text-xs"
                     >
                       <LockKeyhole className="size-3.5 shrink-0" aria-hidden="true" />
-                      Locked · Contact the Registrar for a records correction.
+                      Locked · Contact the Registrar via the{" "}
+                      <a className="underline" href={initial.petitionRoute}>
+                        records petition
+                      </a>
+                      .
                     </p>
                   )}
                   {errors[key] && (
