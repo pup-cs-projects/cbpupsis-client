@@ -30,13 +30,13 @@ describe("Faculty Incompletes (US-FAC-001)", () => {
   it("AC-FAC-001.5: the prepared completion form has labelled fields and no axe violations", async () => {
     await openForm();
     expect(screen.getByLabelText("Completion mark")).toBeInTheDocument();
-    expect(screen.getByLabelText("Completion form")).toBeInTheDocument();
+    expect(screen.getByLabelText("Uploaded completion form reference")).toBeInTheDocument();
     expect(
       (await axe.run(document.body, { rules: { "color-contrast": { enabled: false } } }))
         .violations,
     ).toEqual([]);
   });
-  it("AC-FAC-001.3/.5: the live adapter shows server INC deadlines and keeps filing unavailable without an upload contract", async () => {
+  it("AC-FAC-001.3/.5: the live adapter shows server INC deadlines and enables filing for pending records", async () => {
     const { called } = renderFaculty("/incompletes", {
       "GET /faculty/incompletes": {
         status: 200,
@@ -66,8 +66,7 @@ describe("Faculty Incompletes (US-FAC-001)", () => {
     });
     await screen.findByText("Carlo Cruz");
     expect(screen.getByText(/43/)).toBeInTheDocument();
-    expect(screen.getByText(/Completion filing is currently unavailable/)).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: /File completion for Carlo/ })).toBeDisabled();
+    expect(screen.getByRole("button", { name: /File completion for Carlo/ })).toBeEnabled();
     expect(called("POST /faculty/incompletes/inc-1/completion")).toHaveLength(0);
   });
   it("AC-FAC-001.5: requires a passing mark and form, then waits for Dean approval", async () => {
@@ -77,17 +76,17 @@ describe("Faculty Incompletes (US-FAC-001)", () => {
     await user.click(screen.getByRole("button", { name: "File completion request" }));
     expect(complete).not.toHaveBeenCalled();
     await user.type(screen.getByLabelText("Completion mark"), "3.25");
-    await user.upload(
-      screen.getByLabelText("Completion form"),
-      new File(["approved form"], "completion.pdf", { type: "application/pdf" }),
-    );
+    await user.type(screen.getByLabelText("Uploaded completion form reference"), "form-1");
     await user.click(screen.getByRole("button", { name: "File completion request" }));
     expect(complete).not.toHaveBeenCalled();
     await user.clear(screen.getByLabelText("Completion mark"));
     await user.type(screen.getByLabelText("Completion mark"), "2.5");
     await user.click(screen.getByRole("button", { name: "File completion request" }));
     await screen.findByText(/The recorded mark remains Inc/);
-    expect(complete).toHaveBeenCalledWith("inc-1", { mark: "2.50", form: expect.any(File) });
+    expect(complete).toHaveBeenCalledWith("inc-1", {
+      mark: "2.50",
+      completionFormFileId: "form-1",
+    });
     expect(screen.getByText("Awaiting Dean")).toBeInTheDocument();
     expect(screen.getByRole("button", { name: /File completion for Carlo/ })).toBeDisabled();
   });
@@ -98,7 +97,7 @@ describe("Faculty Incompletes (US-FAC-001)", () => {
       .mockRejectedValue(new ApiError(409, "INC_COMPLETION_WINDOW_CLOSED"));
     const { user } = await openForm(source);
     await user.type(screen.getByLabelText("Completion mark"), "2.00");
-    await user.upload(screen.getByLabelText("Completion form"), new File(["form"], "form.pdf"));
+    await user.type(screen.getByLabelText("Uploaded completion form reference"), "form-1");
     await user.click(screen.getByRole("button", { name: "File completion request" }));
     await screen.findByText("The completion period for this Inc has ended.");
     expect(screen.getByRole("button", { name: "File completion request" })).toBeDisabled();

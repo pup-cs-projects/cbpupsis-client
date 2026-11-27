@@ -27,7 +27,6 @@ export type FacultyGradingDataSource = Omit<
   ReturnType<typeof createFacultyGradingDataSource>,
   "sheet" | "saveDraft"
 > & {
-  completionAvailable?: boolean;
   sheet(id: string, signal?: AbortSignal): Promise<FacultyGradeSheet>;
   saveDraft(
     id: string,
@@ -36,5 +35,4 @@ export type FacultyGradingDataSource = Omit<
 };
 export const facultyGradingDataSource: FacultyGradingDataSource = {
   ...createFacultyGradingDataSource(facultyGradesApi, session),
-  completionAvailable: false,
 };
