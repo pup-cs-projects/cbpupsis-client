@@ -97,6 +97,11 @@ it("AC-FAC-005.4: saves one notification switch and reloads its effective state"
     ],
     "PUT /notifications/preferences": { status: 204 },
   });
+  expect(screen.getByRole("button", { name: "Notifications" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await userEvent.setup().click(screen.getByRole("button", { name: "Notifications" }));
   await user.click(await screen.findByRole("switch", { name: "Roster updated email" }));
   await screen.findByText("Notification preference saved.");
   expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false");
@@ -108,6 +113,7 @@ it("AC-FAC-005.4: saves one notification switch and reloads its effective state"
 });
 it("AC-FAC-005.4: required notices cannot be turned off", async () => {
   await open();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Notifications" }));
   expect(screen.getByRole("switch", { name: "Security notice email" })).toBeDisabled();
 });
 it("AC-FAC-005.6: rules come from the API and confirmation blocks mismatched submission", async () => {
@@ -175,6 +181,7 @@ it("AC-FAC-005.1: failed profile reads offer a retry", async () => {
 });
 it("AC-FAC-005.1/.4/.6: account settings has no axe violations", async () => {
   const { container } = await open();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Notifications" }));
   await waitFor(() =>
     expect(screen.getByRole("switch", { name: "Roster updated email" })).toBeInTheDocument(),
   );
@@ -188,6 +195,7 @@ it("AC-FAC-005.1/.5: profile permission denial leaves password and notification 
   });
   await screen.findByText(/Contact your administrator to restore profile access/);
   expect(await screen.findByLabelText("New password")).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Notifications" }));
   expect(await screen.findByRole("switch", { name: "Roster updated email" })).toBeInTheDocument();
   expect(view.called("PATCH /faculty/profile")).toHaveLength(0);
 });
