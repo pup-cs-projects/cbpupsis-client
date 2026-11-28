@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { DashboardIcon } from "./DashboardIcon";
+import { HelpSupportButton } from "./HelpSupportButton";
 
 type NavigationItem = {
   label: string;
@@ -223,7 +224,15 @@ export function DashboardLayout({
                 const submenuId = `${sidebarId}-${section.label.toLowerCase().replaceAll(" ", "-")}`;
                 return (
                   <li key={section.label}>
-                    {section.href ? (
+                    {section.href?.startsWith("mailto:") ? (
+                      <HelpSupportButton
+                        label={section.label}
+                        className={navItem + (expanded ? " gap-3 px-[18px]" : " justify-center")}
+                      >
+                        {section.icon}
+                        {expanded && <span className="text-sm font-medium">{section.label}</span>}
+                      </HelpSupportButton>
+                    ) : section.href ? (
                       <a
                         href={section.href}
                         className={navItem + (expanded ? " gap-3 px-[18px]" : " justify-center")}

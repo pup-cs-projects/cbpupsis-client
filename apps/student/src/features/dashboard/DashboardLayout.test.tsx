@@ -183,7 +183,7 @@ describe("header account menu", () => {
 
 describe("sidebar: Help & Support is pinned to the bottom", () => {
   const AXE = { rules: { "color-contrast": { enabled: false } } };
-  const HELP = "Help & Support: email portal support";
+  const HELP = "Help & Support";
 
   async function openSidebar({ expanded = false } = {}) {
     localStorage.setItem("student-sidebar-expanded", String(expanded));
@@ -220,14 +220,14 @@ describe("sidebar: Help & Support is pinned to the bottom", () => {
 
   it("sits in a footer of its own, apart from the modules and after the last of them", async () => {
     const nav = await openSidebar({ expanded: true });
-    const help = within(nav).getByRole("link", { name: HELP });
+    const help = within(nav).getByRole("button", { name: HELP });
     const forms = within(nav).getByRole("button", { name: "Forms & Requests" });
 
     // Not one of the modules: the list of modules holds Academics, Finance, and Forms only.
     const modules = within(nav).getByRole("list");
     expect(within(modules).getAllByRole("listitem")).toHaveLength(3);
     expect(modules).not.toContainElement(help);
-    expect(within(modules).queryByRole("link", { name: HELP })).not.toBeInTheDocument();
+    expect(within(modules).queryByRole("button", { name: HELP })).not.toBeInTheDocument();
     expect(forms.compareDocumentPosition(help) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
 
     // Pushed to the bottom of the nav, under a divider, and the modules scroll above it.
@@ -242,21 +242,21 @@ describe("sidebar: Help & Support is pinned to the bottom", () => {
     expect(footer.nextElementSibling).toBeNull();
   });
 
-  it("emails support, with its name and destination in words, expanded", async () => {
+  it("opens the support dialog, with its name in words, expanded", async () => {
     const nav = await openSidebar({ expanded: true });
 
-    const help = within(nav).getByRole("link", { name: HELP });
+    const help = within(nav).getByRole("button", { name: HELP });
 
-    expect(help).toHaveAttribute("href", "mailto:icto-admin@pup.edu.ph");
+    expect(help).toHaveAttribute("aria-haspopup", "dialog");
     expect(help).toHaveTextContent("Help & Support");
   });
 
   it("stays reachable by name, as an icon, when the sidebar is collapsed", async () => {
     const nav = await openSidebar({ expanded: false });
 
-    const help = within(nav).getByRole("link", { name: HELP });
+    const help = within(nav).getByRole("button", { name: HELP });
 
-    expect(help).toHaveAttribute("href", "mailto:icto-admin@pup.edu.ph");
+    expect(help).toHaveAttribute("aria-haspopup", "dialog");
     expect(help).not.toHaveTextContent("Help & Support");
     expect(help.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
     expect(help.className).toContain("min-h-11");
@@ -275,7 +275,7 @@ describe("sidebar: Help & Support is pinned to the bottom", () => {
     expect(focusables.at(-1)).toBe(HELP);
     expect(focusables.indexOf("My Schedule")).toBeLessThan(focusables.indexOf(HELP));
 
-    const help = within(nav).getByRole("link", { name: HELP });
+    const help = within(nav).getByRole("button", { name: HELP });
     for (let i = 0; i < 40 && document.activeElement !== help; i += 1) await user.tab();
     expect(help).toHaveFocus();
   });
@@ -311,7 +311,7 @@ describe("sidebar: Help & Support is pinned to the bottom", () => {
     it("shows the label beside the icon, in a full-height column with the footer outside the scroll area", async () => {
       const { drawer } = await openDrawer();
 
-      const help = within(drawer).getByRole("link", { name: HELP });
+      const help = within(drawer).getByRole("button", { name: HELP });
       const footer = help.parentElement as HTMLElement;
       const scroller = within(drawer).getByRole("list").parentElement as HTMLElement;
 
@@ -330,7 +330,7 @@ describe("sidebar: Help & Support is pinned to the bottom", () => {
 
       expect((await axe.run(document.body, AXE)).violations).toEqual([]);
 
-      within(drawer).getByRole("link", { name: HELP }).focus();
+      within(drawer).getByRole("button", { name: HELP }).focus();
       await user.keyboard("{Escape}");
 
       expect(screen.getByRole("button", { name: "Menu" })).toHaveFocus();

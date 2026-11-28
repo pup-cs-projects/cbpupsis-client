@@ -30,3 +30,6 @@ export { DashboardProfileCard } from "./components/DashboardProfileCard";
 export { ModalDialog } from "./components/ModalDialog";
 
 export { DashboardHeader } from "./components/DashboardHeader";
+
+export { NotificationsMenu, type NotificationsMenuItem } from "./components/NotificationsMenu";
+export { HelpSupportButton, SUPPORT_EMAIL } from "./components/HelpSupportButton";

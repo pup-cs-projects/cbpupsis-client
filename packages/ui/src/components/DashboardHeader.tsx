@@ -11,6 +11,7 @@ export function DashboardHeader({
   profileLink,
   passwordLink,
   notificationsLink,
+  notifications,
   signOut,
 }: {
   name: string;
@@ -18,7 +19,9 @@ export function DashboardHeader({
   identifier?: string | null;
   profileLink?: RenderLink;
   passwordLink: RenderLink;
-  notificationsLink: RenderLink;
+  notificationsLink?: RenderLink;
+  /** A bell that opens in place (NotificationsMenu); preferred over notificationsLink. */
+  notifications?: ReactNode;
   signOut: ReactNode;
 }) {
   const [open, setOpen] = useState(false);
@@ -50,16 +53,17 @@ export function DashboardHeader({
     };
   }, [open]);
   const itemClass =
-    "flex min-h-11 w-full items-center px-4 py-2 text-left text-sm text-neutral-700 hover:bg-neutral-50 focus-visible:-outline-offset-2!";
+    "flex min-h-11 w-full cursor-pointer items-center px-4 py-2 text-left text-sm text-neutral-700 transition-colors hover:bg-neutral-100 hover:text-brand-maroon focus-visible:-outline-offset-2!";
   return (
     <div className="flex shrink-0 items-center gap-1 sm:gap-2 print:hidden">
-      {notificationsLink(
-        "grid size-11 shrink-0 place-items-center rounded-full text-neutral-700 hover:bg-neutral-100",
-        <>
-          <DashboardIcon name="bell" />
-          <span className="sr-only">Notifications</span>
-        </>,
-      )}
+      {notifications ??
+        notificationsLink?.(
+          "grid size-11 shrink-0 place-items-center rounded-full text-neutral-700 hover:bg-neutral-100",
+          <>
+            <DashboardIcon name="bell" />
+            <span className="sr-only">Notifications</span>
+          </>,
+        )}
       <div ref={container} className="relative">
         <button
           ref={trigger}
