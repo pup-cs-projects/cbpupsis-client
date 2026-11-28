@@ -79,15 +79,10 @@ it("AC-FAC-001.1: maps server row validation to each student without retrying", 
   ).rejects.toHaveProperty("fields", { u1: "Invalid mark." });
   expect(client.request).toHaveBeenCalledTimes(1);
 });
-it("AC-FAC-001.4: does not send a filename or multipart to the JSON completion endpoint", async () => {
-  const client = http();
-  await expect(
-    createFacultyGradesApi(client, facultyGradesContract).complete("token", "inc1", {
-      mark: "1.50",
-      form: new File(["x"], "completion.pdf"),
-    }),
-  ).rejects.toHaveProperty("code", "INC_UPLOAD_UNAVAILABLE");
-  expect(client.request).not.toHaveBeenCalled();
+it("AC-FAC-001.5: sends the passing mark and uploaded form reference", () => {
+  expect(
+    facultyGradesContract.completionBody({ mark: "1.50", completionFormFileId: "form-1" }),
+  ).toEqual({ proposedMark: "1.50", completionFormFileId: "form-1" });
 });
 it("AC-FAC-001.5/.6: reviews list records without an unsupported detail GET and preserves the decision version", async () => {
   const client = http();

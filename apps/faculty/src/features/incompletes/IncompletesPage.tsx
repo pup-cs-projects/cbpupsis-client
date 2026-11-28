@@ -56,11 +56,6 @@ export function IncompletesPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
-        {dataSource.completionAvailable === false && (
-          <p role="status" className={gradeCard}>
-            Completion filing is currently unavailable. You can review existing INC records below.
-          </p>
-        )}
         <header>
           <p className="text-brand-muted text-sm">Academics / Grades</p>
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Incomplete grades</h1>
@@ -179,11 +174,7 @@ export function IncompletesPage({
                         <button
                           className={gradeButton}
                           aria-label={`File completion for ${item.studentName}`}
-                          disabled={
-                            dataSource.completionAvailable === false ||
-                            item.state !== "PENDING_COMPLETION" ||
-                            item.completionPending
-                          }
+                          disabled={item.state !== "PENDING_COMPLETION" || item.completionPending}
                           onClick={() => {
                             setNotice(null);
                             setSelection({ owner: me.data!.id, item });
@@ -234,7 +225,7 @@ function CompletionForm({
   onExpired: () => void;
 }) {
   const [mark, setMark] = useState("");
-  const [form, setForm] = useState<File | null>(null);
+  const [form, setForm] = useState("");
   const [fields, setFields] = useState<{ mark?: string; form?: string }>({});
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -246,15 +237,15 @@ function CompletionForm({
     const normalized = normalizeGrade(mark, true);
     const errors = {
       ...(!normalized ? { mark: "Enter a completion mark from 1.00 to 3.00." } : {}),
-      ...(!form?.size ? { form: "Attach the completion form." } : {}),
+      ...(!form.trim() ? { form: "Enter the uploaded completion form reference." } : {}),
     };
     setFields(errors);
-    if (!normalized || !form?.size) return;
+    if (!normalized || !form.trim()) return;
     running.current = true;
     setBusy(true);
     setError(null);
     try {
-      await source.complete(item.id, { mark: normalized, form });
+      await source.complete(item.id, { mark: normalized, completionFormFileId: form.trim() });
       onFiled();
     } catch (failure) {
       setError(gradingErrorMessage(failure));
@@ -299,12 +290,12 @@ function CompletionForm({
           {fields.mark}
         </p>
         <label className="mt-4 block text-sm font-medium">
-          Completion form
+          Uploaded completion form reference
           <input
             className={gradeField + " mt-2"}
-            type="file"
+            type="text"
             disabled={busy || closed}
-            onChange={(event) => setForm(event.target.files?.[0] ?? null)}
+            onChange={(event) => setForm(event.target.value)}
             aria-invalid={!!fields.form}
             aria-describedby="completion-file-error"
           />
