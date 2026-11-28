@@ -11,7 +11,7 @@ import { createFacultyGradesApi } from "@cbpupsis/shared/grades";
 import { facultyGradesContract } from "@cbpupsis/shared/grades";
 import { createFacultyProfileApi } from "@cbpupsis/shared/profile";
 import { createFacultySectionsApi } from "@cbpupsis/shared/sections/faculty";
-import { createFacultyDashboardApi } from "@cbpupsis/shared/dashboard";
+import { createFacultyDashboardApi, createNotificationsApi } from "@cbpupsis/shared/dashboard";
 
 export const apiClient = createApiClient(
   import.meta.env.VITE_API_BASE_URL || "http://localhost:8002/api/v1",
@@ -38,3 +38,10 @@ export const account: AccountConfig = {
   passwordApi,
   keepAlive: () => session.authorized(authApi.me),
 };
+
+/** The header bell: the caller's own notifications. */
+export const notificationsApi = createNotificationsApi(apiClient);
+export const loadNotifications = (signal: AbortSignal) =>
+  session.authorized((token) => notificationsApi.list(token, signal));
+export const markAllNotificationsRead = () =>
+  session.authorized((token) => notificationsApi.markAllRead(token));

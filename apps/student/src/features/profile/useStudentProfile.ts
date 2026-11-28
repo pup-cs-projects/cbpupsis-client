@@ -169,7 +169,11 @@ export function useStudentProfile() {
     async updatePersonalInfo(patch: PersonalInfoPatch): Promise<void> {
       const info = data?.personalInfo;
       const changes: ProfileUpdate = {};
-      if (normalizePhone(patch.phone) !== normalizePhone(info?.phone ?? "")) {
+      // Phone is optional. The API has no way to clear it, so an empty field sends nothing.
+      if (
+        normalizePhone(patch.phone) &&
+        normalizePhone(patch.phone) !== normalizePhone(info?.phone ?? "")
+      ) {
         changes.phone = normalizePhone(patch.phone);
       }
       if (patch.emailAddress !== info?.emailAddress) {

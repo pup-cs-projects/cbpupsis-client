@@ -2,6 +2,7 @@ import { useState, type FormEvent, type ReactNode } from "react";
 
 import { errorMessage } from "@cbpupsis/shared/api";
 import type { AddDropRequestRead } from "@cbpupsis/shared/enrollment";
+import { ModalDialog } from "@cbpupsis/ui";
 
 import "@cbpupsis/account/styles.css";
 import {
@@ -478,6 +479,7 @@ export function AddDropPage() {
   const [adds, setAdds] = useState<string[]>([]);
   const [reason, setReason] = useState("");
   const [description, setDescription] = useState("");
+  const [confirming, setConfirming] = useState(false);
   const [query, setQuery] = useState("");
   const [problem, setProblem] = useState<string | null>(null);
   const [currentTime] = useState(() => new Date().toISOString());
@@ -593,14 +595,26 @@ export function AddDropPage() {
     setProblem(null);
   }
 
+  // Checks the form, then asks the student to confirm before anything is sent.
   function submit(event: FormEvent) {
     event.preventDefault();
     if (send.isPending) return;
-    if (drops.length > 0 && !reason.trim()) {
-      setProblem("Select a reason for the courses you drop.");
+    if (!reason.trim()) {
+      setProblem("Select a reason for this request.");
+      document.getElementById("add-drop-reason")?.focus();
+      return;
+    }
+    if (!description.trim()) {
+      setProblem("Describe why you are making this request.");
+      document.getElementById("add-drop-description")?.focus();
       return;
     }
     setProblem(null);
+    setConfirming(true);
+  }
+
+  function sendRequest() {
+    if (send.isPending) return;
     send.mutate(
       {
         add: adds.map((sectionId) => ({ sectionId })),
@@ -614,6 +628,7 @@ export function AddDropPage() {
           setReason("");
           setDescription("");
         },
+        onSettled: () => setConfirming(false),
       },
     );
   }
@@ -853,11 +868,19 @@ export function AddDropPage() {
               <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-2">
                 <div className="flex flex-col gap-4">
                   <div>
-                    <label htmlFor="add-drop-reason" className="sr-only">
-                      Reason
+                    <label
+                      htmlFor="add-drop-reason"
+                      className="mb-1.5 block text-sm font-semibold text-neutral-800"
+                    >
+                      Reason{" "}
+                      <span aria-hidden="true" className="text-red-600">
+                        *
+                      </span>
                     </label>
                     <select
                       id="add-drop-reason"
+                      required
+                      aria-required="true"
                       value={reason}
                       onChange={(event) => setReason(event.target.value)}
                       className="w-full rounded-xl border border-neutral-300 bg-white px-4 py-3 text-sm focus:border-[#7B1113] focus:ring-2 focus:ring-[#7B1113]/20 focus:outline-none"
@@ -873,11 +896,19 @@ export function AddDropPage() {
                     </select>
                   </div>
                   <div>
-                    <label htmlFor="add-drop-description" className="sr-only">
-                      Description
+                    <label
+                      htmlFor="add-drop-description"
+                      className="mb-1.5 block text-sm font-semibold text-neutral-800"
+                    >
+                      Description{" "}
+                      <span aria-hidden="true" className="text-red-600">
+                        *
+                      </span>
                     </label>
                     <textarea
                       id="add-drop-description"
+                      required
+                      aria-required="true"
                       value={description}
                       onChange={(event) => setDescription(event.target.value)}
                       placeholder="Provide a detailed description to reason out this action"
@@ -951,6 +982,38 @@ export function AddDropPage() {
             </div>
           </form>
         )}
+
+        <ModalDialog
+          open={confirming}
+          title="Send this request?"
+          busy={send.isPending}
+          onClose={() => setConfirming(false)}
+        >
+          <p className="mt-4 text-sm leading-relaxed">
+            Are you sure you want to send this add or drop request for {picked}{" "}
+            {picked === 1 ? "course" : "courses"}? The approver will review it with the reason and
+            description you gave.
+          </p>
+          <div className="mt-6 flex flex-wrap justify-end gap-3">
+            <button
+              type="button"
+              data-initial-focus
+              onClick={() => setConfirming(false)}
+              disabled={send.isPending}
+              className={secondaryAction}
+            >
+              Go back
+            </button>
+            <button
+              type="button"
+              onClick={sendRequest}
+              disabled={send.isPending}
+              className={primaryAction}
+            >
+              {send.isPending ? "Sending request" : "Yes, send request"}
+            </button>
+          </div>
+        </ModalDialog>
 
         <RequestList />
       </div>

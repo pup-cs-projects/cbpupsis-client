@@ -118,7 +118,10 @@ describe("Faculty grade grid (US-FAC-001)", () => {
   it("AC-FAC-001.3: shows the Inc deadline supplied by the API without computing one", async () => {
     await openPage();
     expect(screen.getByRole("combobox", { name: /Grade for Carlo Cruz/ })).toHaveValue("INC");
-    expect(screen.getByText(/2027/, { selector: "td" })).toBeInTheDocument();
+    expect(screen.getByText(/Saved: .*2027/)).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("INC completion deadline for Carlo Cruz").getAttribute("value"),
+    ).toMatch(/^2027-/);
   });
   it("AC-FAC-001.9: disables finalize after the deadline while keeping drafts editable", async () => {
     const source = createGradingFixtureSource();

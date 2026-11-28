@@ -291,7 +291,8 @@ export function PersonalInfoSection({ info, onSave }: PersonalInfoSectionProps) 
 
   function validate(next: Draft): FieldErrors {
     const e: FieldErrors = {};
-    if (!isValidPHPhone(next.phone)) {
+    // Phone is optional: only a number that was typed in has to be a valid one.
+    if (next.phone.trim() && !isValidPHPhone(next.phone)) {
       e.phone = "Enter a valid Philippine number (e.g. +63 912 345 6789 or 09XX XXX XXXX).";
     }
     if (!isValidEmail(next.emailAddress)) {

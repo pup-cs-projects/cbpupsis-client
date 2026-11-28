@@ -17,3 +17,9 @@ export {
   type FacultyDashboardSection,
   type FacultyDashboardNotification,
 } from "./faculty";
+export {
+  createNotificationsApi,
+  parsePortalNotification,
+  type NotificationsApi,
+  type PortalNotification,
+} from "./notifications";

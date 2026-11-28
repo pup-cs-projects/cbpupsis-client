@@ -194,9 +194,15 @@ function ProfileEditor({ initial, owner }: { initial: FacultyProfile; owner: str
                   </label>
                   <input
                     id={`profile-${key}`}
-                    className={gradeField + " mt-2 read-only:bg-neutral-50"}
+                    className={
+                      gradeField +
+                      " mt-2 read-only:cursor-not-allowed read-only:bg-neutral-50 read-only:text-neutral-600 read-only:caret-transparent read-only:select-none"
+                    }
                     value={values[key] ?? ""}
                     readOnly={!field.editable}
+                    // A locked field is display only: no focus, so no text cursor.
+                    tabIndex={field.editable ? undefined : -1}
+                    onMouseDown={field.editable ? undefined : (e) => e.preventDefault()}
                     disabled={busy}
                     onChange={(e) => {
                       setValues({ ...values, [key]: e.target.value });

@@ -1,7 +1,10 @@
 import { SignOutButton } from "@cbpupsis/account";
-import { Link, useLocation, type LinkProps } from "@tanstack/react-router";
-import { Bell, ChevronDown, Search, X } from "lucide-react";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { HelpSupportButton, NotificationsMenu } from "@cbpupsis/ui";
+import { Link, useLocation, useNavigate, type LinkProps } from "@tanstack/react-router";
+import { ChevronDown, Search, X } from "lucide-react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
+
+import { loadNotifications, markAllNotificationsRead } from "../../lib/auth";
 
 import { useHeaderAvatar } from "../profile/useAvatar";
 import { useMe } from "../sign-in/queries";
@@ -111,11 +114,10 @@ const NAV_SECTIONS: NavSection[] = [
 ];
 
 // A utility link, not a module: pinned to the bottom of the sidebar, apart from the list above.
-// The same support address as the sign-in page.
+// Opens a dialog with the support address (the same one as the sign-in page).
 const HELP_LINK = {
   label: "Help & Support",
   icon: <HelpIcon />,
-  href: "mailto:icto-admin@pup.edu.ph",
 };
 
 const SIDEBAR_ID = "student-sidebar";
@@ -225,7 +227,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
 
         <div className="flex shrink-0 items-center gap-1 sm:gap-2 print:hidden">
           <SearchField />
-          <NotificationBell />
+          <NotificationsMenu
+            load={loadNotifications}
+            markAllRead={markAllNotificationsRead}
+            className="hover:text-brand-maroon relative grid size-11 cursor-pointer place-items-center rounded-full text-neutral-700 transition-colors hover:bg-neutral-100"
+          />
           <UserMenu />
         </div>
       </header>
@@ -365,9 +371,8 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
             {/* Help & Support: pinned to the bottom, set apart by a divider, in either state. */}
             <div className="mt-auto shrink-0">
               <div className="mx-3 mb-1.5 border-t border-white/15" />
-              <a
-                href={HELP_LINK.href}
-                aria-label={`${HELP_LINK.label}: email portal support`}
+              <HelpSupportButton
+                label={HELP_LINK.label}
                 className={`${navItemBase} ${expanded ? "gap-3 px-[18px]" : "justify-center"}`}
               >
                 {HELP_LINK.icon}
@@ -376,7 +381,7 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
                     {HELP_LINK.label}
                   </span>
                 )}
-              </a>
+              </HelpSupportButton>
             </div>
           </nav>
         </aside>
@@ -394,9 +399,194 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
   );
 }
 
+// What the header search can find: every student page, with the words people type for it.
+const SEARCH_TARGETS: { label: string; hint: string; to: LinkProps["to"]; keywords: string }[] = [
+  {
+    label: "Dashboard",
+    hint: "Announcements, events, activity",
+    to: "/dashboard",
+    keywords: "home dashboard announcements events activity holds",
+  },
+  {
+    label: "My Schedule",
+    hint: "Class schedule and calendar sync",
+    to: "/schedule",
+    keywords: "schedule class classes timetable calendar room time",
+  },
+  {
+    label: "My Grades",
+    hint: "Grades per term and GWA",
+    to: "/grades",
+    keywords: "grades grade gwa marks transcript inc incomplete",
+  },
+  {
+    label: "Enrollment",
+    hint: "Enroll for the term",
+    to: "/enrollment",
+    keywords: "enrollment enroll registration subjects courses term",
+  },
+  {
+    label: "Certificate of Registration",
+    hint: "View or print your COR",
+    to: "/enrollment/certificate",
+    keywords: "cor certificate registration print",
+  },
+  {
+    label: "Add or Drop Courses",
+    hint: "Forms and requests",
+    to: "/enrollment/add-drop",
+    keywords: "add drop courses subjects forms requests change load",
+  },
+  {
+    label: "Billing & Payments",
+    hint: "Balance, fees, and payments",
+    to: "/account",
+    keywords: "billing payments payment pay fees fee tuition balance account finance",
+  },
+  {
+    label: "Profile",
+    hint: "Personal information and contacts",
+    to: "/profile",
+    keywords: "profile personal information address phone emergency contact photo",
+  },
+  {
+    label: "Settings",
+    hint: "Change password and security",
+    to: "/settings",
+    keywords: "settings password change security account",
+  },
+];
+
+function searchTargets(query: string) {
+  const words = query.toLowerCase().trim().split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return SEARCH_TARGETS.filter((target) => {
+    const text = `${target.label} ${target.keywords}`.toLowerCase();
+    return words.every((word) => text.includes(word));
+  });
+}
+
+/** One search box: type a page or topic, pick a result (or press Enter) to go there. */
+function SearchBox({
+  className,
+  inputRef,
+  onDone,
+}: {
+  className: string;
+  inputRef?: RefObject<HTMLInputElement | null>;
+  onDone?: () => void;
+}) {
+  const navigate = useNavigate();
+  const listId = useId();
+  const [query, setQuery] = useState("");
+  const [active, setActive] = useState(0);
+  const [open, setOpen] = useState(false);
+  const results = searchTargets(query);
+  const showList = open && query.trim().length > 0;
+
+  function go(index: number) {
+    const target = results[index];
+    if (!target) return;
+    setQuery("");
+    setOpen(false);
+    onDone?.();
+    void navigate({ to: target.to });
+  }
+
+  return (
+    <form
+      role="search"
+      className="relative"
+      onSubmit={(event) => {
+        event.preventDefault();
+        go(active);
+      }}
+    >
+      <Search
+        aria-hidden="true"
+        className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400"
+      />
+      <input
+        ref={inputRef}
+        type="search"
+        role="combobox"
+        aria-label={SEARCH_LABEL}
+        aria-expanded={showList}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        aria-activedescendant={showList && results[active] ? `${listId}-${active}` : undefined}
+        placeholder={SEARCH_LABEL}
+        className={className}
+        value={query}
+        onChange={(event) => {
+          setQuery(event.target.value);
+          setActive(0);
+          setOpen(true);
+        }}
+        onFocus={() => setOpen(true)}
+        onBlur={() => setOpen(false)}
+        onKeyDown={(event) => {
+          if (event.key === "ArrowDown") {
+            event.preventDefault();
+            setOpen(true);
+            setActive((index) => Math.min(index + 1, Math.max(results.length - 1, 0)));
+          } else if (event.key === "ArrowUp") {
+            event.preventDefault();
+            setActive((index) => Math.max(index - 1, 0));
+          } else if (event.key === "Escape") {
+            if (query) setQuery("");
+            else onDone?.();
+          }
+        }}
+      />
+      {showList && (
+        <ul
+          id={listId}
+          role="listbox"
+          aria-label="Search results"
+          className="absolute right-0 left-0 z-50 mt-2 max-h-80 overflow-y-auto rounded-xl border border-neutral-200 bg-white py-1 shadow-lg"
+        >
+          {results.length === 0 ? (
+            <li
+              role="option"
+              aria-selected="false"
+              aria-disabled="true"
+              className="px-4 py-3 text-sm text-neutral-500"
+            >
+              No matches for "{query.trim()}"
+            </li>
+          ) : (
+            results.map((target, index) => (
+              // The input owns the keyboard (arrows and Enter); options only take the pointer.
+              // eslint-disable-next-line jsx-a11y/click-events-have-key-events
+              <li
+                key={target.label}
+                id={`${listId}-${index}`}
+                role="option"
+                aria-selected={index === active}
+                className={`cursor-pointer px-4 py-2 ${index === active ? "bg-brand-maroon/10" : "hover:bg-neutral-100"}`}
+                // Keep focus in the input so blur does not close the list before the click lands.
+                onMouseDown={(event) => event.preventDefault()}
+                onMouseEnter={() => setActive(index)}
+                onClick={() => go(index)}
+              >
+                <span className="text-brand-maroon block text-sm font-semibold">
+                  {target.label}
+                </span>
+                <span className="block text-xs text-neutral-500">{target.hint}</span>
+              </li>
+            ))
+          )}
+        </ul>
+      )}
+    </form>
+  );
+}
+
 /**
- * The search field: a plain input docked beside the bell and account menu on desktop, an icon
- * that expands into the same input, as a panel beneath the header, on narrow screens.
+ * The search field: a box docked beside the bell and account menu on desktop, an icon that
+ * expands into the same box, as a panel beneath the header, on narrow screens. It jumps to the
+ * student page that matches what was typed.
  */
 function SearchField() {
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -422,7 +612,7 @@ function SearchField() {
         type="button"
         aria-label={mobileOpen ? "Close search" : "Search"}
         aria-expanded={mobileOpen}
-        className="rounded-full p-2.5 text-neutral-700 transition-colors hover:bg-neutral-100 md:hidden"
+        className="hover:text-brand-maroon cursor-pointer rounded-full p-2.5 text-neutral-700 transition-colors hover:bg-neutral-100 md:hidden"
         onClick={() => setMobileOpen((open) => !open)}
       >
         {mobileOpen ? (
@@ -432,67 +622,20 @@ function SearchField() {
         )}
       </button>
 
-      <form
-        role="search"
-        className="relative hidden md:block"
-        onSubmit={(event) => event.preventDefault()}
-      >
-        <Search
-          aria-hidden="true"
-          className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400"
-        />
-        <input
-          type="search"
-          aria-label={SEARCH_LABEL}
-          placeholder={SEARCH_LABEL}
-          className={fieldClass}
-        />
-      </form>
+      <div className="hidden md:block">
+        <SearchBox className={fieldClass} />
+      </div>
 
       {mobileOpen && (
         <div className="border-brand-border/30 absolute inset-x-0 top-full z-20 border-b bg-white p-3 shadow-sm md:hidden">
-          <form role="search" className="relative" onSubmit={(event) => event.preventDefault()}>
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-neutral-400"
-            />
-            <input
-              ref={mobileInput}
-              type="search"
-              aria-label={SEARCH_LABEL}
-              placeholder={SEARCH_LABEL}
-              className={`${fieldClass} w-full`}
-              onKeyDown={(event) => event.key === "Escape" && closeMobile()}
-            />
-          </form>
+          <SearchBox
+            className={`${fieldClass} w-full`}
+            inputRef={mobileInput}
+            onDone={closeMobile}
+          />
         </div>
       )}
     </>
-  );
-}
-
-/**
- * The notification bell. Not built yet (no notifications API) — unavailable, never a dead
- * link — but the unread badge is ready for when there is a count to show.
- */
-function NotificationBell() {
-  const unreadCount = 0;
-
-  return (
-    <button
-      type="button"
-      aria-disabled="true"
-      title="Coming soon"
-      className="relative cursor-default rounded-full p-2.5 text-neutral-700 transition-colors hover:bg-neutral-100"
-    >
-      <Bell className="size-5" aria-hidden="true" />
-      <span className="sr-only">Notifications, coming soon</span>
-      {unreadCount > 0 && (
-        <span className="absolute top-1 right-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-600 px-1 text-[10px] font-bold text-white">
-          {unreadCount}
-        </span>
-      )}
-    </button>
   );
 }
 
@@ -608,19 +751,19 @@ function UserMenu() {
 
           <Link
             to="/profile"
-            className="focus-visible:outline-brand-crimson! block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            className="focus-visible:outline-brand-crimson! hover:text-brand-maroon block px-4 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100"
             onClick={() => setOpen(false)}
           >
             Profile
           </Link>
           <Link
             to="/settings"
-            className="focus-visible:outline-brand-crimson! block px-4 py-2 text-sm text-neutral-700 hover:bg-neutral-50"
+            className="focus-visible:outline-brand-crimson! hover:text-brand-maroon block px-4 py-2 text-sm text-neutral-700 transition-colors hover:bg-neutral-100"
             onClick={() => setOpen(false)}
           >
             Settings
           </Link>
-          <SignOutButton className="focus-visible:outline-brand-crimson! block w-full px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50">
+          <SignOutButton className="focus-visible:outline-brand-crimson! block w-full cursor-pointer px-4 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 hover:text-red-700">
             Logout
           </SignOutButton>
         </div>

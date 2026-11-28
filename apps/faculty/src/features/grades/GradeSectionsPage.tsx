@@ -1,6 +1,7 @@
 import { gradingErrorMessage } from "@cbpupsis/shared/grades";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
+import { Breadcrumb } from "../../components/Breadcrumb";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { useMe } from "../sign-in/useFacultyAuth";
 import { facultyGradingDataSource, type FacultyGradingDataSource } from "./dataSource";
@@ -24,7 +25,7 @@ export function GradeSectionsPage({
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
         <header>
-          <p className="text-brand-muted text-sm">Academics / Grades</p>
+          <Breadcrumb items={[{ label: "Grades" }, { label: "Grade Submission" }]} />
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Grade submission</h1>
           <p className="text-brand-muted mt-2 text-sm">
             Select a course and section to enter, review, and finalize its grades.

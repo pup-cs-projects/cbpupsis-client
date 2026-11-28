@@ -8,13 +8,14 @@ import {
 } from "@cbpupsis/shared/grades";
 import { ModalDialog, NotFoundPage } from "@cbpupsis/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useBlocker } from "@tanstack/react-router";
+import { useBlocker } from "@tanstack/react-router";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { rememberCourseLabel } from "../sections/courseLabels";
 import { useMe } from "../sign-in/useFacultyAuth";
 import { facultyGradingDataSource, type FacultyGradingDataSource } from "./dataSource";
-import { gradeButton, gradeCard, gradeDate, gradePrimary } from "./gradeStyles";
+import { gradeButton, gradeCard, gradeDate, gradeField, gradePrimary } from "./gradeStyles";
+import { Breadcrumb } from "../../components/Breadcrumb";
 import { GradeMarkInput } from "./GradeMarkInput";
 import { gradeDistribution, gradePolicy, type FacultyGradeSheet } from "./gradingMode";
 
@@ -54,12 +55,7 @@ export function GradesPage({
   return (
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
-        <nav aria-label="Breadcrumb" className="text-brand-muted text-sm">
-          <Link to="/grades" className="underline">
-            Grades
-          </Link>{" "}
-          / Submission
-        </nav>
+        <Breadcrumb items={[{ label: "Grades", to: "/grades" }, { label: "Grade Submission" }]} />
         <h1 className="text-brand-maroon text-3xl font-bold">Grade submission</h1>
         {error ? (
           <div role="alert" className={gradeCard}>
@@ -106,6 +102,8 @@ function GradeEditor({
     Object.fromEntries(initial.rows.map((row) => [row.studentId, row.mark ?? ""])),
   );
   const [fields, setFields] = useState<Record<string, string>>({});
+  // INC completion deadlines the faculty picked (YYYY-MM-DD, Manila), keyed by student.
+  const [deadlines, setDeadlines] = useState<Record<string, string>>({});
   const [message, setMessage] = useState<string | null>(null);
   const [failure, setFailure] = useState<string | null>(null);
   const [busy, setBusy] = useState<"save" | "finalize" | null>(null);
@@ -123,8 +121,15 @@ function GradeEditor({
   const latestSave = useRef<() => void>(() => {});
   const policy = gradePolicy(sheet);
   const readOnly = sheet.state === "FINAL" || locked;
+  const incRange = incDeadlineRange();
   const dirty =
-    !readOnly && sheet.rows.some((row) => (marks[row.studentId] ?? "") !== (row.mark ?? ""));
+    !readOnly &&
+    sheet.rows.some(
+      (row) =>
+        (marks[row.studentId] ?? "") !== (row.mark ?? "") ||
+        (policy.normalize(marks[row.studentId] ?? "") === "INC" &&
+          pickedDeadline(deadlines, row) !== null),
+    );
   const blocker = useBlocker({
     shouldBlockFn: () => dirty,
     enableBeforeUnload: dirty,
@@ -143,7 +148,12 @@ function GradeEditor({
       const raw = (marks[row.studentId] ?? "").trim();
       const mark = raw ? policy.normalize(raw) : null;
       if ((raw && !mark) || (requireAll && !mark)) errors[row.studentId] = policy.validationMessage;
-      return { studentId: row.studentId, mark };
+      const completionDeadline = mark === "INC" ? pickedDeadline(deadlines, row) : null;
+      if (completionDeadline && !incRange.allows(completionDeadline))
+        errors[row.studentId] = incRange.message;
+      return completionDeadline
+        ? { studentId: row.studentId, mark, completionDeadline }
+        : { studentId: row.studentId, mark };
     });
     setFields(errors);
     if (Object.keys(errors).length) {
@@ -226,7 +236,13 @@ function GradeEditor({
         const raw = (marks[row.studentId] ?? "").trim();
         const mark = raw ? policy.normalize(raw) : null;
         if (raw && !mark) errors[row.studentId] = policy.validationMessage;
-        return { studentId: row.studentId, mark };
+        const completionDeadline = mark === "INC" ? pickedDeadline(deadlines, row) : null;
+        const range = incDeadlineRange();
+        if (completionDeadline && !range.allows(completionDeadline))
+          errors[row.studentId] = range.message;
+        return completionDeadline
+          ? { studentId: row.studentId, mark, completionDeadline }
+          : { studentId: row.studentId, mark };
       });
       if (Object.keys(errors).length) {
         if (!automatic) {
@@ -247,8 +263,10 @@ function GradeEditor({
         });
         if (!alive.current) return;
         setSheet(saved);
-        if (revision.current === captured)
+        if (revision.current === captured) {
           setMarks(Object.fromEntries(saved.rows.map((row) => [row.studentId, row.mark ?? ""])));
+          setDeadlines({});
+        }
         setMessage(saved.savedAt ? `Draft saved at ${gradeDate(saved.savedAt)}.` : "Draft saved.");
       } catch (error) {
         await handleFailure(error);
@@ -257,7 +275,7 @@ function GradeEditor({
         if (alive.current) setBusy(null);
       }
     },
-    [blocked, dataSource, dirty, handleFailure, marks, policy, readOnly, sheet],
+    [blocked, dataSource, dirty, handleFailure, marks, policy, readOnly, sheet, deadlines],
   );
   useEffect(() => {
     latestSave.current = () => {
@@ -574,11 +592,43 @@ function GradeEditor({
                     </td>
                     {policy.mode !== "PASS_FAIL" && (
                       <td className="px-4 py-4 text-xs">
-                        {row.completionDeadline
-                          ? gradeDate(row.completionDeadline)
-                          : policy.normalize(marks[row.studentId] ?? "") === "INC"
-                            ? "Provided when the draft is saved"
-                            : "—"}
+                        {policy.normalize(marks[row.studentId] ?? "") === "INC" &&
+                        !(readOnly || blocked || !policy.ready || busy === "finalize") ? (
+                          <>
+                            <input
+                              type="date"
+                              aria-label={`INC completion deadline for ${row.studentName}`}
+                              aria-describedby={`inc-deadline-help-${index}`}
+                              min={incRange.min}
+                              max={incRange.max}
+                              value={
+                                deadlines[row.studentId] ??
+                                manilaDate(row.completionDeadline) ??
+                                incRange.max
+                              }
+                              className={gradeField + " w-44"}
+                              onChange={(event) => {
+                                revision.current++;
+                                setDeadlines((current) => ({
+                                  ...current,
+                                  [row.studentId]: event.target.value,
+                                }));
+                                setFields((current) => ({ ...current, [row.studentId]: "" }));
+                                setMessage(null);
+                              }}
+                            />
+                            <p id={`inc-deadline-help-${index}`} className="text-brand-muted mt-1">
+                              {row.completionDeadline
+                                ? `Saved: ${gradeDate(row.completionDeadline)}. `
+                                : ""}
+                              Up to one year from today.
+                            </p>
+                          </>
+                        ) : row.completionDeadline ? (
+                          gradeDate(row.completionDeadline)
+                        ) : (
+                          "—"
+                        )}
                       </td>
                     )}
                   </tr>
@@ -590,13 +640,6 @@ function GradeEditor({
           <p className="text-brand-muted py-6 text-sm">
             There are no enrolled students in this section.
           </p>
-        )}
-        {policy.mode === "NUMERIC" && (
-          <datalist id="grade-values">
-            {policy.allowedMarks.map((value) => (
-              <option value={value} key={value} />
-            ))}
-          </datalist>
         )}
       </section>
       <ModalDialog
@@ -640,4 +683,30 @@ function GradeEditor({
       </ModalDialog>
     </>
   );
+}
+
+const manilaDay = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Manila" });
+/** An instant as its Manila calendar date (YYYY-MM-DD), or null. */
+function manilaDate(value: string | null): string | null {
+  return value ? manilaDay.format(new Date(value)) : null;
+}
+/** The dates a faculty may pick for an INC: today through one year from today (Handbook). */
+function incDeadlineRange() {
+  const min = manilaDay.format(new Date());
+  const [year, month, day] = min.split("-").map(Number) as [number, number, number];
+  const max = new Date(Date.UTC(year + 1, month - 1, day)).toISOString().slice(0, 10);
+  return {
+    min,
+    max,
+    allows: (value: string) => value >= min && value <= max,
+    message: `Choose an INC completion deadline from ${min} to ${max}.`,
+  };
+}
+/** The INC deadline the faculty picked for a row, when it differs from the stored one. */
+function pickedDeadline(
+  deadlines: Record<string, string>,
+  row: { studentId: string; completionDeadline: string | null },
+): string | null {
+  const picked = deadlines[row.studentId];
+  return picked && picked !== manilaDate(row.completionDeadline) ? picked : null;
 }

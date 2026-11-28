@@ -32,7 +32,7 @@ const VERBS: Record<string, string> = {
 const TYPE_COPY: Record<string, string> = {
   LOGIN_SUCCESS: "Signed in successfully.",
   LOGOUT: "Signed out.",
-  PASSWORD_CHANGED: "Password changed.",
+  PASSWORD_CHANGED: "Password changed successfully.",
   PASSWORD_RESET: "Password reset.",
 };
 

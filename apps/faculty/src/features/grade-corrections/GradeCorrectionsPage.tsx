@@ -1,5 +1,6 @@
 import { CorrectionWorkspace } from "@cbpupsis/ui/corrections";
 import type { CorrectionSource } from "@cbpupsis/shared/grades/corrections";
+import { Breadcrumb } from "../../components/Breadcrumb";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { useMe } from "../sign-in/useFacultyAuth";
 import { correctionSource } from "./dataSource";
@@ -13,7 +14,7 @@ export function GradeCorrectionsPage({
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
         <header>
-          <p className="text-brand-muted text-sm">Academics / Grades</p>
+          <Breadcrumb items={[{ label: "Forms & Requests" }, { label: "Correction of Entry" }]} />
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Correction of Entry</h1>
           <p className="text-brand-muted mt-2 max-w-2xl text-sm">
             File a correction for a final grade and follow its approval progress.

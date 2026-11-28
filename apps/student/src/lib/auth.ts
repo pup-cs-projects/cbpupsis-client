@@ -2,7 +2,7 @@ import type { AccountConfig } from "@cbpupsis/account";
 import { createStudentAccountApi, createStudentPaymentsApi } from "@cbpupsis/shared/account";
 import { createApiClient } from "@cbpupsis/shared/api";
 import { createPasswordApi, createSession, createStudentAuthApi } from "@cbpupsis/shared/auth";
-import { createStudentDashboardApi } from "@cbpupsis/shared/dashboard";
+import { createNotificationsApi, createStudentDashboardApi } from "@cbpupsis/shared/dashboard";
 import {
   createStudentAddDropApi,
   createStudentCertificateApi,
@@ -63,3 +63,10 @@ export const account: AccountConfig = {
   passwordApi,
   keepAlive: () => session.authorized(authApi.me),
 };
+
+/** The header bell: the caller's own notifications. */
+export const notificationsApi = createNotificationsApi(apiClient);
+export const loadNotifications = (signal: AbortSignal) =>
+  session.authorized((token) => notificationsApi.list(token, signal));
+export const markAllNotificationsRead = () =>
+  session.authorized((token) => notificationsApi.markAllRead(token));
