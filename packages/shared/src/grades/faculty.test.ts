@@ -42,10 +42,10 @@ const contract: FacultyGradesContract = {
   completion: () => ({ id: "completion-1", state: "PENDING_DEAN" }),
   draftBody: (input) => ({ encodedDraft: input }),
   finalizeBody: (version) => ({ encodedVersion: version }),
-  completionBody: ({ mark, form }) => {
+  completionBody: ({ mark, completionFormFileId }) => {
     const data = new FormData();
     data.append("codecMark", mark);
-    data.append("codecFile", form);
+    data.append("codecFile", completionFormFileId);
     return data;
   },
 };
@@ -92,9 +92,9 @@ describe("Faculty grading integration boundary", () => {
   it("passes multipart field encoding to the final backend codec", async () => {
     const http = client();
     const api = createFacultyGradesApi(http, contract);
-    const form = new File(["form"], "form.pdf");
+    const form = "form-1";
     await api.incompletes("access");
-    await api.complete("access", "inc/one", { mark: "2.00", form });
+    await api.complete("access", "inc/one", { mark: "2.00", completionFormFileId: form });
     expect(http.request.mock.calls[0]?.[0]).toBe("/faculty/incompletes");
     expect(http.request.mock.calls[1]?.[0]).toBe("/faculty/incompletes/inc%2Fone/completion");
     const body = http.request.mock.calls[1]?.[1]?.body as FormData;

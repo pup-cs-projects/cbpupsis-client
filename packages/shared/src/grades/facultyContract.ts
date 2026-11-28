@@ -149,10 +149,8 @@ export const facultyGradesContract: FacultyGradesContract = {
     const row = p.record(value);
     return { id: p.string(row.completionId), state: p.literal(row.state, "PENDING_DEAN") };
   },
-  // fr004 accepts completionFormFileId as JSON, but does not expose a file upload.
-  // Never send multipart, a filename, or a fabricated reference to that endpoint.
-  completionBody() {
-    throw new ApiError(503, "INC_UPLOAD_UNAVAILABLE");
+  completionBody({ mark, completionFormFileId }) {
+    return { proposedMark: mark, completionFormFileId };
   },
 };
 function completion(value: unknown): IncompleteCompletion {
