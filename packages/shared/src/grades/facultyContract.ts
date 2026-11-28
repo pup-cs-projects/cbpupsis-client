@@ -114,7 +114,11 @@ export const facultyGradesContract: FacultyGradesContract = {
   draftBody(input) {
     return {
       version: input.version,
-      grades: input.grades.map(({ studentId, mark }) => ({ studentId, finalGrade: mark })),
+      grades: input.grades.map(({ studentId, mark, completionDeadline }) =>
+        mark === "INC" && completionDeadline
+          ? { studentId, finalGrade: mark, completionDeadline }
+          : { studentId, finalGrade: mark },
+      ),
     };
   },
   finalizeBody(version) {
