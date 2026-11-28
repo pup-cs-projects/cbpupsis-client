@@ -2,6 +2,7 @@ import { ApiError } from "@cbpupsis/shared/api";
 import { changePassword, checkPassword, meetsPolicy } from "@cbpupsis/shared/auth";
 import { ErrorAlert, Notice, PasswordChecklist } from "@cbpupsis/ui";
 import { useMutation } from "@tanstack/react-query";
+import { useNavigate, useRouter } from "@tanstack/react-router";
 import { useRef, useState, type FormEvent, type Ref } from "react";
 import { flushSync } from "react-dom";
 
@@ -117,6 +118,17 @@ export function ChangePasswordSection() {
   const [savedKey, setSavedKey] = useState(0);
   const currentInput = useRef<HTMLInputElement>(null);
   const newInput = useRef<HTMLInputElement>(null);
+  const router = useRouter();
+  const navigate = useNavigate();
+
+  // Leave without changing anything: back to the page the student came from, else the dashboard.
+  function cancel() {
+    setCurrent("");
+    setPassword("");
+    setChecked(false);
+    if (window.history.length > 1) router.history.back();
+    else void navigate({ to: "/dashboard" });
+  }
 
   // Passwords must not linger in the mutation cache.
   const change = useMutation({
@@ -211,7 +223,14 @@ export function ChangePasswordSection() {
         />
         <PasswordChecklist id="settings-new-password-rules" checks={checks} />
 
-        <div className="pt-2">
+        <div className="flex flex-wrap gap-3 pt-2">
+          <button
+            type="button"
+            onClick={cancel}
+            className="border-brand-border/60 text-brand-ink focus-visible:outline-brand-maroon min-h-11 rounded-xl border bg-white px-6 text-sm font-semibold transition-colors hover:bg-neutral-100"
+          >
+            Cancel
+          </button>
           <button
             type="submit"
             aria-disabled={change.isPending || undefined}
