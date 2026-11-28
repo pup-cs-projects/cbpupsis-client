@@ -90,9 +90,9 @@ it("links the dashboard to the section roster, grade entry, profile, and INC pag
   if (screen.queryByRole("button", { name: /Account menu/ })) {
     await user.click(screen.getByRole("button", { name: /Account menu/ }));
     expect(screen.getByRole("link", { name: "Profile" })).toHaveAttribute("href", "/profile");
-    expect(screen.getByRole("link", { name: "Notifications" })).toHaveAttribute(
-      "href",
-      "/dashboard#faculty-notifications",
+    expect(screen.getByRole("button", { name: /Open notifications/ })).toHaveAttribute(
+      "aria-expanded",
+      "false",
     );
   }
   await user.click(screen.getAllByRole("link", { name: "Open roster for COMP 001, BSCS 2-1" })[0]!);
