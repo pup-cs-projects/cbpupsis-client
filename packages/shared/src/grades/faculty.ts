@@ -55,7 +55,7 @@ export interface FacultyIncomplete {
 }
 export interface CompletionInput {
   mark: string;
-  form: File;
+  completionFormFileId: string;
 }
 export interface CompletionReceipt {
   id: string;

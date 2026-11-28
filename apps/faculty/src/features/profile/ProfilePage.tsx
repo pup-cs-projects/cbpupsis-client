@@ -1,12 +1,13 @@
 import { ApiError, errorMessage } from "@cbpupsis/shared/api";
 import type { FacultyProfile, NotificationPreference } from "@cbpupsis/shared/profile";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Bell, BriefcaseBusiness, LockKeyhole, UserRound } from "lucide-react";
+import { Bell, ChevronDown, BriefcaseBusiness, LockKeyhole, UserRound } from "lucide-react";
 import { useRef, useState, type FormEvent } from "react";
 import { facultyProfileApi, session } from "../../lib/auth";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { gradeButton, gradeCard, gradeField, gradePrimary } from "../grades/gradeStyles";
 import { useMe } from "../sign-in/useFacultyAuth";
+import { PasswordSettings } from "./PasswordSettings";
 
 const labels: Record<string, string> = {
   fullName: "Full name",
@@ -69,6 +70,7 @@ export function ProfilePage() {
           {me.data && (
             <div className="min-w-0 space-y-6">
               <NotificationSettings owner={me.data.id} />
+              <PasswordSettings />
             </div>
           )}
         </div>
@@ -212,7 +214,11 @@ function ProfileEditor({ initial, owner }: { initial: FacultyProfile; owner: str
                       className="text-brand-muted mt-2 flex items-center gap-1.5 text-xs"
                     >
                       <LockKeyhole className="size-3.5 shrink-0" aria-hidden="true" />
-                      Locked · Contact the Registrar for a records correction.
+                      Locked · Contact the Registrar via the{" "}
+                      <a className="underline" href={initial.petitionRoute}>
+                        records petition
+                      </a>
+                      .
                     </p>
                   )}
                   {errors[key] && (
@@ -252,6 +258,7 @@ function ProfileEditor({ initial, owner }: { initial: FacultyProfile; owner: str
   );
 }
 function NotificationSettings({ owner }: { owner: string }) {
+  const [expanded, setExpanded] = useState(false);
   const query = useQuery({
     queryKey: ["faculty-notifications", owner],
     queryFn: ({ signal }) =>
@@ -283,85 +290,99 @@ function NotificationSettings({ owner }: { owner: string }) {
   }
   return (
     <section className={gradeCard} aria-labelledby="notification-heading">
-      <h2 id="notification-heading" className="flex items-center gap-3 text-xl font-bold">
-        <Bell className="text-brand-maroon size-5" aria-hidden="true" />
-        Notifications
+      <h2 id="notification-heading">
+        <button
+          type="button"
+          aria-expanded={expanded}
+          aria-controls="notification-preferences"
+          onClick={() => setExpanded(!expanded)}
+          className="flex min-h-11 w-full cursor-pointer items-center gap-3 text-left text-xl font-bold"
+        >
+          <Bell className="text-brand-maroon size-5" aria-hidden="true" />
+          Notifications
+          <ChevronDown
+            aria-hidden="true"
+            className={"ml-auto size-5 " + (expanded ? "rotate-180" : "")}
+          />
+        </button>
       </h2>
-      <p className="text-brand-muted mt-2 text-sm">
-        Choose which notices you receive. Required notices stay enabled.
-      </p>
-      {query.isPending ? (
-        <p role="status" className="mt-4">
-          Loading notification preferences…
+      <div id="notification-preferences" hidden={!expanded}>
+        <p className="text-brand-muted mt-2 text-sm">
+          Choose which notices you receive. Required notices stay enabled.
         </p>
-      ) : query.error ? (
-        <div role="alert" className="mt-4">
-          <p>{errorMessage(query.error)}</p>
-          <button className={gradeButton + " mt-3"} onClick={() => void query.refetch()}>
-            Retry preferences
-          </button>
-        </div>
-      ) : !query.data.length ? (
-        <p className="mt-4">No notification preferences are available.</p>
-      ) : (
-        <ul className="mt-4 divide-y divide-neutral-200">
-          {query.data.map((item) => {
-            const key = `${item.type}:${item.channel}`;
-            return (
-              <li key={key} className="flex items-center justify-between gap-4 py-4">
-                <div className="min-w-0">
-                  <p id={`preference-${key}`} className="text-sm font-semibold break-words">
-                    {fieldLabel(item.type.replaceAll(".", " "))}
-                  </p>
-                  <p className="text-brand-muted mt-1 text-xs">
-                    {item.channel === "email" ? "Email" : "In-app"}
-                    {!item.editable ? " · Required" : ""}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={item.enabled}
-                  aria-label={`${fieldLabel(item.type.replaceAll(".", " "))} ${item.channel === "email" ? "email" : "in-app"}`}
-                  className="focus-visible:outline-brand-maroon inline-flex min-h-11 min-w-16 shrink-0 cursor-pointer items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!item.editable || !!busy}
-                  onClick={() => void toggle(item)}
-                >
-                  <span
-                    aria-hidden="true"
-                    className={
-                      "inline-flex h-7 w-12 items-center rounded-full border p-0.5 transition-colors motion-reduce:transition-none " +
-                      (item.enabled
-                        ? "border-brand-maroon bg-brand-maroon"
-                        : "border-neutral-300 bg-neutral-200")
-                    }
+        {query.isPending ? (
+          <p role="status" className="mt-4">
+            Loading notification preferences…
+          </p>
+        ) : query.error ? (
+          <div role="alert" className="mt-4">
+            <p>{errorMessage(query.error)}</p>
+            <button className={gradeButton + " mt-3"} onClick={() => void query.refetch()}>
+              Retry preferences
+            </button>
+          </div>
+        ) : !query.data.length ? (
+          <p className="mt-4">No notification preferences are available.</p>
+        ) : (
+          <ul className="mt-4 divide-y divide-neutral-200">
+            {query.data.map((item) => {
+              const key = `${item.type}:${item.channel}`;
+              return (
+                <li key={key} className="flex items-center justify-between gap-4 py-4">
+                  <div className="min-w-0">
+                    <p id={`preference-${key}`} className="text-sm font-semibold break-words">
+                      {fieldLabel(item.type.replaceAll(".", " "))}
+                    </p>
+                    <p className="text-brand-muted mt-1 text-xs">
+                      {item.channel === "email" ? "Email" : "In-app"}
+                      {!item.editable ? " · Required" : ""}
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={item.enabled}
+                    aria-label={`${fieldLabel(item.type.replaceAll(".", " "))} ${item.channel === "email" ? "email" : "in-app"}`}
+                    className="focus-visible:outline-brand-maroon inline-flex min-h-11 min-w-16 shrink-0 cursor-pointer items-center justify-center rounded-full disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={!item.editable || !!busy}
+                    onClick={() => void toggle(item)}
                   >
                     <span
+                      aria-hidden="true"
                       className={
-                        "size-5 rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none " +
-                        (item.enabled ? "translate-x-5" : "translate-x-0")
+                        "inline-flex h-7 w-12 items-center rounded-full border p-0.5 transition-colors motion-reduce:transition-none " +
+                        (item.enabled
+                          ? "border-brand-maroon bg-brand-maroon"
+                          : "border-neutral-300 bg-neutral-200")
                       }
-                    />
-                  </span>
-                  <span className="sr-only">
-                    {busy === key ? "Saving…" : item.enabled ? "On" : "Off"}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      {failure && (
-        <p role="alert" className="mt-4 text-sm text-red-700">
-          {failure} Try changing the preference again.
-        </p>
-      )}
-      {notice && (
-        <p role="status" className="mt-4 text-sm">
-          {notice}
-        </p>
-      )}
+                    >
+                      <span
+                        className={
+                          "size-5 rounded-full bg-white shadow-sm transition-transform motion-reduce:transition-none " +
+                          (item.enabled ? "translate-x-5" : "translate-x-0")
+                        }
+                      />
+                    </span>
+                    <span className="sr-only">
+                      {busy === key ? "Saving…" : item.enabled ? "On" : "Off"}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        {failure && (
+          <p role="alert" className="mt-4 text-sm text-red-700">
+            {failure} Try changing the preference again.
+          </p>
+        )}
+        {notice && (
+          <p role="status" className="mt-4 text-sm">
+            {notice}
+          </p>
+        )}
+      </div>
     </section>
   );
 }

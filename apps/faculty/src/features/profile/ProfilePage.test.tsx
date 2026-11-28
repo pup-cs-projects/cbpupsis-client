@@ -29,6 +29,10 @@ const defaults = {
     status: 200,
     body: [preference, { ...preference, notification_type: "security.notice", editable: false }],
   },
+  "GET /auth/password-policy": {
+    status: 200,
+    body: { minimumLength: 12, requiredRules: ["uppercase", "lowercase", "digit", "symbol"] },
+  },
 };
 beforeEach(() => vi.spyOn(HTMLCanvasElement.prototype, "getContext").mockReturnValue(null));
 afterEach(async () => {
@@ -40,6 +44,7 @@ afterEach(async () => {
 async function open(overrides: Parameters<typeof renderFaculty>[1] = {}) {
   const view = renderFaculty("/profile", { ...defaults, ...overrides });
   await screen.findByLabelText("Title / rank");
+  await screen.findByLabelText("New password");
   return { ...view, user: userEvent.setup() };
 }
 it("AC-FAC-005.1/.3: displays every returned profile field and marks master fields Locked", async () => {
@@ -92,6 +97,11 @@ it("AC-FAC-005.4: saves one notification switch and reloads its effective state"
     ],
     "PUT /notifications/preferences": { status: 204 },
   });
+  expect(screen.getByRole("button", { name: "Notifications" })).toHaveAttribute(
+    "aria-expanded",
+    "false",
+  );
+  await userEvent.setup().click(screen.getByRole("button", { name: "Notifications" }));
   await user.click(await screen.findByRole("switch", { name: "Roster updated email" }));
   await screen.findByText("Notification preference saved.");
   expect(screen.getByRole("switch")).toHaveAttribute("aria-checked", "false");
@@ -103,7 +113,63 @@ it("AC-FAC-005.4: saves one notification switch and reloads its effective state"
 });
 it("AC-FAC-005.4: required notices cannot be turned off", async () => {
   await open();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Notifications" }));
   expect(screen.getByRole("switch", { name: "Security notice email" })).toBeDisabled();
+});
+it("AC-FAC-005.6: rules come from the API and confirmation blocks mismatched submission", async () => {
+  const { user, called } = await open({
+    "GET /auth/password-policy": {
+      status: 200,
+      body: { minimumLength: 16, requiredRules: ["uppercase", "digit"] },
+    },
+  });
+  expect(screen.getByText(/At least 16 characters/)).toBeInTheDocument();
+  expect(screen.queryByText(/A lowercase letter/)).not.toBeInTheDocument();
+  await user.type(screen.getByLabelText("Current password"), "old-password");
+  await user.type(screen.getByLabelText("New password"), "NewPassword123456");
+  await user.type(screen.getByLabelText("Confirm new password"), "different");
+  expect(screen.getByText("The passwords do not match.")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Change password" })).toBeDisabled();
+  expect(called("POST /auth/change-password")).toHaveLength(0);
+});
+async function submitPassword(user: ReturnType<typeof userEvent.setup>) {
+  await user.type(screen.getByLabelText("Current password"), "CurrentPassword123!");
+  await user.type(screen.getByLabelText("New password"), "NewPassword123!");
+  await user.type(screen.getByLabelText("Confirm new password"), "NewPassword123!");
+  await user.click(screen.getByRole("button", { name: "Change password" }));
+}
+it.each([
+  [400, { code: "AUTH_CURRENT_PASSWORD_INCORRECT" }, "Your current password is incorrect."],
+  [
+    422,
+    { code: "AUTH_PASSWORD_TOO_WEAK", unmet_rules: ["symbol"] },
+    "Password does not meet these rules: symbol.",
+  ],
+  [423, { code: "AUTH_ACCOUNT_LOCKED", retry_after_seconds: 60 }, /Try again in \d+ seconds/],
+] as const)(
+  "AC-FAC-005.5/.6: shows password refusal %s without resubmitting",
+  async (status, body, message) => {
+    const { user, called } = await open({ "POST /auth/change-password": { status, body } });
+    await submitPassword(user);
+    await screen.findByText(message);
+    expect(called("POST /auth/change-password")).toHaveLength(1);
+    if (status === 400)
+      expect(screen.getByLabelText("Current password")).toHaveAttribute("aria-invalid", "true");
+    if (status === 423)
+      expect(screen.getByRole("button", { name: "Change password" })).toBeDisabled();
+  },
+);
+it("AC-FAC-005.5: changes the password and keeps the replacement session", async () => {
+  const { user } = await open({
+    "POST /auth/change-password": {
+      status: 200,
+      body: { access_token: "replacement", refresh_token: "new-refresh" },
+    },
+  });
+  await submitPassword(user);
+  await screen.findByText("Password changed. Other devices are signed out.");
+  expect(session.isSignedIn()).toBe(true);
+  expect(screen.getByLabelText("New password")).toHaveValue("");
 });
 it("AC-FAC-005.1: failed profile reads offer a retry", async () => {
   renderFaculty("/profile", {
@@ -113,20 +179,23 @@ it("AC-FAC-005.1: failed profile reads offer a retry", async () => {
   await userEvent.click(await screen.findByRole("button", { name: "Retry profile" }));
   await screen.findByLabelText("Full name");
 });
-it("AC-FAC-005.1/.4: account settings has no axe violations", async () => {
+it("AC-FAC-005.1/.4/.6: account settings has no axe violations", async () => {
   const { container } = await open();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Notifications" }));
   await waitFor(() =>
     expect(screen.getByRole("switch", { name: "Roster updated email" })).toBeInTheDocument(),
   );
   expect((await axe.run(container)).violations).toEqual([]);
 });
 
-it("AC-FAC-005.1: profile permission denial leaves notification settings accessible", async () => {
+it("AC-FAC-005.1/.5: profile permission denial leaves password and notification settings accessible", async () => {
   const view = renderFaculty("/profile", {
     ...defaults,
     "GET /faculty/profile": { status: 403, body: { code: "PERMISSION_DENIED" } },
   });
   await screen.findByText(/Contact your administrator to restore profile access/);
+  expect(await screen.findByLabelText("New password")).toBeInTheDocument();
+  await userEvent.setup().click(screen.getByRole("button", { name: "Notifications" }));
   expect(await screen.findByRole("switch", { name: "Roster updated email" })).toBeInTheDocument();
   expect(view.called("PATCH /faculty/profile")).toHaveLength(0);
 });
@@ -144,12 +213,4 @@ it("navigates from account settings back to Dashboard through its own sidebar li
   expect(screen.getByRole("link", { name: "Dashboard" })).toHaveAttribute("href", "/dashboard");
   await user.click(screen.getByRole("link", { name: "Dashboard" }));
   await waitFor(() => expect(router.state.location.pathname).toBe("/dashboard"));
-});
-it("AC-FAC-005.5: Change Password opens the shared change-password page, as in fr004", async () => {
-  const { user, router } = await open();
-  expect(screen.queryByLabelText("New password")).not.toBeInTheDocument();
-  const link = screen.getAllByRole("link", { name: "Change Password" })[0]!;
-  expect(link).toHaveAttribute("href", "/change-password");
-  await user.click(link);
-  await waitFor(() => expect(router.state.location.pathname).toBe("/change-password"));
 });

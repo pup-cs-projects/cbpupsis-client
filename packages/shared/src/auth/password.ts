@@ -26,10 +26,8 @@ export interface PasswordCheck {
 }
 
 /**
- * The rules POST /auth/change-password enforces today: at least 12 characters (its request
- * schema) and not the temporary password itself (its service). The API publishes these
- * nowhere a client can read them, unlike a reset link's rules, so they are mirrored here and
- * must change when the API's do.
+ * Baseline checklist for the shared first-sign-in flow. Faculty profile settings load the
+ * published server policy through `policy()` instead. The API enforces its current rules.
  */
 export const CHANGE_PASSWORD_POLICY: PasswordPolicy = { minimumLength: 12, rules: ["different"] };
 
@@ -95,6 +93,18 @@ function rename(error: unknown, code: "RESET_LINK_INVALID" | "CURRENT_PASSWORD_I
 
 export function createPasswordApi(client: ApiClient) {
   return {
+    /** Public policy published by the current account API. */
+    async policy(signal?: AbortSignal): Promise<PasswordPolicy> {
+      const data = parse.record(
+        await client.request("/auth/password-policy", { method: "GET", signal }),
+      );
+      const named = parse.array(data.requiredRules).map(parse.string);
+      if (named.some((rule) => !CHARACTER_RULES.includes(rule as CharacterRule))) parse.invalid();
+      return {
+        minimumLength: parse.positiveNumber(data.minimumLength),
+        rules: CHARACTER_RULES.filter((rule) => named.includes(rule)),
+      };
+    },
     /**
      * Always 202 with the same body, whether or not the address has an account. Returns the
      * API's confirmation sentence, to show as it is.
