@@ -34,7 +34,8 @@ export interface GradeDeadline {
 }
 export interface GradeDraftInput {
   version: number;
-  grades: { studentId: string; mark: string | null }[];
+  /** completionDeadline is an optional YYYY-MM-DD date chosen by the faculty for an INC mark. */
+  grades: { studentId: string; mark: string | null; completionDeadline?: string | null }[];
 }
 export interface GradeFinalization {
   state: "FINAL";

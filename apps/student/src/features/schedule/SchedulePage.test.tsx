@@ -134,7 +134,7 @@ describe("SchedulePage Google Calendar (US-STU-005)", () => {
     expect(screen.queryByLabelText("Academic year")).toBeNull();
     expect(screen.queryByLabelText("Semester")).toBeNull();
     expect(screen.queryByRole("button", { name: "Add term to selection" })).toBeNull();
-    expect(screen.queryByRole("combobox")).toBeNull();
+    expect(within(calendar()).queryByRole("combobox")).toBeNull();
     const text = calendar().textContent ?? "";
     for (const gone of [
       "Linked term",

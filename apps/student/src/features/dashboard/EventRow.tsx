@@ -40,27 +40,31 @@ export function EventRow({ event, scope }: EventRowProps) {
           </p>
           <p className="text-brand-muted text-xs break-words">{event.title}</p>
         </div>
-        {event.details ? (
-          <button
-            type="button"
-            className="text-brand-muted hover:text-brand-maroon grid size-11 shrink-0 place-items-center rounded-full"
-            aria-label={`More about ${event.title}`}
-            aria-expanded={open}
-            aria-controls={detailsId}
-            onClick={() => setOpen(!open)}
-          >
-            <InfoCircleIcon />
-          </button>
-        ) : (
-          <span className="text-brand-muted grid size-11 shrink-0 place-items-center">
-            <InfoCircleIcon />
-          </span>
-        )}
+        <button
+          type="button"
+          className="text-brand-muted hover:bg-brand-maroon/10 hover:text-brand-maroon grid size-11 shrink-0 cursor-pointer place-items-center rounded-full transition-colors"
+          aria-label={`More about ${event.title}`}
+          aria-expanded={open}
+          aria-controls={detailsId}
+          onClick={() => setOpen(!open)}
+        >
+          <InfoCircleIcon />
+        </button>
       </div>
-      {event.details && open && (
-        <p id={detailsId} className="text-brand-help mt-1 pb-1 text-xs leading-relaxed break-words">
-          {event.details}
-        </p>
+      {open && (
+        <div
+          id={detailsId}
+          className="border-brand-border/40 text-brand-help mt-1 mb-1 rounded-lg border bg-white px-3 py-2 text-xs leading-relaxed break-words"
+        >
+          <p className="text-brand-ink font-semibold">{event.title}</p>
+          <p>
+            {event.endsOn ? "Runs " : "On "}
+            {formatEventDates(event.startsOn, event.endsOn)}
+          </p>
+          <p className="mt-1">
+            {event.details ?? "No further details were posted for this event."}
+          </p>
+        </div>
       )}
     </li>
   );

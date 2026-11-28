@@ -4,10 +4,12 @@ import {
   DashboardIcon,
   DashboardProfileCard,
   DashboardLayout as PortalDashboardLayout,
+  NotificationsMenu,
 } from "@cbpupsis/ui";
 import { Link, useLocation } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 
+import { loadNotifications, markAllNotificationsRead } from "../../lib/auth";
 import { useMe } from "../sign-in/useFacultyAuth";
 import { useProfile } from "./queries";
 
@@ -49,13 +51,11 @@ export function DashboardLayout({ children }: { children: ReactNode }) {
               {children}
             </Link>
           )}
-          notificationsLink={(className, children) => (
-            <Link to="/dashboard" hash="faculty-notifications" className={className}>
-              {children}
-            </Link>
-          )}
+          notifications={
+            <NotificationsMenu load={loadNotifications} markAllRead={markAllNotificationsRead} />
+          }
           signOut={
-            <SignOutButton className="flex min-h-11 w-full cursor-pointer items-center px-4 py-2 text-left text-sm text-red-600 hover:bg-red-50">
+            <SignOutButton className="flex min-h-11 w-full cursor-pointer items-center px-4 py-2 text-left text-sm text-red-600 transition-colors hover:bg-red-50 hover:text-red-700">
               Logout
             </SignOutButton>
           }

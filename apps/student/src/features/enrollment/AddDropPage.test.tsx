@@ -1,7 +1,7 @@
 import { mockApi } from "@cbpupsis/account/testing";
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { session } from "../../lib/auth";
 import { expectNoA11yViolations } from "../../test/axe";
@@ -152,7 +152,32 @@ async function pickChanges(user: ReturnType<typeof userEvent.setup>) {
   const add = await screen.findByRole("button", { name: "Add COSC 304" });
   add.focus();
   await user.keyboard(" ");
+  await user.type(screen.getByRole("textbox", { name: "Description" }), "Conflicts with my work.");
 }
+
+/** Press Send request, then confirm in the dialog that asks first. */
+async function sendRequest(user: ReturnType<typeof userEvent.setup>) {
+  await user.click(screen.getByRole("button", { name: "Send request" }));
+  await user.click(await screen.findByRole("button", { name: "Yes, send request" }));
+}
+
+beforeAll(() => {
+  // jsdom has no modal dialogs; the confirmation only needs to open and close.
+  Object.defineProperties(HTMLDialogElement.prototype, {
+    showModal: {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.setAttribute("open", "");
+      },
+    },
+    close: {
+      configurable: true,
+      value: function (this: HTMLDialogElement) {
+        this.removeAttribute("open");
+      },
+    },
+  });
+});
 
 afterEach(() => {
   session.signOut();
@@ -199,14 +224,14 @@ describe("AddDropPage (US-ENRL-004)", () => {
     });
 
     await pickChanges(user);
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    await sendRequest(user);
 
     expect(await screen.findByText("Request sent. Status: Pending.")).toBeInTheDocument();
     expect(api.called(CREATE_ROUTE)).toHaveLength(1);
     expect(api.called(CREATE_ROUTE)[0].body).toEqual({
       add: [{ sectionId: AI }],
       drop: [{ sectionId: WEBDEV, reason: "Schedule Conflict" }],
-      comments: null,
+      comments: "Conflicts with my work.",
     });
     await user.click(screen.getByRole("tab", { name: /^Currently Enrolled/ }));
     expect(screen.getByText("Pending drop")).toBeInTheDocument();
@@ -225,9 +250,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     await user.click(await screen.findByRole("button", { name: "Drop COMP 016" }));
     await user.click(screen.getByRole("button", { name: "Send request" }));
 
-    expect(screen.getByRole("alert")).toHaveTextContent(
-      "Select a reason for the courses you drop.",
-    );
+    expect(screen.getByRole("alert")).toHaveTextContent("Select a reason for this request.");
     expect(api.called(CREATE_ROUTE)).toHaveLength(0);
   });
 
@@ -261,7 +284,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     });
 
     await pickChanges(user);
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    await sendRequest(user);
 
     expect(
       await screen.findByRole("heading", { name: "Add and drop is closed" }),
@@ -284,7 +307,7 @@ describe("AddDropPage (US-ENRL-004)", () => {
     });
 
     await pickChanges(user);
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    await sendRequest(user);
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
       "This drop leaves you under the 12-unit minimum.",
@@ -305,7 +328,9 @@ describe("AddDropPage (US-ENRL-004)", () => {
 
     await user.click(await screen.findByRole("tab", { name: /^Available Courses/ }));
     await user.click(await screen.findByRole("button", { name: "Add COSC 304" }));
-    await user.click(screen.getByRole("button", { name: "Send request" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Reason" }), "Schedule Conflict");
+    await user.type(screen.getByRole("textbox", { name: "Description" }), "Needed for my thesis.");
+    await sendRequest(user);
 
     expect(await screen.findByRole("alert")).toHaveTextContent("COSC 304 needs COSC 201 first.");
     expect(api.called(CREATE_ROUTE)).toHaveLength(1);

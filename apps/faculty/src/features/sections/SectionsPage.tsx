@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { facultySectionsApi, session } from "../../lib/auth";
+import { Breadcrumb } from "../../components/Breadcrumb";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { gradeButton, gradeCard } from "../grades/gradeStyles";
 import { useMe } from "../sign-in/useFacultyAuth";
@@ -25,7 +26,7 @@ export function SectionsPage() {
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
         <header>
-          <p className="text-brand-muted text-sm">Academics / Courses</p>
+          <Breadcrumb items={[{ label: "Academics" }, { label: "Assigned sections" }]} />
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Assigned sections</h1>
           <p className="text-brand-muted mt-2">
             View your assigned courses and sections. Open a class roster or enter grades.

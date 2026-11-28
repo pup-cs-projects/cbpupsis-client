@@ -7,6 +7,7 @@ import {
 import { ModalDialog } from "@cbpupsis/ui";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRef, useState, type FormEvent } from "react";
+import { Breadcrumb } from "../../components/Breadcrumb";
 import { DashboardLayout } from "../dashboard/DashboardLayout";
 import { facultyGradingDataSource, type FacultyGradingDataSource } from "../grades/dataSource";
 import { gradeButton, gradeCard, gradeDate, gradeField, gradePrimary } from "../grades/gradeStyles";
@@ -57,7 +58,7 @@ export function IncompletesPage({
     <DashboardLayout>
       <div className="space-y-6 px-4 py-8 sm:px-8">
         <header>
-          <p className="text-brand-muted text-sm">Academics / Grades</p>
+          <Breadcrumb items={[{ label: "Grades" }, { label: "Incomplete grades" }]} />
           <h1 className="text-brand-maroon mt-2 text-3xl font-bold">Incomplete grades</h1>
           <p className="text-brand-muted mt-2 max-w-2xl text-sm leading-relaxed">
             Review completion deadlines and file a completion for Dean endorsement. The recorded Inc

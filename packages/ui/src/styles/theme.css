@@ -66,3 +66,10 @@ button:disabled {
   --color-brand-crimson: #7b1113;
   --color-brand-crimson-dark: #630e10;
 }
+
+/* Edge and IE draw their own reveal and clear buttons in password fields. Every portal has its
+   own show/hide toggle, so the native one would show a second eye. */
+input[type="password"]::-ms-reveal,
+input[type="password"]::-ms-clear {
+  display: none;
+}
